@@ -1,0 +1,20 @@
+substitutions:
+  device_name: status-display
+  friendly_name: "Status Display"
+
+packages:
+  base: !include packages/base.yaml
+  hardware: !include packages/display_hardware.yaml
+  sensors: !include packages/sensors.yaml
+  fonts: !include packages/fonts.yaml
+
+esphome:
+  includes:
+    - includes/state_manager.h
+    - includes/dial.h
+    - includes/icon_bar.h
+    - includes/notification.h
+    - includes/diagram.h
+    - includes/display_renderer.h
+
+# Globals are now in includes/state_manager.h

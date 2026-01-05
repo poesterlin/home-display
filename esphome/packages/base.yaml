@@ -1,0 +1,39 @@
+esphome:
+  name: ${device_name}
+  on_boot:
+    priority: 800
+    then:
+      - lambda: |-
+          gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+          gpio_set_level(GPIO_NUM_2, 0);
+          vTaskDelay(pdMS_TO_TICKS(20));
+          gpio_set_level(GPIO_NUM_2, 1);
+          vTaskDelay(pdMS_TO_TICKS(100));
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "MagentaWLAN-Z6R0"
+  password: "64991015981245893466"
+  
+  ap:
+    ssid: "${device_name} Fallback"
+    password: "password"
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  - platform: esphome
+    password: ""
+
+time:
+  - platform: sntp
+    id: sntp_time

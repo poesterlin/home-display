@@ -1,0 +1,56 @@
+# Hardware Configuration
+# Based on ESP32-S3-DevKitC-1 with ST7789V display
+
+i2c:
+  id: touch_i2c
+  frequency: 50kHz
+  sda: GPIO1
+  scl:
+    number: GPIO3
+    ignore_strapping_warning: true
+  scan: True
+
+spi:
+  id: spi_lcd
+  clk_pin: GPIO40
+  mosi_pin:
+    number: 45
+    ignore_strapping_warning: True
+  interface: hardware
+
+output:
+  - platform: ledc
+    pin: GPIO5
+    frequency: 1220Hz
+    channel: 0
+    id: backlight_pwm
+
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+    gamma_correct: 2.8
+    initial_state:
+      brightness: 100%
+
+display:
+  - platform: ili9xxx
+    model: ST7789V
+    id: main_display
+    dc_pin: GPIO41
+    reset_pin: GPIO39
+    cs_pin: GPIO42
+    spi_id: spi_lcd
+    invert_colors: true
+    color_order: bgr
+    update_interval: 100ms
+    auto_clear_enabled: true
+    data_rate: 20MHz
+    rotation: 0
+    dimensions:
+      width: 240
+      height: 320
+    lambda: |-
+      renderDisplay(it);
