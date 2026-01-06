@@ -1,5 +1,11 @@
 #pragma once
 #include "esphome.h"
+
+// Audio Feedback Flags (Global to avoid circular dependencies)
+inline volatile bool gPendingSwipeSound = false;
+inline volatile bool gPendingTapSound = false;
+inline volatile bool gPendingNotificationSound = false;
+
 #include "light_element.h"
 
 // --- NAVIGATION STATE ---
@@ -158,6 +164,7 @@ inline DisplayState gState;
 void nextPage() {
   if (gState.currentView == VIEW_MAIN_DASHBOARD) {
     gState.mainPageIndex = (gState.mainPageIndex + 1) % gState.totalMainPages;
+    gPendingSwipeSound = true;
   }
   gState.lastTouchTime = millis();
 }
@@ -165,6 +172,7 @@ void nextPage() {
 void prevPage() {
   if (gState.currentView == VIEW_MAIN_DASHBOARD) {
     gState.mainPageIndex = (gState.mainPageIndex - 1 + gState.totalMainPages) % gState.totalMainPages;
+    gPendingSwipeSound = true;
   }
   gState.lastTouchTime = millis();
 }

@@ -25,6 +25,20 @@ output:
     channel: 0
     id: backlight_pwm
 
+i2s_audio:
+  - i2s_lrclk_pin: ${i2s_lrclk_pin}
+    i2s_bclk_pin: ${i2s_bclk_pin}
+
+speaker:
+  - platform: i2s_audio
+    id: display_speaker
+    i2s_dout_pin: ${i2s_dout_pin}
+    dac_type: external
+
+rtttl:
+  speaker: display_speaker
+  id: swipe_buzzer
+
 light:
   - platform: monochromatic
     output: backlight_pwm

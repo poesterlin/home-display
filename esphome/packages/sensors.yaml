@@ -168,7 +168,11 @@ text_sensor:
     entity_id: input_text.display_notification
     internal: true
     on_value:
-      - lambda: "gState.notificationBody = x;"
+      - lambda: |-
+          if (x != gState.notificationBody && !x.empty()) {
+            gPendingNotificationSound = true;
+          }
+          gState.notificationBody = x;
 
   - platform: homeassistant
     id: ha_notification_severity
@@ -319,6 +323,23 @@ interval:
             TouchHandler::handleTouch(last_x, last_y, false);
           }
 
+          // Sound handling moved here for lower latency (16ms vs 50ms)
+          if (gPendingSwipeSound) {
+            gPendingSwipeSound = false;
+            id(display_speaker).set_volume(0.7);
+            id(swipe_buzzer).play("click:d=32,o=4,b=100:c");
+          }
+          if (gPendingTapSound) {
+            gPendingTapSound = false;
+            id(display_speaker).set_volume(0.7);
+            id(swipe_buzzer).play("tap:d=32,o=4,b=100:e");
+          }
+          if (gPendingNotificationSound) {
+            gPendingNotificationSound = false;
+            id(display_speaker).set_volume(0.9);
+            id(swipe_buzzer).play("notif:d=16,o=4,b=100:g,e");
+          }
+
   - interval: 1s
     then:
       - lambda: |- 
@@ -331,7 +352,7 @@ interval:
             setPage(0);
           }
 
-  - interval: 200ms
+  - interval: 50ms
     then:
       - lambda: |-
           if (gState.vacuumActionRequested) {

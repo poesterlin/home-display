@@ -15,6 +15,9 @@ esp32:
   framework:
     type: esp-idf
 
+psram:
+  mode: octal
+
 wifi:
   ssid: "MagentaWLAN-Z6R0"
   password: "64991015981245893466"

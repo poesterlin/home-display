@@ -28,6 +28,7 @@ public:
       loading = true;
       actionRequested = true;
       loadingStartTime = millis();
+      gPendingTapSound = true;
       return true;
     }
     return false;
