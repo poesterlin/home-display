@@ -73,6 +73,18 @@ public:
 
 private:
   static void handleTap(int x, int y) {
+    // 0. Notification Interception
+    if (!gState.notificationBody.empty()) {
+      ESP_LOGI("touch", "Notification active, checking dismiss button at %d,%d", x, y);
+      if (gState.notificationDismissBtn.processTap(x, y, gState.notificationLoading, gState.notificationLoadingStartTime, gState.notificationActionRequested)) {
+        ESP_LOGI("touch", "Notification DISMISS pressed!");
+        return;
+      }
+      ESP_LOGI("touch", "Notification active, but missed dismiss button");
+      // If notification is showing, we block other taps
+      return;
+    }
+
     if (gState.currentView == VIEW_MAIN_DASHBOARD) {
       
       // Page 0: Status Page

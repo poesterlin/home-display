@@ -207,7 +207,4 @@ The touchscreen I2C parsing in `sensors.yaml` (lines 226-257) is extremely sensi
 If you need to debug touch issues, add logging ONLY - do not change the parsing logic itself. This configuration is non-negotiable.
 
 ## Testing
-- Use `esphome config` to validate YAML syntax
-- Test with `esphome run` before uploading to device
-- Check logs via ESPHome dashboard or serial monitor
-- Verify touch calibration and responsiveness
+- Use `esphome config` or `esphome compile` to validate YAML syntax

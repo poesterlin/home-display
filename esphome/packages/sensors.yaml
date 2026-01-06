@@ -156,6 +156,27 @@ text_sensor:
     on_value: 
       - lambda: "gState.todos[2].isOverdue = (x == \"True\");"
 
+  - platform: homeassistant
+    id: ha_notification_title
+    entity_id: input_text.display_notification_title
+    internal: true
+    on_value:
+      - lambda: "gState.notificationTitle = x;"
+
+  - platform: homeassistant
+    id: ha_notification_body
+    entity_id: input_text.display_notification
+    internal: true
+    on_value:
+      - lambda: "gState.notificationBody = x;"
+
+  - platform: homeassistant
+    id: ha_notification_severity
+    entity_id: input_select.display_notification_severity
+    internal: true
+    on_value:
+      - lambda: "gState.notificationSeverity = x;"
+
 binary_sensor:
   - platform: homeassistant
     id: window_wohnzimmer
@@ -353,6 +374,13 @@ interval:
             id(toggle_grosse_led).execute();
           }
 
+          // Notification Actions
+          if (gState.notificationActionRequested) {
+            ESP_LOGI("main", "Notification action requested, executing script");
+            gState.notificationActionRequested = false;
+            id(clear_notification).execute();
+          }
+
 script:
   - id: call_vacuum_start
     then:
@@ -415,3 +443,22 @@ script:
           service: switch.toggle
           data:
             entity_id: switch.grosse_led_switch
+
+  - id: clear_notification
+    then:
+      - lambda: ESP_LOGI("main", "Clearing notification entities in HA");
+      - homeassistant.service:
+          service: input_text.set_value
+          data:
+            entity_id: input_text.display_notification
+            value: ""
+      - homeassistant.service:
+          service: input_text.set_value
+          data:
+            entity_id: input_text.display_notification_title
+            value: ""
+      - homeassistant.service:
+          service: input_select.select_option
+          data:
+            entity_id: input_select.display_notification_severity
+            option: "info"

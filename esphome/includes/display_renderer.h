@@ -2,6 +2,7 @@
 #include "esphome.h"
 #include "state_manager.h"
 #include "dial.h"
+#include "notification.h"
 #include <cmath>
 
 // Forward declare fonts
@@ -590,5 +591,23 @@ void renderDisplay(display::Display& it) {
       case VIEW_DETAIL_LIGHTS: renderDetail_Lights(it); break;
       default: break;
     }
+  }
+
+  // Notification Overlay
+  if (!gState.notificationBody.empty()) {
+    NotificationRenderer::draw(
+      it, 
+      gState.notificationSeverity,
+      gState.notificationTitle,
+      gState.notificationBody,
+      font_medium, font_small
+    );
+
+    // Full-width clean dismiss button at bottom
+    gState.notificationDismissBtn.x = 20;
+    gState.notificationDismissBtn.y = 250;
+    gState.notificationDismissBtn.w = 200;
+    gState.notificationDismissBtn.h = 45;
+    gState.notificationDismissBtn.draw(it, "DISMISS", C_WHITE, gState.notificationLoading, gState.notificationLoadingStartTime, 1000, font_small);
   }
 }

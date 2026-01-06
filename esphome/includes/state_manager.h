@@ -122,6 +122,15 @@ struct DisplayState {
     bool hasData;
   } todos[3];
 
+  // --- NOTIFICATIONS ---
+  std::string notificationTitle = "";
+  std::string notificationBody = "";
+  std::string notificationSeverity = "info"; // info, warn, alert, question
+  volatile bool notificationLoading = false;
+  unsigned long notificationLoadingStartTime = 0;
+  volatile bool notificationActionRequested = false;
+  Button notificationDismissBtn = Button(20, 240, 200, 50);
+
   // --- UI HELPERS ---
   
   int getOpenWindowCount() {
