@@ -51,15 +51,23 @@ void drawCommonHeader(display::Display& it) {
   it.line(0, 0, 0, 320, C_DIMMER);
   it.line(239, 0, 239, 320, C_DIMMER);
 
-  // Time Section
+  // Time & Date Section
   auto time_now = sntp_time->now();
   if (time_now.is_valid()) {
     it.printf(10, 10, font_medium, C_WHITE, TextAlign::TOP_LEFT, "%02d:%02d", 
               time_now.hour, time_now.minute);
     it.printf(75, 12, font_tiny, C_DIM, TextAlign::TOP_LEFT, ":%02d", time_now.second);
+
+    const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+    const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", 
+                            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+    int dayIdx = time_now.day_of_week - 1;
+    if(dayIdx < 0) dayIdx = 0;
+    
+    it.printf(230, 12, font_tiny, C_DIM, TextAlign::TOP_RIGHT, "%s %02d %s", 
+              days[dayIdx], time_now.day_of_month, months[time_now.month-1]);
   }
   
-  it.printf(230, 12, font_tiny, C_GREEN, TextAlign::TOP_RIGHT, "SYS_NOMINAL");
   it.line(10, 35, 230, 35, C_DIM);
 }
 
@@ -87,76 +95,115 @@ void drawDetailHeader(display::Display& it, const char* title) {
 
 // --- PAGE 0: STATUS ---
 
-void drawTodoItem(display::Display& it, int y, const DisplayState::TodoItem& item) {
-  if (item.hasData && !item.title.empty() && item.title != "No tasks") {
-    it.printf(25, y, font_small, C_CYAN, TextAlign::TOP_LEFT, "[ ]");
-    
-    int text_offset = 55;
-    int max_w = 170;
-    
-    if (item.due != "none" && !item.due.empty()) {
-       Color date_color = item.isOverdue ? C_RED : C_AMBER;
-       it.printf(55, y + 2, font_tiny, date_color, TextAlign::TOP_LEFT, "%s", item.due.c_str());
-       text_offset = 100;
-       max_w = 125;
-    }
-
-    ScrollingText::draw(it, text_offset, y, max_w, item.title, font_small, C_WHITE);
-
-  } else if (y == 178) { // Only show "Empty" for the first slot if it's empty
-     it.printf(120, y, font_tiny, C_DIMMER, TextAlign::CENTER, "LIST EMPTY");
-  }
-}
-
 void renderPage0_Status(display::Display& it) {
-  auto time_now = sntp_time->now();
+  // --- ENVIRONMENT BAR ---
+  drawRetroBox(it, 10, 40, 220, 30, nullptr, C_CYAN);
   
-  // Date & System ID
-  if (time_now.is_valid()) {
-    const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-    const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", 
-                            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-    int dayIdx = time_now.day_of_week - 1;
-    if(dayIdx < 0) dayIdx = 0;
-    
-    it.printf(10, 42, font_tiny, C_DIM, TextAlign::TOP_LEFT, "ID: HD-D01 // %s %02d %s", 
-              days[dayIdx], time_now.day_of_month, months[time_now.month-1]);
-  }
-  
-  // --- ENVIRONMENT BOX ---
-  drawRetroBox(it, 10, 65, 220, 75, "ENVIRONS", C_CYAN);
-  
-  auto drawMetric = [&](int x, const char* label, float val, const char* unit, Color c) {
-    it.printf(x, 82, font_tiny, C_DIM, TextAlign::CENTER, "%s", label);
+  auto drawMetric = [&](int x, float val, const char* unit, Color c) {
     if (val != 0)
-      it.printf(x, 105, font_small, c, TextAlign::CENTER, "%.0f%s", val, unit);
+      it.printf(x, 55, font_small, c, TextAlign::CENTER, "%.0f%s", val, unit);
     else
-      it.printf(x, 105, font_small, C_DIMMER, TextAlign::CENTER, "--");
+      it.printf(x, 55, font_small, C_DIMMER, TextAlign::CENTER, "--");
   };
 
-  drawMetric(45, "OUT", gState.outsideTemp, "C", C_CYAN);
-  drawMetric(95, "IN", gState.indoorTemp, "C", C_AMBER);
+  drawMetric(40, gState.outsideTemp, "C", C_CYAN);
+  drawMetric(90, gState.avgTemp, "C", C_AMBER);
+  drawMetric(140, gState.avgHumidity, "%", C_DIM);
   
   Color co2_color = gState.co2 < 800 ? C_GREEN : (gState.co2 < 1200 ? C_AMBER : C_RED);
-  drawMetric(145, "CO2", gState.co2, "", co2_color);
-  
-  it.printf(195, 82, font_tiny, C_DIM, TextAlign::CENTER, "PRSC");
-  it.filled_circle(195, 105, 6, gState.occupancyRadar ? C_GREEN : C_DIMMER);
+  drawMetric(195, gState.co2, "", co2_color);
 
-  // Windows Alert within Environs box if active
+  // Windows Alert below bar
   int open_count = gState.getOpenWindowCount();
   if (open_count > 0) {
-    it.printf(120, 122, font_tiny, C_RED, TextAlign::CENTER, "!! %d WINDOWS OPEN !!", open_count);
+    it.printf(120, 80, font_tiny, C_RED, TextAlign::CENTER, "!! %d WINDOWS OPEN !!", open_count);
   }
 
-  // --- LOGISTICS BOX (TO-DO) ---
-  drawRetroBox(it, 10, 155, 220, 95, "LOGISTICS", C_AMBER);
-  drawTodoItem(it, 172, gState.todos[0]);
-  drawTodoItem(it, 194, gState.todos[1]);
-  drawTodoItem(it, 216, gState.todos[2]);
+  // --- LOGISTICS BOX (TO-DO PREVIEW) ---
+  gState.todoDetailBtn.draw(it, "", C_AMBER, gState.todoDetailLoading, gState.todoDetailLoadingStartTime, 0, font_tiny, 0, nullptr);
+  
+  auto drawPreviewItems = [&](int startY) {
+    int ty = startY;
+    int count = 0;
+    
+    // Helper to draw from a list string
+    auto drawFromList = [&](std::string listStr, Color checkColor) {
+      size_t pos = 0;
+      while (((pos = listStr.find("\n")) != std::string::npos || !listStr.empty()) && count < 5) {
+        std::string line;
+        if (pos != std::string::npos) {
+          line = listStr.substr(0, pos);
+          listStr.erase(0, pos + 1);
+        } else {
+          line = listStr;
+          listStr.clear();
+        }
+
+        // Trim line
+        size_t first = line.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) continue;
+        size_t last = line.find_last_not_of(" \t\r\n");
+        line = line.substr(first, (last - first + 1));
+
+        if (line.empty() || line == "LIST EMPTY") continue;
+
+        // Preview Parsing (Original Formatting)
+        size_t p1 = line.find("|");
+        std::string summary = line;
+        std::string due = "";
+        bool overdue = false;
+        if (p1 != std::string::npos) {
+            summary = line.substr(0, p1);
+            std::string rest = line.substr(p1 + 1);
+            size_t p2 = rest.find("|");
+            if (p2 != std::string::npos) {
+                due = rest.substr(0, p2);
+                std::string ovrStr = rest.substr(p2 + 1);
+                overdue = (ovrStr.find("overdue") != std::string::npos);
+            } else {
+                due = rest;
+            }
+        }
+
+        // Trim summary and due
+        auto trimS = [](std::string& s) {
+            size_t f = s.find_first_not_of(" \t\r\n");
+            if (f == std::string::npos) { s = ""; return; }
+            size_t l = s.find_last_not_of(" \t\r\n");
+            s = s.substr(f, (l - f + 1));
+        };
+        trimS(summary);
+        trimS(due);
+        if (summary.empty()) continue;
+
+        it.printf(25, ty, font_small, checkColor, TextAlign::TOP_LEFT, "[ ]");
+
+        
+        int textX = 55;
+        int textWidth = 170;
+        if (due != "none" && !due.empty()) {
+            Color dColor = overdue ? C_RED : C_AMBER;
+            it.printf(55, ty + 2, font_tiny, dColor, TextAlign::TOP_LEFT, "%s", due.c_str());
+            textX = 100;
+            textWidth = 125;
+        }
+        ScrollingText::draw(it, textX, ty, textWidth, summary, font_small, C_WHITE);
+        ty += 22;
+        count++;
+      }
+    };
+
+    drawFromList(gState.todoListFormatted, C_AMBER);
+
+    if (count == 0) {
+      it.printf(120, ty + 22, font_tiny, C_DIMMER, TextAlign::CENTER, "LIST EMPTY");
+    }
+  };
+
+  drawPreviewItems(105);
 
   // --- HARDWARE STATUS (BADGES) ---
-  drawRetroBox(it, 10, 265, 220, 40, "ACTIVE_SUBSYSTEMS", C_DIM);
+  drawRetroBox(it, 10, 260, 220, 40, nullptr, C_DIM);
   
   int badge_x = 20;
   int badge_y = 278;
@@ -197,37 +244,35 @@ void renderPage0_Status(display::Display& it) {
 // --- PAGE 1: CLIMATE ---
 
 void renderPage1_Climate(display::Display& it) {
-  it.printf(10, 42, font_tiny, C_DIM, TextAlign::TOP_LEFT, "SUBSYSTEM: ENVIRONMENT_MONITOR");
-  
   // --- AIR QUALITY BOX ---
-  drawRetroBox(it, 10, 60, 220, 110, "AIR_QUALITY", C_GREEN);
+  drawRetroBox(it, 10, 40, 220, 110, "AIR_QUALITY", C_GREEN);
   
   float co2_val = gState.co2;
   Color co2_color = co2_val < 800.0f ? C_GREEN : (co2_val < 1200.0f ? C_AMBER : C_RED);
   
-  it.printf(30, 85, font_tiny, C_DIM, TextAlign::TOP_LEFT, "CO2 CONCENTRATION");
-  it.printf(30, 105, font_large, co2_color, TextAlign::TOP_LEFT, "%.0f", co2_val);
-  it.printf(110, 120, font_tiny, C_DIM, TextAlign::TOP_LEFT, "PPM");
+  it.printf(30, 65, font_tiny, C_DIM, TextAlign::TOP_LEFT, "CO2 CONCENTRATION");
+  it.printf(30, 85, font_large, co2_color, TextAlign::TOP_LEFT, "%.0f", co2_val);
+  it.printf(110, 100, font_tiny, C_DIM, TextAlign::TOP_LEFT, "PPM");
 
   // Retro bar gauge
-  it.rectangle(30, 140, 180, 10, C_DIMMER);
+  it.rectangle(30, 120, 180, 10, C_DIMMER);
   float mapped = (co2_val - 400.0f) / 1600.0f;
   if (mapped < 0) mapped = 0; if (mapped > 1) mapped = 1;
-  it.filled_rectangle(32, 142, (int)(mapped * 176), 6, co2_color);
+  it.filled_rectangle(32, 122, (int)(mapped * 176), 6, co2_color);
   
   // --- THERMAL DYNAMICS BOX ---
-  drawRetroBox(it, 10, 185, 220, 115, "THERMAL_DYNAMICS", C_AMBER);
+  drawRetroBox(it, 10, 165, 220, 115, "THERMAL_DYNAMICS", C_AMBER);
   
   auto drawReadout = [&](int x, int y, const char* label, float val, const char* unit, Color c) {
     it.printf(x, y, font_tiny, C_DIM, TextAlign::TOP_LEFT, "%s", label);
     it.printf(x, y + 15, font_medium, c, TextAlign::TOP_LEFT, "%.1f%s", val, unit);
   };
 
-  drawReadout(30, 210, "INDOOR_TEMP", gState.indoorTemp, "C", C_AMBER);
-  drawReadout(130, 210, "INDOOR_HUM", gState.indoorHumidity, "%", C_DIM);
+  drawReadout(30, 190, "INDOOR_TEMP", gState.indoorTemp, "C", C_AMBER);
+  drawReadout(130, 190, "INDOOR_HUM", gState.indoorHumidity, "%", C_DIM);
   
-  drawReadout(30, 255, "OUTDOOR_TEMP", gState.outsideTemp, "C", C_CYAN);
-  drawReadout(130, 255, "OUTDOOR_HUM", gState.outsideHumidity, "%", C_DIM);
+  drawReadout(30, 235, "OUTDOOR_TEMP", gState.outsideTemp, "C", C_CYAN);
+  drawReadout(130, 235, "OUTDOOR_HUM", gState.outsideHumidity, "%", C_DIM);
 }
 
 // --- PAGE 2: HOUSE STATUS ---
@@ -255,10 +300,8 @@ void drawBulbIcon(display::Display& it, int x, int y, const char* label, bool is
 }
 
 void renderPage2_House(display::Display& it) {
-  it.printf(10, 42, font_tiny, C_DIM, TextAlign::TOP_LEFT, "SUBSYSTEM: DOMICILE_STATUS");
-  
   // --- PERIMETER BOX (WINDOWS) ---
-  drawRetroBox(it, 10, 60, 220, 85, "PERIMETER", C_GREEN);
+  drawRetroBox(it, 10, 40, 220, 85, "PERIMETER", C_GREEN);
   
   auto drawWindow = [&](int x, int y, const char* label, bool is_open) {
     Color c = is_open ? C_RED : C_GREEN;
@@ -269,14 +312,14 @@ void renderPage2_House(display::Display& it) {
     it.printf(x, y + 42, font_tiny, C_DIM, TextAlign::CENTER, "%s", label);
   };
 
-  drawWindow(50, 80, "WOHN", gState.windowLiving);
-  drawWindow(120, 80, "BAD", gState.windowBath);
-  drawWindow(190, 80, "WORK", gState.windowWork);
+  drawWindow(50, 60, "WOHN", gState.windowLiving);
+  drawWindow(120, 60, "BAD", gState.windowBath);
+  drawWindow(190, 60, "WORK", gState.windowWork);
   
   // --- ILLUMINATION BOX ---
   // Button serves as the boundary
   gState.lightsDetailBtn.x = 10;
-  gState.lightsDetailBtn.y = 160;
+  gState.lightsDetailBtn.y = 140;
   gState.lightsDetailBtn.w = 220;
   gState.lightsDetailBtn.h = 75;
   gState.lightsDetailBtn.draw(it, "", C_AMBER, gState.lightsDetailLoading, gState.lightsDetailLoadingStartTime, 0, font_tiny, 0, "ILLUMINATION");
@@ -284,21 +327,21 @@ void renderPage2_House(display::Display& it) {
   int livingOn = gState.getLivingRoomActiveCount();
   int officeOn = gState.getOfficeActiveCount();
 
-  it.printf(70, 180, font_medium, livingOn > 0 ? C_AMBER : C_DIM, TextAlign::CENTER, "%d", livingOn);
-  it.printf(70, 205, font_tiny, C_DIM, TextAlign::CENTER, "LIVING_RM");
+  it.printf(70, 160, font_medium, livingOn > 0 ? C_AMBER : C_DIM, TextAlign::CENTER, "%d", livingOn);
+  it.printf(70, 185, font_tiny, C_DIM, TextAlign::CENTER, "LIVING_RM");
 
-  it.printf(170, 180, font_medium, officeOn > 0 ? C_AMBER : C_DIM, TextAlign::CENTER, "%d", officeOn);
-  it.printf(170, 205, font_tiny, C_DIM, TextAlign::CENTER, "OFFICE_RM");
+  it.printf(170, 160, font_medium, officeOn > 0 ? C_AMBER : C_DIM, TextAlign::CENTER, "%d", officeOn);
+  it.printf(170, 185, font_tiny, C_DIM, TextAlign::CENTER, "OFFICE_RM");
   
-  it.printf(120, 218, font_tiny, C_DIM, TextAlign::CENTER, "TAP TO CONFIGURE");
+  it.printf(120, 198, font_tiny, C_DIM, TextAlign::CENTER, "TAP TO CONFIGURE");
 
   // --- BIOMETRIC BOX (PRESENCE) ---
-  drawRetroBox(it, 10, 250, 220, 55, "BIOMETRICS", C_BLUE);
+  drawRetroBox(it, 10, 230, 220, 55, "BIOMETRICS", C_BLUE);
   
   auto drawPresence = [&](int x, const char* label, bool val) {
-    it.printf(x, 265, font_tiny, C_DIM, TextAlign::CENTER, "%s", label);
-    it.filled_circle(x, 285, 7, val ? C_GREEN : C_DIMMER);
-    it.circle(x, 285, 9, val ? C_GREEN : C_DIMMER);
+    it.printf(x, 245, font_tiny, C_DIM, TextAlign::CENTER, "%s", label);
+    it.filled_circle(x, 265, 7, val ? C_GREEN : C_DIMMER);
+    it.circle(x, 265, 9, val ? C_GREEN : C_DIMMER);
   };
 
   drawPresence(70, "MOTION", gState.motionLiving);
@@ -308,19 +351,17 @@ void renderPage2_House(display::Display& it) {
 // --- PAGE 3: DEVICES ---
 
 void renderPage3_Devices(display::Display& it) {
-  it.printf(10, 42, font_tiny, C_DIM, TextAlign::TOP_LEFT, "SUBSYSTEM: HARDWARE_INTERFACE");
-  
   // --- ROBOROCK BOX ---
   Color vac_c = gState.vacuumCleaning ? C_GREEN : C_CYAN;
-  gState.vacuumCardBtn.y = 60;
+  gState.vacuumCardBtn.y = 40;
   gState.vacuumCardBtn.h = 75;
   gState.vacuumCardBtn.draw(it, "", vac_c, gState.vacuumCardLoading, gState.vacuumCardLoadingStartTime, 0, font_tiny, 0, "UNIT_ROBOROCK");
 
-  it.printf(30, 80, font_small, vac_c, TextAlign::TOP_LEFT, "%s", gState.vacuumStatus.c_str());
-  it.printf(30, 100, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BATT: %.0f%%", gState.vacuumBattery);
+  it.printf(30, 60, font_small, vac_c, TextAlign::TOP_LEFT, "%s", gState.vacuumStatus.c_str());
+  it.printf(30, 80, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BATT: %.0f%%", gState.vacuumBattery);
   
-  it.rectangle(110, 100, 100, 10, C_DIMMER);
-  it.filled_rectangle(112, 102, (int)(gState.vacuumBattery * 0.96f), 6, vac_c);
+  it.rectangle(110, 80, 100, 10, C_DIMMER);
+  it.filled_rectangle(112, 82, (int)(gState.vacuumBattery * 0.96f), 6, vac_c);
   
   // --- WASHING MACHINE BOX ---
   std::string wash_status = gState.washingMachineStatus;
@@ -331,19 +372,19 @@ void renderPage3_Devices(display::Display& it) {
   else if (wash_status == "All Done!") wash_c = C_GREEN;
   else if (wash_status == "Wrinkle Risk Rising!") wash_c = C_RED;
   
-  drawRetroBox(it, 10, 150, 220, 65, "UNIT_WASHER", wash_c);
-  it.printf(30, 175, font_small, wash_c, TextAlign::TOP_LEFT, "%.20s", wash_status.c_str());
+  drawRetroBox(it, 10, 130, 220, 65, "UNIT_WASHER", wash_c);
+  it.printf(30, 155, font_small, wash_c, TextAlign::TOP_LEFT, "%.20s", wash_status.c_str());
   
   // --- 3D PRINTER BOX ---
   Color prnt_c = gState.printerProgress > 0 ? C_AMBER : C_DIM;
-  drawRetroBox(it, 10, 230, 220, 75, "UNIT_PRINTER", prnt_c);
+  drawRetroBox(it, 10, 210, 220, 75, "UNIT_PRINTER", prnt_c);
   
   if (gState.printerProgress > 0.0f) {
-    it.printf(30, 250, font_small, C_AMBER, TextAlign::TOP_LEFT, "PROGRESS: %.0f%%", gState.printerProgress);
-    it.rectangle(30, 275, 180, 10, C_DIMMER);
-    it.filled_rectangle(32, 277, (int)(gState.printerProgress * 1.76f), 6, C_AMBER);
+    it.printf(30, 230, font_small, C_AMBER, TextAlign::TOP_LEFT, "PROGRESS: %.0f%%", gState.printerProgress);
+    it.rectangle(30, 255, 180, 10, C_DIMMER);
+    it.filled_rectangle(32, 257, (int)(gState.printerProgress * 1.76f), 6, C_AMBER);
   } else {
-    it.printf(120, 265, font_small, C_DIM, TextAlign::CENTER, "SYSTEM_READY");
+    it.printf(120, 245, font_small, C_DIM, TextAlign::CENTER, "SYSTEM_READY");
   }
 }
 
@@ -519,6 +560,130 @@ void renderDetail_Lights(display::Display& it) {
   drawDetailHeader(it, "LIGHTS CONTROL");
 }
 
+// --- DETAIL VIEW: LOGISTICS (TO-DO & SHOPPING) ---
+
+void renderDetail_Todo(display::Display& it) {
+  int ly = 95; // Start lower to accommodate tabs
+  auto getSY = [&](int logicalY) { return logicalY + gState.scrollY; };
+
+  // Draw Tabs
+  bool shopActive = (gState.todoViewTab == 0);
+  bool todoActive = (gState.todoViewTab == 1);
+  
+  bool dummyLoading = false;
+  unsigned long dummyTime = 0;
+  
+  gState.shoppingTabBtn.draw(it, "", shopActive ? C_CYAN : C_DIM, dummyLoading, dummyTime, 0, font_tiny);
+  gState.todoTabBtn.draw(it, "", todoActive ? C_AMBER : C_DIM, dummyLoading, dummyTime, 0, font_tiny);
+
+  auto drawTabContent = [&](int x, int y, const char* label, int count, bool active, Color color) {
+    Color c = active ? color : C_DIM;
+    // Icon (3 lines)
+    int ix = x + 10;
+    int iy = y + 12;
+    for(int i=0; i<3; i++) it.line(ix, iy + i*4, ix + 8, iy + i*4, c);
+    
+    it.printf(x + 25, y + 10, font_tiny, c, TextAlign::TOP_LEFT, "%s", label);
+    it.printf(x + 95, y + 10, font_tiny, c, TextAlign::TOP_RIGHT, "%d", count);
+  };
+
+  it.start_clipping(0, 85, 240, 320); // Clip items so they don't overlap tabs/header
+
+  auto drawList = [&](std::string listStr) {
+    size_t pos = 0;
+    bool empty = true;
+    while ((pos = listStr.find("\n")) != std::string::npos || !listStr.empty()) {
+      std::string line;
+      if (pos != std::string::npos) {
+        line = listStr.substr(0, pos);
+        listStr.erase(0, pos + 1);
+      } else {
+        line = listStr;
+        listStr.clear();
+      }
+
+      // Trim line helper
+      auto trim = [](std::string& s) {
+          size_t first = s.find_first_not_of(" \t\r\n");
+          if (first == std::string::npos) { s = ""; return; }
+          size_t last = s.find_last_not_of(" \t\r\n");
+          s = s.substr(first, (last - first + 1));
+      };
+      trim(line);
+
+      if (line.empty() || line == "LIST EMPTY") continue;
+
+      // Robust Parsing: Summary|Due|Overdue
+      size_t p1 = line.find("|");
+      std::string summary = line;
+      std::string due = "";
+      bool overdue = false;
+      if (p1 != std::string::npos) {
+          summary = line.substr(0, p1);
+          std::string rest = line.substr(p1 + 1);
+          size_t p2 = rest.find("|");
+          if (p2 != std::string::npos) {
+              due = rest.substr(0, p2);
+              std::string ovrStr = rest.substr(p2 + 1);
+              overdue = (ovrStr.find("overdue") != std::string::npos);
+          } else {
+              due = rest;
+          }
+      }
+
+      trim(summary);
+      trim(due);
+      if (summary.empty()) continue;
+
+      int sy = getSY(ly);
+      
+      // Hit detection area for touch handler (invisible but logical)
+      // Card Background
+      it.rectangle(10, sy, 220, 40, C_DIM);
+      
+      // Loading spinner if this item is being checked off
+      if (gState.todoActionLoading && gState.todoActionSummary == summary) {
+          float angle = (millis() % 1000) * 2.0f * 3.14159265f / 1000.0f;
+          it.line(30, sy + 20, 30 + (int)(cosf(angle)*8), sy + 20 + (int)(sinf(angle)*8), C_WHITE);
+      } else {
+          it.printf(20, sy + 10, font_small, C_CYAN, TextAlign::TOP_LEFT, "[ ]");
+      }
+
+      // Title & Due Date (Original Formatting)
+      int textX = 55;
+      int textWidth = 165;
+      if (due != "none" && !due.empty()) {
+          Color dColor = overdue ? C_RED : C_AMBER;
+          it.printf(55, sy + 12, font_tiny, dColor, TextAlign::TOP_LEFT, "%s", due.c_str());
+          textX = 100;
+          textWidth = 120;
+      }
+      ScrollingText::draw(it, textX, sy + 10, textWidth, summary, font_small, C_WHITE);
+      
+      ly += 50;
+      empty = false;
+    }
+
+    if (empty) {
+      it.printf(120, getSY(ly + 40), font_small, C_DIMMER, TextAlign::CENTER, "LIST EMPTY");
+      ly += 100;
+    }
+  };
+  
+  if (shopActive) drawList(gState.shoppingListFormatted);
+  else drawList(gState.todoListFormatted);
+  
+  it.end_clipping();
+  
+  drawTabContent(10, 45, "SHOP", gState.shoppingListCount, shopActive, C_CYAN);
+  drawTabContent(125, 45, "TASKS", gState.todoListCount, todoActive, C_AMBER);
+
+  int totalContentHeight = ly - 40;
+  gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
+
+  drawDetailHeader(it, "LOGISTICS DETAIL");
+}
+
 // --- MAIN RENDERER ---
 
 void renderDisplay(display::Display& it) {
@@ -543,6 +708,7 @@ void renderDisplay(display::Display& it) {
     switch (gState.currentView) {
       case VIEW_DETAIL_VACUUM: renderDetail_Vacuum(it); break;
       case VIEW_DETAIL_LIGHTS: renderDetail_Lights(it); break;
+      case VIEW_DETAIL_TODO:   renderDetail_Todo(it); break;
       default: break;
     }
   }

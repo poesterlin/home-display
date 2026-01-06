@@ -104,6 +104,12 @@ private:
              return;
           }
         }
+        
+        // Logistics Card (To-Do)
+        if (gState.todoDetailBtn.processTap(x, y, gState.todoDetailLoading, gState.todoDetailLoadingStartTime, gState.todoDetailActionRequested)) {
+           openView(VIEW_DETAIL_TODO);
+           return;
+        }
       }
       // Page 2: House Status -> Open Light Details
       else if (gState.mainPageIndex == 2) {
@@ -150,6 +156,49 @@ private:
         if (gState.lightKamera.btn.processTap(x, y, gState.lightKamera.loading, gState.lightKamera.loadingStartTime, gState.lightKamera.actionRequested, gState.scrollY)) return;
         if (gState.lightOffice.btn.processTap(x, y, gState.lightOffice.loading, gState.lightOffice.loadingStartTime, gState.lightOffice.actionRequested, gState.scrollY)) return;
         if (gState.lightGrosseLED.btn.processTap(x, y, gState.lightGrosseLED.loading, gState.lightGrosseLED.loadingStartTime, gState.lightGrosseLED.actionRequested, gState.scrollY)) return;
+      }
+
+      // To-Do Detail View Tabs
+      if (gState.currentView == VIEW_DETAIL_TODO) {
+        bool dummyLoading = false;
+        unsigned long dummyTime = 0;
+        bool dummyAction = false;
+        if (gState.shoppingTabBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction)) {
+          gState.todoViewTab = 0;
+          gState.scrollY = 0;
+          return;
+        }
+        if (gState.todoTabBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction)) {
+          gState.todoViewTab = 1;
+          gState.scrollY = 0;
+          return;
+        }
+
+        // List Item Taps
+        int itemLy = 95 + gState.scrollY;
+        std::string listStr = (gState.todoViewTab == 0) ? gState.shoppingListFormatted : gState.todoListFormatted;
+        size_t pos = 0;
+        while ((pos = listStr.find("\n")) != std::string::npos || !listStr.empty()) {
+          std::string line;
+          if (pos != std::string::npos) { line = listStr.substr(0, pos); listStr.erase(0, pos + 1); }
+          else { line = listStr; listStr.clear(); }
+          if (line.empty() || line == "LIST EMPTY") continue;
+
+          if (x >= 10 && x <= 50 && y >= itemLy && y <= itemLy + 40) {
+            size_t p1 = line.find("|");
+            std::string summary = (p1 != std::string::npos) ? line.substr(0, p1) : line;
+            
+            // Trim summary
+            summary.erase(0, summary.find_first_not_of(" \t\r\n"));
+            summary.erase(summary.find_last_not_of(" \t\r\n") + 1);
+
+            gState.todoActionRequested = true;
+            gState.todoActionSummary = summary;
+            gPendingTapSound = true;
+            return;
+          }
+          itemLy += 50;
+        }
       }
     }
   }

@@ -46,7 +46,7 @@ struct DisplayState {
   volatile bool windowsAlertLoading = false;
   unsigned long windowsAlertLoadingStartTime = 0;
   volatile bool windowsAlertActionRequested = false;
-  Button windowsAlertBtn = Button(20, 132, 200, 20);
+  Button windowsAlertBtn = Button(20, 70, 200, 20);
 
   // Vacuum Badge Button (Page 0)
   volatile bool vacuumBadgeLoading = false;
@@ -58,7 +58,13 @@ struct DisplayState {
   volatile bool lightsDetailLoading = false;
   unsigned long lightsDetailLoadingStartTime = 0;
   volatile bool lightsDetailActionRequested = false; // Dummy
-  Button lightsDetailBtn = Button(40, 155, 160, 80); // Overlay for Page 2 lights section
+  Button lightsDetailBtn = Button(10, 140, 220, 75); // Overlay for Page 2 lights section
+
+  // To-Do Detail Navigation
+  volatile bool todoDetailLoading = false;
+  unsigned long todoDetailLoadingStartTime = 0;
+  volatile bool todoDetailActionRequested = false; // Dummy
+  Button todoDetailBtn = Button(10, 90, 220, 160); // Overlay for Page 0 logistics section
 
   // --- SENSORS ---
   
@@ -67,6 +73,8 @@ struct DisplayState {
   float outsideHumidity = 0;
   float indoorTemp = 0;
   float indoorHumidity = 0;
+  float avgTemp = 0;
+  float avgHumidity = 0;
   float co2 = 0;
   float indoorLight = 0;
   
@@ -120,13 +128,20 @@ struct DisplayState {
   bool beamerOn = false;
   float beamerPower = 0;
   
-  // To-Do List
-  struct TodoItem {
-    std::string title;
-    std::string due;
-    bool isOverdue;
-    bool hasData;
-  } todos[3];
+  // To-Do Lists
+  std::string todoListFormatted = "LIST EMPTY";
+  std::string shoppingListFormatted = "LIST EMPTY";
+  int todoListCount = 0;
+  int shoppingListCount = 0;
+  int todoViewTab = 0; // 0 = Shopping, 1 = To-Do
+  Button shoppingTabBtn = Button(10, 45, 105, 35);
+  Button todoTabBtn = Button(125, 45, 105, 35);
+
+  // Actions
+  volatile bool todoActionRequested = false;
+  std::string todoActionSummary = "";
+  volatile bool todoActionLoading = false;
+  unsigned long todoActionStartTime = 0;
 
   // --- NOTIFICATIONS ---
   std::string notificationTitle = "";

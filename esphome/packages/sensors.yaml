@@ -70,6 +70,34 @@ sensor:
     on_value:
       - lambda: "gState.beamerPower = x;"
 
+  - platform: homeassistant
+    id: shopping_list_count
+    entity_id: sensor.esphome_shopping_bridge
+    internal: true
+    on_value:
+      - lambda: "gState.shoppingListCount = (int)x;"
+
+  - platform: homeassistant
+    id: todo_list_count
+    entity_id: sensor.esphome_todo_bridge
+    internal: true
+    on_value:
+      - lambda: "gState.todoListCount = (int)x;"
+
+  - platform: homeassistant
+    id: avg_indoor_temp
+    entity_id: sensor.avg_temp_innen
+    internal: true
+    on_value:
+      - lambda: "gState.avgTemp = x;"
+
+  - platform: homeassistant
+    id: avg_indoor_humidity
+    entity_id: sensor.avg_luftfeuchtigkeit_innen
+    internal: true
+    on_value:
+      - lambda: "gState.avgHumidity = x;"
+
 text_sensor:
   - platform: homeassistant
     id: vacuum_status
@@ -92,69 +120,22 @@ text_sensor:
     on_value:
       - lambda: "gState.washingMachineStatus = x;"
 
-  # To-Do Items
+  # To-Do Items (Bridge Sensors)
   - platform: homeassistant
-    id: todo_1
-    entity_id: sensor.esphome_todo_1
+    id: todo_list_formatted
+    entity_id: sensor.esphome_todo_bridge
+    attribute: all_items
     internal: true
-    on_value: 
-      - lambda: "gState.todos[0].title = x; gState.todos[0].hasData = true;"
+    on_value:
+      - lambda: "gState.todoListFormatted = x;"
+
   - platform: homeassistant
-    id: todo_1_due
-    entity_id: sensor.esphome_todo_1
-    attribute: due
+    id: shopping_list_formatted
+    entity_id: sensor.esphome_shopping_bridge
+    attribute: all_items
     internal: true
-    on_value: 
-      - lambda: "gState.todos[0].due = x;"
-  - platform: homeassistant
-    id: todo_1_overdue
-    entity_id: sensor.esphome_todo_1
-    attribute: overdue
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[0].isOverdue = (x == \"True\");"
-      
-  - platform: homeassistant
-    id: todo_2
-    entity_id: sensor.esphome_todo_2
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[1].title = x; gState.todos[1].hasData = true;"
-  - platform: homeassistant
-    id: todo_2_due
-    entity_id: sensor.esphome_todo_2
-    attribute: due
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[1].due = x;"
-  - platform: homeassistant
-    id: todo_2_overdue
-    entity_id: sensor.esphome_todo_2
-    attribute: overdue
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[1].isOverdue = (x == \"True\");"
-      
-  - platform: homeassistant
-    id: todo_3
-    entity_id: sensor.esphome_todo_3
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[2].title = x; gState.todos[2].hasData = true;"
-  - platform: homeassistant
-    id: todo_3_due
-    entity_id: sensor.esphome_todo_3
-    attribute: due
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[2].due = x;"
-  - platform: homeassistant
-    id: todo_3_overdue
-    entity_id: sensor.esphome_todo_3
-    attribute: overdue
-    internal: true
-    on_value: 
-      - lambda: "gState.todos[2].isOverdue = (x == \"True\");"
+    on_value:
+      - lambda: "gState.shoppingListFormatted = x;"
 
   - platform: homeassistant
     id: ha_notification_title
@@ -355,6 +336,18 @@ interval:
   - interval: 50ms
     then:
       - lambda: |-
+          // To-Do Actions
+          if (gState.todoActionRequested) {
+            gState.todoActionRequested = false;
+            gState.todoActionLoading = true;
+            gState.todoActionStartTime = millis();
+            if (gState.todoViewTab == 0) {
+              id(call_todo_complete).execute("todo.shopping_list", gState.todoActionSummary);
+            } else {
+              id(call_todo_complete).execute("todo.todo", gState.todoActionSummary);
+            }
+          }
+
           if (gState.vacuumActionRequested) {
             gState.vacuumActionRequested = false;
             if (gState.vacuumCleaning) id(call_vacuum_stop).execute();
@@ -400,6 +393,11 @@ interval:
             ESP_LOGI("main", "Notification action requested, executing script");
             gState.notificationActionRequested = false;
             id(clear_notification).execute();
+          }
+
+          // Reset To-Do Loading after timeout
+          if (gState.todoActionLoading && (millis() - gState.todoActionStartTime > 5000)) {
+            gState.todoActionLoading = false;
           }
 
 script:
@@ -483,3 +481,15 @@ script:
           data:
             entity_id: input_select.display_notification_severity
             option: "info"
+
+  - id: call_todo_complete
+    parameters:
+      list_id: string
+      item_summary: string
+    then:
+      - homeassistant.service:
+          service: todo.update_item
+          data:
+            entity_id: !lambda 'return list_id;'
+            item: !lambda 'return item_summary;'
+            status: completed
