@@ -23,11 +23,23 @@ struct DisplayState {
   
   // Touch State
   unsigned long lastTouchTime = 0;
-  bool backLoading = false;
-  bool backActionRequested = false;
+  volatile bool backLoading = false;
+  volatile bool backActionRequested = false;
   unsigned long backLoadingStartTime = 0;
   Button backBtn = Button(5, 5, 40, 30);
   
+  // Windows Alert Button
+  volatile bool windowsAlertLoading = false;
+  unsigned long windowsAlertLoadingStartTime = 0;
+  volatile bool windowsAlertActionRequested = false;
+  Button windowsAlertBtn = Button(20, 132, 200, 20);
+
+  // Vacuum Badge Button (Page 0)
+  volatile bool vacuumBadgeLoading = false;
+  unsigned long vacuumBadgeLoadingStartTime = 0;
+  volatile bool vacuumBadgeActionRequested = false;
+  Button vacuumBadgeBtn = Button(0, 0, 60, 20);
+
   // --- SENSORS ---
   
   // Climate
@@ -58,11 +70,16 @@ struct DisplayState {
   // Devices
   float vacuumBattery = 0;
   bool vacuumCleaning = false;
-  bool vacuumLoading = false;
-  bool vacuumActionRequested = false;
+  volatile bool vacuumLoading = false;
+  volatile bool vacuumActionRequested = false;
   unsigned long vacuumLoadingStartTime = 0;
   std::string vacuumStatus = "Unknown";
   Button vacuumBtn = Button(10, 180, 220, 50);
+
+  volatile bool vacuumCardLoading = false;
+  unsigned long vacuumCardLoadingStartTime = 0;
+  volatile bool vacuumCardActionRequested = false; // Dummy for processTap
+  Button vacuumCardBtn = Button(15, 60, 210, 75);
 
   float printerProgress = 0;
   std::string printerFilename = "";
@@ -88,7 +105,7 @@ struct DisplayState {
 };
 
 // Global instance
-static DisplayState gState;
+inline DisplayState gState;
 
 // State update helpers
 void nextPage() {

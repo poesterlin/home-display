@@ -9,10 +9,13 @@ public:
 
   bool isHit(int tx, int ty, int scrollOffset = 0) {
     int actualY = y + scrollOffset;
-    return (tx >= x && tx <= x + w && ty >= actualY && ty <= actualY + h);
+    // Add "hit slop" for small buttons to make them easier to touch
+    int sx = (w < 40) ? 15 : (w < 60 ? 10 : 0);
+    int sy = (h < 40) ? 15 : (h < 60 ? 10 : 0);
+    return (tx >= x - sx && tx <= x + w + sx && ty >= actualY - sy && ty <= actualY + h + sy);
   }
 
-  bool processTap(int tx, int ty, bool& loading, unsigned long& loadingStartTime, bool& actionRequested, int scrollOffset = 0) {
+  bool processTap(int tx, int ty, volatile bool& loading, unsigned long& loadingStartTime, volatile bool& actionRequested, int scrollOffset = 0) {
     if (isHit(tx, ty, scrollOffset) && !loading) {
       loading = true;
       actionRequested = true;
@@ -26,7 +29,7 @@ public:
     display::Display& it,
     const std::string& label,
     Color color,
-    bool& loading,
+    volatile bool& loading,
     unsigned long& loadingStartTime,
     unsigned long timeout,
     esphome::font::Font* font,

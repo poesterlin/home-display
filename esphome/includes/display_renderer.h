@@ -152,9 +152,9 @@ void renderPage0_Status(display::Display& it) {
   // Windows Alert
   int open_count = gState.getOpenWindowCount();
   if (open_count > 0) {
-    it.filled_rectangle(20, 132, 200, 18, C_DIMMER);
-    it.printf(120, 141, font_small, C_RED, TextAlign::CENTER, "%d WINDOW%s OPEN", 
-              open_count, open_count > 1 ? "S" : "");
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d WINDOW%s OPEN", open_count, open_count > 1 ? "S" : "");
+    gState.windowsAlertBtn.draw(it, buf, C_RED, gState.windowsAlertLoading, gState.windowsAlertLoadingStartTime, 200, font_small);
   }
   
   // To-Do List
@@ -175,8 +175,12 @@ void renderPage0_Status(display::Display& it) {
   
   // Vacuum
   if (gState.vacuumCleaning) {
-    it.filled_rectangle(badge_x, badge_y, 60, 18, C_GREEN);
-    it.printf(badge_x + 30, badge_y + 9, font_tiny, C_BLACK, TextAlign::CENTER, "VACUUM");
+    gState.vacuumBadgeBtn.x = badge_x;
+    gState.vacuumBadgeBtn.y = badge_y;
+    gState.vacuumBadgeBtn.w = 60;
+    gState.vacuumBadgeBtn.h = 18;
+    gState.vacuumBadgeBtn.draw(it, "VACUUM", C_GREEN, gState.vacuumBadgeLoading, gState.vacuumBadgeLoadingStartTime, 200, font_tiny);
+    
     badge_x += 65;
     any_active = true;
   }
@@ -332,24 +336,27 @@ void renderPage2_House(display::Display& it) {
 void renderPage3_Devices(display::Display& it) {
   it.printf(120, 48, font_tiny, C_DIM, TextAlign::CENTER, "DEVICES");
   
-  // Roborock
+  // Roborock Card
+  Color vac_base_color = gState.vacuumCleaning ? C_GREEN : C_CYAN;
+  gState.vacuumCardBtn.draw(it, "", vac_base_color, gState.vacuumCardLoading, gState.vacuumCardLoadingStartTime, 200, font_small);
+
   it.printf(120, 65, font_small, C_WHITE, TextAlign::CENTER, "ROBOROCK");
-  it.line(40, 78, 200, 78, C_DIM);
+  // it.line(40, 78, 200, 78, C_DIM); // Removed line as button draws border
   
   Color vac_color = gState.vacuumCleaning ? C_GREEN : C_CYAN;
   it.printf(120, 92, font_medium, vac_color, TextAlign::CENTER, "%s", 
             gState.vacuumStatus.c_str());
   
-  it.printf(30, 118, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BAT");
-  it.rectangle(50, 115, 130, 14, C_DIM);
+  it.printf(35, 118, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BAT");
+  it.rectangle(55, 115, 120, 14, C_DIM);
   float batt = gState.vacuumBattery;
   Color bc = batt > 50.0f ? C_GREEN : (batt > 20.0f ? C_AMBER : C_RED);
-  it.filled_rectangle(52, 117, (int)((batt / 100.0f) * 126), 10, bc);
-  it.printf(190, 116, font_tiny, bc, TextAlign::TOP_LEFT, "%.0f%%", batt);
+  it.filled_rectangle(57, 117, (int)((batt / 100.0f) * 116), 10, bc);
+  it.printf(185, 116, font_tiny, bc, TextAlign::TOP_LEFT, "%.0f%%", batt);
   
-  // Washing Machine
-  it.printf(120, 145, font_small, C_WHITE, TextAlign::CENTER, "WASHING MACHINE");
-  it.line(40, 158, 200, 158, C_DIM);
+  // Washing Machine (positioned lower)
+  it.printf(120, 150, font_small, C_WHITE, TextAlign::CENTER, "WASHING MACHINE");
+  it.line(40, 163, 200, 163, C_DIM);
   
   std::string wash_status = gState.washingMachineStatus;
   if(wash_status.empty()) wash_status = "---";
@@ -380,46 +387,92 @@ void renderPage3_Devices(display::Display& it) {
 // --- DETAIL VIEW: VACUUM ---
 
 void renderDetail_Vacuum(display::Display& it) {
-  int y = 40 + gState.scrollY;
+  // Logical Y position for content (relative to screen top, before scroll)
+  int ly = 40; 
   
-  // Header
-  drawDetailHeader(it, "VACUUM DETAIL");
-  
+  // Helper to get actual screen Y
+  auto getSY = [&](int logicalY) { return logicalY + gState.scrollY; };
+
   // Status Card
-  it.rectangle(10, y, 220, 60, C_DIM);
-  it.printf(20, y + 5, font_tiny, C_DIM, TextAlign::TOP_LEFT, "STATUS");
-  it.printf(20, y + 25, font_small, gState.vacuumCleaning ? C_GREEN : C_CYAN, TextAlign::TOP_LEFT, "%s", 
+  int sy = getSY(ly);
+  it.rectangle(10, sy, 220, 60, C_DIM);
+  it.printf(20, sy + 5, font_tiny, C_DIM, TextAlign::TOP_LEFT, "STATUS");
+  it.printf(20, sy + 25, font_small, gState.vacuumCleaning ? C_GREEN : C_CYAN, TextAlign::TOP_LEFT, "%s", 
             gState.vacuumStatus.c_str());
-  y += 70;
+  ly += 70;
   
   // Battery Card
-  it.rectangle(10, y, 220, 60, C_DIM);
-  it.printf(20, y + 5, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BATTERY");
+  sy = getSY(ly);
+  it.rectangle(10, sy, 220, 60, C_DIM);
+  it.printf(20, sy + 5, font_tiny, C_DIM, TextAlign::TOP_LEFT, "BATTERY");
   // Battery bar
-  it.rectangle(20, y + 25, 140, 14, C_DIM);
+  it.rectangle(20, sy + 25, 140, 14, C_DIM);
   Color batt_color = gState.vacuumBattery > 50.0f ? C_GREEN : (gState.vacuumBattery > 20.0f ? C_AMBER : C_RED);
-  it.filled_rectangle(22, y + 27, (int)((gState.vacuumBattery / 100.0f) * 136), 10, batt_color);
-  it.printf(170, y + 25, font_tiny, batt_color, TextAlign::TOP_LEFT, "%.0f%%", gState.vacuumBattery);
-  y += 70;
+  it.filled_rectangle(22, sy + 27, (int)((gState.vacuumBattery / 100.0f) * 136), 10, batt_color);
+  it.printf(170, sy + 25, font_tiny, batt_color, TextAlign::TOP_LEFT, "%.0f%%", gState.vacuumBattery);
+  ly += 70;
   
   // Start Button
+  // Ensure button logical Y matches our layout
+  gState.vacuumBtn.y = ly; 
   if (!gState.vacuumCleaning) {
     gState.vacuumBtn.draw(it, "START CLEANING", C_GREEN, gState.vacuumLoading, gState.vacuumLoadingStartTime, 5000, font_small, gState.scrollY);
   } else {
     gState.vacuumBtn.draw(it, "STOP VACUUM", C_RED, gState.vacuumLoading, gState.vacuumLoadingStartTime, 5000, font_small, gState.scrollY);
   }
-  y += 60;
+  ly += 60;
   
   // Info Section
-  it.printf(10, y, font_tiny, C_DIM, TextAlign::TOP_LEFT, "Last Clean: Today 10:00");
-  y += 20;
-  it.printf(10, y, font_tiny, C_DIM, TextAlign::TOP_LEFT, "Map Saved: Yes");
-  y += 20;
-  it.printf(10, y, font_tiny, C_DIM, TextAlign::TOP_LEFT, "Total Runtime: 2h 34m");
-  y += 20;
+  it.printf(10, getSY(ly), font_tiny, C_DIM, TextAlign::TOP_LEFT, "Last Clean: Today 10:00");
+  ly += 20;
+  it.printf(10, getSY(ly), font_tiny, C_DIM, TextAlign::TOP_LEFT, "Map Saved: Yes");
+  ly += 20;
+  it.printf(10, getSY(ly), font_tiny, C_DIM, TextAlign::TOP_LEFT, "Total Runtime: 2h 34m");
+  ly += 30;
   
-  // Set content height for scrolling
-  gState.maxScrollY = (y - 40) > 280 ? (y - 40 - 280) : 0;
+  // Consumables Section
+  it.printf(10, getSY(ly), font_small, C_WHITE, TextAlign::TOP_LEFT, "CONSUMABLES");
+  ly += 25;
+  
+  auto drawConsumable = [&](int logicalY, const char* name, int pct) {
+    int cur_sy = getSY(logicalY);
+    it.printf(20, cur_sy, font_tiny, C_DIM, TextAlign::TOP_LEFT, "%s", name);
+    it.rectangle(80, cur_sy + 2, 100, 8, C_DIM);
+    it.filled_rectangle(82, cur_sy + 4, (int)(pct * 0.96f), 4, pct > 20 ? C_CYAN : C_RED);
+    it.printf(190, cur_sy, font_tiny, C_DIM, TextAlign::TOP_LEFT, "%d%%", pct);
+  };
+  
+  drawConsumable(ly, "Filter", 85); ly += 18;
+  drawConsumable(ly, "Side B.", 42); ly += 18;
+  drawConsumable(ly, "Main B.", 91); ly += 18;
+  drawConsumable(ly, "Sensor", 12); ly += 30;
+  
+  // History Section
+  it.printf(10, getSY(ly), font_small, C_WHITE, TextAlign::TOP_LEFT, "RECENT HISTORY");
+  ly += 25;
+  
+  auto drawHistory = [&](int logicalY, const char* date, const char* dur, const char* area) {
+    int cur_sy = getSY(logicalY);
+    it.printf(20, cur_sy, font_tiny, C_WHITE, TextAlign::TOP_LEFT, "%s", date);
+    it.printf(120, cur_sy, font_tiny, C_DIM, TextAlign::TOP_LEFT, "%s", dur);
+    it.printf(190, cur_sy, font_tiny, C_AMBER, TextAlign::TOP_LEFT, "%s", area);
+  };
+  
+  drawHistory(ly, "05 JAN", "45m", "32m2"); ly += 18;
+  drawHistory(ly, "04 JAN", "12m", "8m2"); ly += 18;
+  drawHistory(ly, "03 JAN", "52m", "41m2"); ly += 18;
+  drawHistory(ly, "01 JAN", "38m", "29m2"); ly += 18;
+  ly += 20;
+
+  // Footer spacing
+  ly += 10;
+  
+  // Set content height for scrolling based on logical Y
+  int totalContentHeight = ly - 40;
+  gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
+
+  // Draw Header LAST to ensure it covers scrolled content
+  drawDetailHeader(it, "VACUUM DETAIL");
 }
 
 // --- MAIN RENDERER ---

@@ -283,10 +283,13 @@ interval:
     then:
       - lambda: |-
           if (gState.vacuumActionRequested) {
+            ESP_LOGI("vacuum", "Action requested! Current cleaning state: %d", gState.vacuumCleaning);
             gState.vacuumActionRequested = false;
             if (gState.vacuumCleaning) {
+              ESP_LOGI("vacuum", "Executing STOP (return to base)");
               id(call_vacuum_stop).execute();
             } else {
+              ESP_LOGI("vacuum", "Executing START");
               id(call_vacuum_start).execute();
             }
           }

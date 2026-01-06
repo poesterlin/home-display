@@ -24,11 +24,15 @@ public:
       // Handle Scrolling in Detail Views
       if (gState.currentView != VIEW_MAIN_DASHBOARD) {
         int dy = y - lastY;
-        gState.scrollY += dy;
         
-        // Clamp Scroll
-        if (gState.scrollY > 0) gState.scrollY = 0; // Don't scroll past top
-        if (gState.scrollY < -gState.maxScrollY) gState.scrollY = -gState.maxScrollY;
+        // Ignore jitter and massive jumps (likely sensor noise)
+        if (abs(dy) > 0 && abs(dy) < 100) {
+          gState.scrollY += dy;
+          
+          // Clamp Scroll
+          if (gState.scrollY > 0) gState.scrollY = 0; 
+          if (gState.scrollY < -gState.maxScrollY) gState.scrollY = -gState.maxScrollY;
+        }
         
         lastY = y;
       }
@@ -71,11 +75,30 @@ private:
   static void handleTap(int x, int y) {
     if (gState.currentView == VIEW_MAIN_DASHBOARD) {
       
+      // Page 0: Status Page
+      if (gState.mainPageIndex == 0) {
+        // Windows Alert Badge
+        if (gState.getOpenWindowCount() > 0) {
+          if (gState.windowsAlertBtn.processTap(x, y, gState.windowsAlertLoading, gState.windowsAlertLoadingStartTime, gState.windowsAlertActionRequested)) {
+             setPage(2); // Go to House Status page
+             return;
+          }
+        }
+        
+        // Active Vacuum Badge
+        if (gState.vacuumCleaning) {
+          if (gState.vacuumBadgeBtn.processTap(x, y, gState.vacuumBadgeLoading, gState.vacuumBadgeLoadingStartTime, gState.vacuumBadgeActionRequested)) {
+             openView(VIEW_DETAIL_VACUUM);
+             return;
+          }
+        }
+      }
       // Page 3: Devices Page -> Open Details
-      if (gState.mainPageIndex == 3) {
-        // Vacuum Card Hit Test (approx coords)
-        if (y > 80 && y < 130) {
+      else if (gState.mainPageIndex == 3) {
+        // Vacuum Card Button
+        if (gState.vacuumCardBtn.processTap(x, y, gState.vacuumCardLoading, gState.vacuumCardLoadingStartTime, gState.vacuumCardActionRequested)) {
           openView(VIEW_DETAIL_VACUUM);
+          return;
         }
         // Washing Machine
         else if (y > 160 && y < 200) {
@@ -94,7 +117,7 @@ private:
       if (gState.currentView == VIEW_DETAIL_VACUUM) {
         if (gState.vacuumBtn.processTap(x, y, gState.vacuumLoading, gState.vacuumLoadingStartTime, gState.vacuumActionRequested, gState.scrollY)) {
           gState.lastTouchTime = millis();
-          ESP_LOGI("touch", "Vacuum button processed");
+          ESP_LOGI("touch", "Vacuum button processed - ActionRequested set to TRUE");
         }
       }
     }
