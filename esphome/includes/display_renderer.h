@@ -241,9 +241,38 @@ void renderPage0_Status(display::Display& it) {
   }
 }
 
-// --- PAGE 1: CLIMATE ---
+// --- PAGE 1: MUSIC ---
 
-void renderPage1_Climate(display::Display& it) {
+void renderPage1_Music(display::Display& it) {
+  drawRetroBox(it, 10, 40, 220, 120, "NOW_PLAYING", C_CYAN);
+  
+  if (gState.mediaStatus == "playing") {
+    ScrollingText::draw(it, 30, 65, 180, gState.mediaTitle, font_medium, C_WHITE);
+    it.printf(30, 95, font_small, C_DIM, TextAlign::TOP_LEFT, "%s", gState.mediaArtist.c_str());
+    
+    // Simple animated bar visualizer
+    int bars = 15;
+    int bx = 30;
+    int by = 145;
+    for (int i = 0; i < bars; i++) {
+      int h = 5 + (rand() % 15);
+      it.filled_rectangle(bx + i * 12, by - h, 8, h, C_CYAN);
+    }
+  } else {
+    it.printf(120, 90, font_medium, C_DIMMER, TextAlign::CENTER, "IDLE");
+  }
+
+  // Play Music Button
+  gState.musicPlayBtn.draw(it, "START MUSIC", C_GREEN, gState.musicPlayLoading, gState.musicPlayLoadingStartTime, 2000, font_small);
+
+  // Bottom Buttons
+  gState.musicLikeBtn.draw(it, "LIKE", C_MAGENTA, gState.musicLikeLoading, gState.musicLikeLoadingStartTime, 1000, font_small);
+  gState.musicSkipBtn.draw(it, "SKIP", C_AMBER, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, 1000, font_small);
+}
+
+// --- PAGE 2: CLIMATE ---
+
+void renderPage2_Climate(display::Display& it) {
   // --- AIR QUALITY BOX ---
   drawRetroBox(it, 10, 40, 220, 110, "AIR_QUALITY", C_GREEN);
   
@@ -275,7 +304,7 @@ void renderPage1_Climate(display::Display& it) {
   drawReadout(130, 235, "OUTDOOR_HUM", gState.outsideHumidity, "%", C_DIM);
 }
 
-// --- PAGE 2: HOUSE STATUS ---
+// --- PAGE 3: HOUSE STATUS ---
 
 void drawWindowIcon(display::Display& it, int x, int y, const char* label, bool is_open) {
   Color c = is_open ? C_RED : C_GREEN;
@@ -299,7 +328,7 @@ void drawBulbIcon(display::Display& it, int x, int y, const char* label, bool is
   it.printf(x, y + 22, font_tiny, c, TextAlign::CENTER, "%s", label);
 }
 
-void renderPage2_House(display::Display& it) {
+void renderPage3_House(display::Display& it) {
   // --- PERIMETER BOX (WINDOWS) ---
   drawRetroBox(it, 10, 40, 220, 85, "PERIMETER", C_GREEN);
   
@@ -348,9 +377,9 @@ void renderPage2_House(display::Display& it) {
   drawPresence(170, "OCCUPIED", gState.occupancyRadar);
 }
 
-// --- PAGE 3: DEVICES ---
+// --- PAGE 4: DEVICES ---
 
-void renderPage3_Devices(display::Display& it) {
+void renderPage4_Devices(display::Display& it) {
   // --- ROBOROCK BOX ---
   Color vac_c = gState.vacuumCleaning ? C_GREEN : C_CYAN;
   gState.vacuumCardBtn.y = 40;
@@ -699,9 +728,10 @@ void renderDisplay(display::Display& it) {
     // Page Content
     switch (gState.mainPageIndex) {
       case 0: renderPage0_Status(it); break;
-      case 1: renderPage1_Climate(it); break;
-      case 2: renderPage2_House(it); break;
-      case 3: renderPage3_Devices(it); break;
+      case 1: renderPage1_Music(it); break;
+      case 2: renderPage2_Climate(it); break;
+      case 3: renderPage3_House(it); break;
+      case 4: renderPage4_Devices(it); break;
     }
   } else {
     // Detail Views

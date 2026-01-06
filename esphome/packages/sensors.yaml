@@ -162,6 +162,29 @@ text_sensor:
     on_value:
       - lambda: "gState.notificationSeverity = x;"
 
+  - platform: homeassistant
+    id: ha_media_title
+    entity_id: media_player.living_room
+    attribute: media_title
+    internal: true
+    on_value:
+      - lambda: "gState.mediaTitle = x;"
+
+  - platform: homeassistant
+    id: ha_media_artist
+    entity_id: media_player.living_room
+    attribute: media_artist
+    internal: true
+    on_value:
+      - lambda: "gState.mediaArtist = x;"
+
+  - platform: homeassistant
+    id: ha_media_status
+    entity_id: media_player.living_room
+    internal: true
+    on_value:
+      - lambda: "gState.mediaStatus = x;"
+
 binary_sensor:
   - platform: homeassistant
     id: window_wohnzimmer
@@ -395,10 +418,35 @@ interval:
             id(clear_notification).execute();
           }
 
+          // Music Actions
+          if (gState.musicPlayActionRequested) {
+            gState.musicPlayActionRequested = false;
+            gState.musicPlayLoading = true;
+            gState.musicPlayLoadingStartTime = millis();
+            id(call_music_play).execute();
+          }
+          if (gState.musicLikeActionRequested) {
+            gState.musicLikeActionRequested = false;
+            gState.musicLikeLoading = true;
+            gState.musicLikeLoadingStartTime = millis();
+            id(call_music_like).execute();
+          }
+          if (gState.musicSkipActionRequested) {
+            gState.musicSkipActionRequested = false;
+            gState.musicSkipLoading = true;
+            gState.musicSkipLoadingStartTime = millis();
+            id(call_music_skip).execute();
+          }
+
           // Reset To-Do Loading after timeout
           if (gState.todoActionLoading && (millis() - gState.todoActionStartTime > 5000)) {
             gState.todoActionLoading = false;
           }
+
+          // Reset Music Loading after timeout
+          if (gState.musicPlayLoading && (millis() - gState.musicPlayLoadingStartTime > 5000)) gState.musicPlayLoading = false;
+          if (gState.musicLikeLoading && (millis() - gState.musicLikeLoadingStartTime > 3000)) gState.musicLikeLoading = false;
+          if (gState.musicSkipLoading && (millis() - gState.musicSkipLoadingStartTime > 3000)) gState.musicSkipLoading = false;
 
 script:
   - id: call_vacuum_start
@@ -493,3 +541,16 @@ script:
             entity_id: !lambda 'return list_id;'
             item: !lambda 'return item_summary;'
             status: completed
+
+  - id: call_music_play
+    then:
+      - homeassistant.service:
+          service: script.hintergrund_musik_spielen
+  - id: call_music_like
+    then:
+      - homeassistant.service:
+          service: script.like_song
+  - id: call_music_skip
+    then:
+      - homeassistant.service:
+          service: script.skip_song

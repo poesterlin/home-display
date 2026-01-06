@@ -111,23 +111,25 @@ private:
            return;
         }
       }
-      // Page 2: House Status -> Open Light Details
-      else if (gState.mainPageIndex == 2) {
+      // Page 1: Music
+      else if (gState.mainPageIndex == 1) {
+        if (gState.musicPlayBtn.processTap(x, y, gState.musicPlayLoading, gState.musicPlayLoadingStartTime, gState.musicPlayActionRequested)) return;
+        if (gState.musicLikeBtn.processTap(x, y, gState.musicLikeLoading, gState.musicLikeLoadingStartTime, gState.musicLikeActionRequested)) return;
+        if (gState.musicSkipBtn.processTap(x, y, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, gState.musicSkipActionRequested)) return;
+      }
+      // Page 3: House Status -> Open Light Details
+      else if (gState.mainPageIndex == 3) {
         if (gState.lightsDetailBtn.processTap(x, y, gState.lightsDetailLoading, gState.lightsDetailLoadingStartTime, gState.lightsDetailActionRequested)) {
           openView(VIEW_DETAIL_LIGHTS);
           return;
         }
       }
-      // Page 3: Devices Page -> Open Details
-      else if (gState.mainPageIndex == 3) {
+      // Page 4: Devices Page -> Open Details
+      else if (gState.mainPageIndex == 4) {
         // Vacuum Card Button
         if (gState.vacuumCardBtn.processTap(x, y, gState.vacuumCardLoading, gState.vacuumCardLoadingStartTime, gState.vacuumCardActionRequested)) {
           openView(VIEW_DETAIL_VACUUM);
           return;
-        }
-        // Washing Machine
-        else if (y > 160 && y < 200) {
-          // openView(VIEW_DETAIL_WASHER); // Future
         }
       }
       

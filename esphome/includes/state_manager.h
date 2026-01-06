@@ -29,7 +29,7 @@ struct DisplayState {
   // Page management
   ViewState currentView = VIEW_MAIN_DASHBOARD;
   int mainPageIndex = 0; // Tracks the carousel index (0-3)
-  int totalMainPages = 4;
+  int totalMainPages = 5;
   
   // Scrolling for Detail Views
   int scrollY = 0;
@@ -47,6 +47,22 @@ struct DisplayState {
   unsigned long windowsAlertLoadingStartTime = 0;
   volatile bool windowsAlertActionRequested = false;
   Button windowsAlertBtn = Button(20, 70, 200, 20);
+
+  // Music Buttons (Page 1)
+  volatile bool musicPlayLoading = false;
+  unsigned long musicPlayLoadingStartTime = 0;
+  volatile bool musicPlayActionRequested = false;
+  Button musicPlayBtn = Button(10, 180, 220, 45);
+
+  volatile bool musicLikeLoading = false;
+  unsigned long musicLikeLoadingStartTime = 0;
+  volatile bool musicLikeActionRequested = false;
+  Button musicLikeBtn = Button(10, 235, 105, 45);
+
+  volatile bool musicSkipLoading = false;
+  unsigned long musicSkipLoadingStartTime = 0;
+  volatile bool musicSkipActionRequested = false;
+  Button musicSkipBtn = Button(125, 235, 105, 45);
 
   // Vacuum Badge Button (Page 0)
   volatile bool vacuumBadgeLoading = false;
@@ -106,6 +122,11 @@ struct DisplayState {
   bool motionLiving = false;
   bool occupancyRadar = false;
   
+  // Media Player
+  std::string mediaTitle = "Nothing playing";
+  std::string mediaArtist = "";
+  std::string mediaStatus = "idle";
+
   // Devices
   float vacuumBattery = 0;
   bool vacuumCleaning = false;
