@@ -119,6 +119,10 @@ private:
       }
       // Page 1: Music
       else if (gState.mainPageIndex == 1) {
+        if (gState.musicDetailBtn.processTap(x, y, gState.musicDetailLoading, gState.musicDetailLoadingStartTime, gState.musicDetailActionRequested)) {
+          openView(VIEW_DETAIL_MUSIC);
+          return;
+        }
         if (gState.musicPlayBtn.processTap(x, y, gState.musicPlayLoading, gState.musicPlayLoadingStartTime, gState.musicPlayActionRequested)) return;
         if (gState.musicLikeBtn.processTap(x, y, gState.musicLikeLoading, gState.musicLikeLoadingStartTime, gState.musicLikeActionRequested)) return;
         if (gState.musicSkipBtn.processTap(x, y, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, gState.musicSkipActionRequested)) return;

@@ -14,7 +14,8 @@ enum ViewState {
   VIEW_DETAIL_VACUUM,
   VIEW_DETAIL_LIGHTS,
   VIEW_DETAIL_TODO,
-  VIEW_DETAIL_CLIMATE
+  VIEW_DETAIL_CLIMATE,
+  VIEW_DETAIL_MUSIC
 };
 
 struct LightControl {
@@ -70,6 +71,22 @@ struct DisplayState {
   unsigned long musicSkipLoadingStartTime = 0;
   volatile bool musicSkipActionRequested = false;
   Button musicSkipBtn = Button(125, 235, 105, 45);
+
+  volatile bool musicDetailLoading = false;
+  unsigned long musicDetailLoadingStartTime = 0;
+  volatile bool musicDetailActionRequested = false; // Dummy
+  Button musicDetailBtn = Button(10, 40, 220, 120); // Overlay for Page 1 NOW_PLAYING section
+
+  // Music Detail Actions
+  volatile bool musicTransferOfficeLoading = false;
+  unsigned long musicTransferOfficeStartTime = 0;
+  volatile bool musicTransferOfficeRequested = false;
+  Button musicTransferOfficeBtn = Button(10, 50, 220, 50);
+
+  volatile bool musicTransferLivingLoading = false;
+  unsigned long musicTransferLivingStartTime = 0;
+  volatile bool musicTransferLivingRequested = false;
+  Button musicTransferLivingBtn = Button(10, 110, 220, 50);
 
   // Vacuum Badge Button (Page 0)
   volatile bool vacuumBadgeLoading = false;

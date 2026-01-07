@@ -244,7 +244,7 @@ void renderPage0_Status(display::Display& it) {
 // --- PAGE 1: MUSIC ---
 
 void renderPage1_Music(display::Display& it) {
-  drawRetroBox(it, 10, 40, 220, 120, "NOW_PLAYING", C_CYAN);
+  gState.musicDetailBtn.draw(it, "", C_CYAN, gState.musicDetailLoading, gState.musicDetailLoadingStartTime, 0, font_tiny, 0, "NOW_PLAYING");
   
   if (gState.mediaStatus == "playing") {
     ScrollingText::draw(it, 30, 65, 180, gState.mediaTitle, font_medium, C_WHITE);
@@ -268,6 +268,34 @@ void renderPage1_Music(display::Display& it) {
   // Bottom Buttons
   gState.musicLikeBtn.draw(it, "LIKE", C_MAGENTA, gState.musicLikeLoading, gState.musicLikeLoadingStartTime, 1000, font_small);
   gState.musicSkipBtn.draw(it, "SKIP", C_AMBER, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, 1000, font_small);
+}
+
+// --- DETAIL VIEW: MUSIC ---
+
+void renderDetail_Music(display::Display& it) {
+  int ly = 50;
+  auto getSY = [&](int logicalY) { return logicalY + gState.scrollY; };
+
+  it.printf(120, getSY(ly), font_small, C_WHITE, TextAlign::CENTER, "TRANSFER QUEUE");
+  ly += 30;
+
+  gState.musicTransferOfficeBtn.y = ly;
+  gState.musicTransferOfficeBtn.draw(it, "TO OFFICE", C_CYAN, gState.musicTransferOfficeLoading, gState.musicTransferOfficeStartTime, 2000, font_small, gState.scrollY);
+  ly += 60;
+
+  gState.musicTransferLivingBtn.y = ly;
+  gState.musicTransferLivingBtn.draw(it, "TO LIVING ROOM", C_CYAN, gState.musicTransferLivingLoading, gState.musicTransferLivingStartTime, 2000, font_small, gState.scrollY);
+  ly += 80;
+
+  // Space for future actions
+  drawRetroBox(it, 10, getSY(ly), 220, 100, "FUTURE_ACTIONS", C_DIM);
+  it.printf(120, getSY(ly + 50), font_tiny, C_DIMMER, TextAlign::CENTER, "MORE SLOTS AVAILABLE");
+  ly += 110;
+
+  int totalContentHeight = ly - 40;
+  gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
+
+  drawDetailHeader(it, "MUSIC OPTIONS");
 }
 
 // --- DETAIL VIEW: CLIMATE ---
@@ -757,6 +785,7 @@ void renderDisplay(display::Display& it) {
       case VIEW_DETAIL_LIGHTS: renderDetail_Lights(it); break;
       case VIEW_DETAIL_TODO:   renderDetail_Todo(it); break;
       case VIEW_DETAIL_CLIMATE: renderDetail_Climate(it); break;
+      case VIEW_DETAIL_MUSIC:   renderDetail_Music(it); break;
       default: break;
     }
   }
