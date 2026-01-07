@@ -89,6 +89,12 @@ private:
       
       // Page 0: Status Page
       if (gState.mainPageIndex == 0) {
+        // Climate Detail (Environment Bar)
+        if (gState.climateDetailBtn.processTap(x, y, gState.climateDetailLoading, gState.climateDetailLoadingStartTime, gState.climateDetailActionRequested)) {
+           openView(VIEW_DETAIL_CLIMATE);
+           return;
+        }
+
         // Windows Alert Badge
         if (gState.getOpenWindowCount() > 0) {
           if (gState.windowsAlertBtn.processTap(x, y, gState.windowsAlertLoading, gState.windowsAlertLoadingStartTime, gState.windowsAlertActionRequested)) {
@@ -117,15 +123,15 @@ private:
         if (gState.musicLikeBtn.processTap(x, y, gState.musicLikeLoading, gState.musicLikeLoadingStartTime, gState.musicLikeActionRequested)) return;
         if (gState.musicSkipBtn.processTap(x, y, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, gState.musicSkipActionRequested)) return;
       }
-      // Page 3: House Status -> Open Light Details
-      else if (gState.mainPageIndex == 3) {
+      // Page 2: House Status -> Open Light Details
+      else if (gState.mainPageIndex == 2) {
         if (gState.lightsDetailBtn.processTap(x, y, gState.lightsDetailLoading, gState.lightsDetailLoadingStartTime, gState.lightsDetailActionRequested)) {
           openView(VIEW_DETAIL_LIGHTS);
           return;
         }
       }
-      // Page 4: Devices Page -> Open Details
-      else if (gState.mainPageIndex == 4) {
+      // Page 3: Devices Page -> Open Details
+      else if (gState.mainPageIndex == 3) {
         // Vacuum Card Button
         if (gState.vacuumCardBtn.processTap(x, y, gState.vacuumCardLoading, gState.vacuumCardLoadingStartTime, gState.vacuumCardActionRequested)) {
           openView(VIEW_DETAIL_VACUUM);

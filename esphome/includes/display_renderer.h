@@ -96,8 +96,8 @@ void drawDetailHeader(display::Display& it, const char* title) {
 // --- PAGE 0: STATUS ---
 
 void renderPage0_Status(display::Display& it) {
-  // --- ENVIRONMENT BAR ---
-  drawRetroBox(it, 10, 40, 220, 30, nullptr, C_CYAN);
+  // --- ENVIRONMENT BAR (LINK TO CLIMATE) ---
+  gState.climateDetailBtn.draw(it, "", C_CYAN, gState.climateDetailLoading, gState.climateDetailLoadingStartTime, 0, font_tiny, 0, nullptr);
   
   auto drawMetric = [&](int x, float val, const char* unit, Color c) {
     if (val != 0)
@@ -270,38 +270,56 @@ void renderPage1_Music(display::Display& it) {
   gState.musicSkipBtn.draw(it, "SKIP", C_AMBER, gState.musicSkipLoading, gState.musicSkipLoadingStartTime, 1000, font_small);
 }
 
-// --- PAGE 2: CLIMATE ---
+// --- DETAIL VIEW: CLIMATE ---
 
-void renderPage2_Climate(display::Display& it) {
+void renderDetail_Climate(display::Display& it) {
+  int ly = 45; 
+  auto getSY = [&](int logicalY) { return logicalY + gState.scrollY; };
+
   // --- AIR QUALITY BOX ---
-  drawRetroBox(it, 10, 40, 220, 110, "AIR_QUALITY", C_GREEN);
+  drawRetroBox(it, 10, getSY(ly), 220, 110, "AIR_QUALITY", C_GREEN);
   
   float co2_val = gState.co2;
   Color co2_color = co2_val < 800.0f ? C_GREEN : (co2_val < 1200.0f ? C_AMBER : C_RED);
   
-  it.printf(30, 65, font_tiny, C_DIM, TextAlign::TOP_LEFT, "CO2 CONCENTRATION");
-  it.printf(30, 85, font_large, co2_color, TextAlign::TOP_LEFT, "%.0f", co2_val);
-  it.printf(110, 100, font_tiny, C_DIM, TextAlign::TOP_LEFT, "PPM");
+  it.printf(30, getSY(ly + 25), font_tiny, C_DIM, TextAlign::TOP_LEFT, "CO2 CONCENTRATION");
+  it.printf(30, getSY(ly + 45), font_large, co2_color, TextAlign::TOP_LEFT, "%.0f", co2_val);
+  it.printf(110, getSY(ly + 60), font_tiny, C_DIM, TextAlign::TOP_LEFT, "PPM");
 
   // Retro bar gauge
-  it.rectangle(30, 120, 180, 10, C_DIMMER);
+  it.rectangle(30, getSY(ly + 80), 180, 10, C_DIMMER);
   float mapped = (co2_val - 400.0f) / 1600.0f;
   if (mapped < 0) mapped = 0; if (mapped > 1) mapped = 1;
-  it.filled_rectangle(32, 122, (int)(mapped * 176), 6, co2_color);
+  it.filled_rectangle(32, getSY(ly + 82), (int)(mapped * 176), 6, co2_color);
   
+  ly += 125;
+
   // --- THERMAL DYNAMICS BOX ---
-  drawRetroBox(it, 10, 165, 220, 115, "THERMAL_DYNAMICS", C_AMBER);
+  drawRetroBox(it, 10, getSY(ly), 220, 115, "THERMAL_DYNAMICS", C_AMBER);
   
   auto drawReadout = [&](int x, int y, const char* label, float val, const char* unit, Color c) {
-    it.printf(x, y, font_tiny, C_DIM, TextAlign::TOP_LEFT, "%s", label);
-    it.printf(x, y + 15, font_medium, c, TextAlign::TOP_LEFT, "%.1f%s", val, unit);
+    it.printf(x, getSY(y), font_tiny, C_DIM, TextAlign::TOP_LEFT, "%s", label);
+    it.printf(x, getSY(y + 15), font_medium, c, TextAlign::TOP_LEFT, "%.1f%s", val, unit);
   };
 
-  drawReadout(30, 190, "INDOOR_TEMP", gState.indoorTemp, "C", C_AMBER);
-  drawReadout(130, 190, "INDOOR_HUM", gState.indoorHumidity, "%", C_DIM);
+  drawReadout(30, ly + 25, "INDOOR_TEMP", gState.indoorTemp, "C", C_AMBER);
+  drawReadout(130, ly + 25, "INDOOR_HUM", gState.indoorHumidity, "%", C_DIM);
   
-  drawReadout(30, 235, "OUTDOOR_TEMP", gState.outsideTemp, "C", C_CYAN);
-  drawReadout(130, 235, "OUTDOOR_HUM", gState.outsideHumidity, "%", C_DIM);
+  drawReadout(30, ly + 70, "OUTDOOR_TEMP", gState.outsideTemp, "C", C_CYAN);
+  drawReadout(130, ly + 70, "OUTDOOR_HUM", gState.outsideHumidity, "%", C_DIM);
+  
+  ly += 130;
+
+  // Additional detail for climate view
+  drawRetroBox(it, 10, getSY(ly), 220, 60, "ENVIRONMENT_STATS", C_DIM);
+  it.printf(30, getSY(ly + 20), font_tiny, C_DIM, TextAlign::TOP_LEFT, "INDOOR_LIGHT");
+  it.printf(30, getSY(ly + 35), font_small, C_WHITE, TextAlign::TOP_LEFT, "%.0f lx", gState.indoorLight);
+  ly += 70;
+
+  int totalContentHeight = ly - 40;
+  gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
+
+  drawDetailHeader(it, "CLIMATE DETAIL");
 }
 
 // --- PAGE 3: HOUSE STATUS ---
@@ -729,9 +747,8 @@ void renderDisplay(display::Display& it) {
     switch (gState.mainPageIndex) {
       case 0: renderPage0_Status(it); break;
       case 1: renderPage1_Music(it); break;
-      case 2: renderPage2_Climate(it); break;
-      case 3: renderPage3_House(it); break;
-      case 4: renderPage4_Devices(it); break;
+      case 2: renderPage3_House(it); break;
+      case 3: renderPage4_Devices(it); break;
     }
   } else {
     // Detail Views
@@ -739,6 +756,7 @@ void renderDisplay(display::Display& it) {
       case VIEW_DETAIL_VACUUM: renderDetail_Vacuum(it); break;
       case VIEW_DETAIL_LIGHTS: renderDetail_Lights(it); break;
       case VIEW_DETAIL_TODO:   renderDetail_Todo(it); break;
+      case VIEW_DETAIL_CLIMATE: renderDetail_Climate(it); break;
       default: break;
     }
   }

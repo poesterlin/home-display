@@ -13,7 +13,8 @@ enum ViewState {
   VIEW_MAIN_DASHBOARD,
   VIEW_DETAIL_VACUUM,
   VIEW_DETAIL_LIGHTS,
-  VIEW_DETAIL_TODO
+  VIEW_DETAIL_TODO,
+  VIEW_DETAIL_CLIMATE
 };
 
 struct LightControl {
@@ -29,7 +30,7 @@ struct DisplayState {
   // Page management
   ViewState currentView = VIEW_MAIN_DASHBOARD;
   int mainPageIndex = 0; // Tracks the carousel index (0-3)
-  int totalMainPages = 5;
+  int totalMainPages = 4;
   
   // Scrolling for Detail Views
   int scrollY = 0;
@@ -42,6 +43,12 @@ struct DisplayState {
   unsigned long backLoadingStartTime = 0;
   Button backBtn = Button(5, 5, 40, 30);
   
+  // Climate Detail Navigation
+  volatile bool climateDetailLoading = false;
+  unsigned long climateDetailLoadingStartTime = 0;
+  volatile bool climateDetailActionRequested = false;
+  Button climateDetailBtn = Button(10, 40, 220, 30);
+
   // Windows Alert Button
   volatile bool windowsAlertLoading = false;
   unsigned long windowsAlertLoadingStartTime = 0;
