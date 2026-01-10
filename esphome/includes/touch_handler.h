@@ -16,13 +16,31 @@ public:
       startY = y;
       lastY = y;
       gState.lastTouchTime = millis();
+
+      // Detect start of timer drag (only when timer is not running)
+      if (gState.currentView == VIEW_DETAIL_TIMER && !gState.timerActive) {
+        if (x >= 10 && x <= 230 && y >= 150 && y <= 210) {
+          gState.timerDragging = true;
+        }
+      }
     }
     // Touch Move
     else if (touched && wasTouched) {
       gState.lastTouchTime = millis();
       
+      if (gState.timerDragging) {
+        int sliderX = 25;
+        int sliderW = 190;
+        float progress = (float)(x - sliderX) / (float)sliderW;
+        if (progress < 0) progress = 0; if (progress > 1) progress = 1;
+        
+        // Round to nearest minute
+        int minutes = (int)(progress * 60.0f + 0.5f);
+        gState.timerRemaining = minutes * 60;
+        gState.timerDuration = gState.timerRemaining;
+      }
       // Handle Scrolling in Detail Views
-      if (gState.currentView != VIEW_MAIN_DASHBOARD) {
+      else if (gState.currentView != VIEW_MAIN_DASHBOARD) {
         int dy = y - lastY;
         
         // Ignore jitter and massive jumps (likely sensor noise)
@@ -39,6 +57,7 @@ public:
     }
     // Touch Release
     else if (!touched && wasTouched) {
+      gState.timerDragging = false;
       int dx = x - startX;
       int dy = y - startY;
       
@@ -95,6 +114,12 @@ private:
            return;
         }
 
+        // Timer Link Overlay
+        if (gState.timerLinkBtn.processTap(x, y, gState.timerLinkLoading, gState.timerLinkLoadingStartTime, gState.timerLinkActionRequested)) {
+           openView(VIEW_DETAIL_TIMER);
+           return;
+        }
+
         // Windows Alert Badge
         if (gState.getOpenWindowCount() > 0) {
           if (gState.windowsAlertBtn.processTap(x, y, gState.windowsAlertLoading, gState.windowsAlertLoadingStartTime, gState.windowsAlertActionRequested)) {
@@ -148,6 +173,54 @@ private:
       if (gState.backBtn.processTap(x, y, gState.backLoading, gState.backLoadingStartTime, gState.backActionRequested)) {
         goBack();
         return;
+      }
+
+      // Music Detail View Buttons
+      if (gState.currentView == VIEW_DETAIL_MUSIC) {
+        if (gState.musicTransferOfficeBtn.processTap(x, y, gState.musicTransferOfficeLoading, gState.musicTransferOfficeStartTime, gState.musicTransferOfficeRequested, gState.scrollY)) {
+          gState.lastTouchTime = millis();
+          ESP_LOGI("touch", "Music Transfer Office button processed");
+          // TODO: Call Home Assistant service here
+        }
+        if (gState.musicTransferLivingBtn.processTap(x, y, gState.musicTransferLivingLoading, gState.musicTransferLivingStartTime, gState.musicTransferLivingRequested, gState.scrollY)) {
+          gState.lastTouchTime = millis();
+          ESP_LOGI("touch", "Music Transfer Living Room button processed");
+          // TODO: Call Home Assistant service here
+        }
+      }
+
+      // Timer Detail View Buttons
+      if (gState.currentView == VIEW_DETAIL_TIMER) {
+        bool dummyLoading = false;
+        unsigned long dummyTime = 0;
+        bool dummyAction = false;
+        if (gState.timerStartBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction, gState.scrollY)) {
+          gState.timerActive = !gState.timerActive;
+          gPendingTapSound = true;
+          return;
+        }
+        if (gState.timerResetBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction, gState.scrollY)) {
+          gState.timerActive = false;
+          gState.timerRemaining = gState.timerDuration;
+          gPendingTapSound = true;
+          return;
+        }
+        if (!gState.timerActive) {
+          if (gState.timerPlusBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction, gState.scrollY)) {
+            gState.timerRemaining += 60;
+            if (gState.timerRemaining > 3600) gState.timerRemaining = 3600;
+            gState.timerDuration = gState.timerRemaining;
+            gPendingTapSound = true;
+            return;
+          }
+          if (gState.timerMinusBtn.processTap(x, y, dummyLoading, dummyTime, dummyAction, gState.scrollY)) {
+            gState.timerRemaining -= 60;
+            if (gState.timerRemaining < 0) gState.timerRemaining = 0;
+            gState.timerDuration = gState.timerRemaining;
+            gPendingTapSound = true;
+            return;
+          }
+        }
       }
 
       // Vacuum Detail View Buttons

@@ -15,7 +15,8 @@ enum ViewState {
   VIEW_DETAIL_LIGHTS,
   VIEW_DETAIL_TODO,
   VIEW_DETAIL_CLIMATE,
-  VIEW_DETAIL_MUSIC
+  VIEW_DETAIL_MUSIC,
+  VIEW_DETAIL_TIMER
 };
 
 struct LightControl {
@@ -43,12 +44,20 @@ struct DisplayState {
   volatile bool backActionRequested = false;
   unsigned long backLoadingStartTime = 0;
   Button backBtn = Button(5, 5, 40, 30);
+
+  // Timer Link (Page 0)
+  volatile bool timerLinkLoading = false;
+  unsigned long timerLinkLoadingStartTime = 0;
+  volatile bool timerLinkActionRequested = false; // Dummy
+  Button timerLinkBtn = Button(75, 40, 100, 30);
   
   // Climate Detail Navigation
   volatile bool climateDetailLoading = false;
   unsigned long climateDetailLoadingStartTime = 0;
   volatile bool climateDetailActionRequested = false;
   Button climateDetailBtn = Button(10, 40, 220, 30);
+
+
 
   // Windows Alert Button
   volatile bool windowsAlertLoading = false;
@@ -104,7 +113,7 @@ struct DisplayState {
   volatile bool todoDetailLoading = false;
   unsigned long todoDetailLoadingStartTime = 0;
   volatile bool todoDetailActionRequested = false; // Dummy
-  Button todoDetailBtn = Button(10, 90, 220, 160); // Overlay for Page 0 logistics section
+  Button todoDetailBtn = Button(10, 90, 220, 90); // Overlay for Page 0 logistics section
 
   // --- SENSORS ---
   
@@ -196,6 +205,17 @@ struct DisplayState {
   unsigned long notificationLoadingStartTime = 0;
   volatile bool notificationActionRequested = false;
   Button notificationDismissBtn = Button(20, 240, 200, 50);
+
+  // Timer Detail State
+  int timerRemaining = 0;   // In seconds
+  int timerDuration = 300;  // Initial 5 min
+  bool timerActive = false;
+  bool timerDragging = false;
+  Button timerStartBtn = Button(10, 240, 105, 45);
+  Button timerResetBtn = Button(125, 240, 105, 45);
+  Button timerPlusBtn = Button(180, 80, 45, 45);
+  Button timerMinusBtn = Button(15, 80, 45, 45);
+  // Slider area: 10, 150, 220, 40
 
   // --- UI HELPERS ---
   

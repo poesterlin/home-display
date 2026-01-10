@@ -51,21 +51,36 @@ void drawCommonHeader(display::Display& it) {
   it.line(0, 0, 0, 320, C_DIMMER);
   it.line(239, 0, 239, 320, C_DIMMER);
 
-  // Time & Date Section
-  auto time_now = sntp_time->now();
-  if (time_now.is_valid()) {
-    it.printf(10, 10, font_medium, C_WHITE, TextAlign::TOP_LEFT, "%02d:%02d", 
-              time_now.hour, time_now.minute);
-    it.printf(75, 12, font_tiny, C_DIM, TextAlign::TOP_LEFT, ":%02d", time_now.second);
-
-    const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-    const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", 
-                            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-    int dayIdx = time_now.day_of_week - 1;
-    if(dayIdx < 0) dayIdx = 0;
+  // Timer Override or Time & Date
+  if (gState.timerActive) {
+    int minutes = gState.timerRemaining / 60;
+    int seconds = gState.timerRemaining % 60;
+    Color timerColor = (gState.timerRemaining == 0) ? C_RED : C_CYAN;
     
-    it.printf(230, 12, font_tiny, C_DIM, TextAlign::TOP_RIGHT, "%s %02d %s", 
-              days[dayIdx], time_now.day_of_month, months[time_now.month-1]);
+    // Draw Timer Icon
+    it.circle(25, 20, 8, timerColor);
+    it.line(25, 20, 25, 15, timerColor);
+    it.line(25, 20, 29, 20, timerColor);
+    
+    it.printf(42, 10, font_medium, timerColor, TextAlign::TOP_LEFT, "%02d:%02d", minutes, seconds);
+    it.printf(230, 12, font_tiny, timerColor, TextAlign::TOP_RIGHT, "TIMER RUNNING");
+  } else {
+    // Time & Date Section
+    auto time_now = sntp_time->now();
+    if (time_now.is_valid()) {
+      it.printf(10, 10, font_medium, C_WHITE, TextAlign::TOP_LEFT, "%02d:%02d", 
+                time_now.hour, time_now.minute);
+      it.printf(75, 12, font_tiny, C_DIM, TextAlign::TOP_LEFT, ":%02d", time_now.second);
+
+      const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+      const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", 
+                              "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+      int dayIdx = time_now.day_of_week - 1;
+      if(dayIdx < 0) dayIdx = 0;
+      
+      it.printf(230, 12, font_tiny, C_DIM, TextAlign::TOP_RIGHT, "%s %02d %s", 
+                days[dayIdx], time_now.day_of_month, months[time_now.month-1]);
+    }
   }
   
   it.line(10, 35, 230, 35, C_DIM);
@@ -110,6 +125,8 @@ void renderPage0_Status(display::Display& it) {
   drawMetric(90, gState.avgTemp, "C", C_AMBER);
   drawMetric(140, gState.avgHumidity, "%", C_DIM);
   
+
+
   Color co2_color = gState.co2 < 800 ? C_GREEN : (gState.co2 < 1200 ? C_AMBER : C_RED);
   drawMetric(195, gState.co2, "", co2_color);
 
@@ -129,7 +146,7 @@ void renderPage0_Status(display::Display& it) {
     // Helper to draw from a list string
     auto drawFromList = [&](std::string listStr, Color checkColor) {
       size_t pos = 0;
-      while (((pos = listStr.find("\n")) != std::string::npos || !listStr.empty()) && count < 5) {
+      while (((pos = listStr.find("\n")) != std::string::npos || !listStr.empty()) && count < 3) {
         std::string line;
         if (pos != std::string::npos) {
           line = listStr.substr(0, pos);
@@ -202,6 +219,21 @@ void renderPage0_Status(display::Display& it) {
 
   drawPreviewItems(105);
 
+  // --- TIMER BUTTON ---
+  int timerBtnY = 195; // More spacing after the 3 todo items
+  gState.timerLinkBtn.x = 70;
+  gState.timerLinkBtn.y = timerBtnY;
+  gState.timerLinkBtn.w = 100;
+  gState.timerLinkBtn.h = 35;
+  gState.timerLinkBtn.draw(it, "   TIMER", C_AMBER, gState.timerLinkLoading, gState.timerLinkLoadingStartTime, 0, font_small);
+  
+  // Custom Clock Icon
+  int cx = 85;
+  int cy = timerBtnY + 17;
+  it.circle(cx, cy, 7, C_AMBER);
+  it.line(cx, cy, cx, cy - 4, C_AMBER); // Hour hand
+  it.line(cx, cy, cx + 3, cy, C_AMBER); // Minute hand
+
   // --- HARDWARE STATUS (BADGES) ---
   drawRetroBox(it, 10, 260, 220, 40, nullptr, C_DIM);
   
@@ -246,6 +278,9 @@ void renderPage0_Status(display::Display& it) {
 void renderPage1_Music(display::Display& it) {
   gState.musicDetailBtn.draw(it, "", C_CYAN, gState.musicDetailLoading, gState.musicDetailLoadingStartTime, 0, font_tiny, 0, "NOW_PLAYING");
   
+  // Add a small indicator that this box is clickable
+  it.printf(225, 45, font_tiny, C_CYAN, TextAlign::TOP_RIGHT, "OPTIONS >");
+
   if (gState.mediaStatus == "playing") {
     ScrollingText::draw(it, 30, 65, 180, gState.mediaTitle, font_medium, C_WHITE);
     it.printf(30, 95, font_small, C_DIM, TextAlign::TOP_LEFT, "%s", gState.mediaArtist.c_str());
@@ -296,6 +331,85 @@ void renderDetail_Music(display::Display& it) {
   gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
 
   drawDetailHeader(it, "MUSIC OPTIONS");
+}
+
+// --- DETAIL VIEW: TIMER ---
+
+void renderDetail_Timer(display::Display& it) {
+  int ly = 60;
+  auto getSY = [&](int logicalY) { return logicalY + gState.scrollY; };
+
+  // 1. Large Countdown Text
+  int minutes = gState.timerRemaining / 60;
+  int seconds = gState.timerRemaining % 60;
+  Color timeColor = gState.timerActive ? C_CYAN : C_WHITE;
+  if (gState.timerRemaining == 0 && gState.timerActive) timeColor = C_RED;
+
+  it.printf(120, getSY(ly + 40), font_large, timeColor, TextAlign::CENTER, "%02d:%02d", minutes, seconds);
+  
+  // Adjustment Buttons (only if not running)
+  if (!gState.timerActive) {
+    bool dummyLoading = false;
+    unsigned long dummyStartTime = 0;
+    gState.timerMinusBtn.y = ly + 20;
+    gState.timerPlusBtn.y = ly + 20;
+    gState.timerMinusBtn.draw(it, "-1", C_CYAN, dummyLoading, dummyStartTime, 0, font_small, gState.scrollY);
+    gState.timerPlusBtn.draw(it, "+1", C_CYAN, dummyLoading, dummyStartTime, 0, font_small, gState.scrollY);
+  }
+
+  ly += 90;
+
+  // 2. Draggable Slider UI (blocked when running)
+  drawRetroBox(it, 10, getSY(ly), 220, 60, "TIME_ADJUST", gState.timerActive ? C_DIMMER : C_DIM);
+  
+  int sliderX = 25;
+  int sliderW = 190;
+  int sliderY = getSY(ly + 35);
+  
+  // Track
+  Color trackColor = gState.timerActive ? C_DIMMER : C_DIMMER;
+  it.line(sliderX, sliderY, sliderX + sliderW, sliderY, trackColor);
+  it.line(sliderX, sliderY+1, sliderX + sliderW, sliderY+1, trackColor);
+  
+  // Progress (dimmed when running)
+  float progress = (float)gState.timerRemaining / 3600.0f; // Max 60 mins
+  if (progress > 1.0f) progress = 1.0f;
+  int handleX = sliderX + (int)(progress * sliderW);
+  
+  Color sliderColor = gState.timerActive ? C_DIMMER : C_CYAN;
+  it.line(sliderX, sliderY, handleX, sliderY, sliderColor);
+  it.line(sliderX, sliderY+1, handleX, sliderY+1, sliderColor);
+  
+  // Handle (dimmed when running)
+  Color handleColor = gState.timerActive ? C_DIMMER : C_CYAN;
+  it.filled_circle(handleX, sliderY, 8, handleColor);
+  it.circle(handleX, sliderY, 10, gState.timerActive ? C_DIMMER : C_WHITE);
+  
+  const char* sliderText = gState.timerActive ? "TIMER RUNNING - SLIDER LOCKED" : "SLIDE TO SET (MAX 60M)";
+  Color textColor = gState.timerActive ? C_DIMMER : C_DIM;
+  it.printf(120, getSY(ly + 15), font_tiny, textColor, TextAlign::CENTER, "%s", sliderText);
+  
+  ly += 80;
+
+  // 3. Control Buttons
+  gState.timerStartBtn.y = ly;
+  gState.timerResetBtn.y = ly;
+  
+  const char* startLabel = gState.timerActive ? "STOP" : "START";
+  Color startColor = gState.timerActive ? C_RED : C_GREEN;
+  
+  bool dummyLoading = false;
+  unsigned long dummyStartTime = 0;
+  
+  gState.timerStartBtn.draw(it, startLabel, startColor, dummyLoading, dummyStartTime, 0, font_small, gState.scrollY);
+  gState.timerResetBtn.draw(it, "RESET", C_AMBER, dummyLoading, dummyStartTime, 0, font_small, gState.scrollY);
+
+  ly += 60;
+
+  int totalContentHeight = ly - 40;
+  gState.maxScrollY = totalContentHeight > 280 ? (totalContentHeight - 280) : 0;
+
+  drawDetailHeader(it, "KITCHEN TIMER");
 }
 
 // --- DETAIL VIEW: CLIMATE ---
@@ -786,6 +900,7 @@ void renderDisplay(display::Display& it) {
       case VIEW_DETAIL_TODO:   renderDetail_Todo(it); break;
       case VIEW_DETAIL_CLIMATE: renderDetail_Climate(it); break;
       case VIEW_DETAIL_MUSIC:   renderDetail_Music(it); break;
+      case VIEW_DETAIL_TIMER:   renderDetail_Timer(it); break;
       default: break;
     }
   }

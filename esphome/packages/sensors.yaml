@@ -347,9 +347,19 @@ interval:
   - interval: 1s
     then:
       - lambda: |- 
-          // Auto-return to main dashboard after 30s of inactivity
-          if (gState.currentView != VIEW_MAIN_DASHBOARD && (millis() - gState.lastTouchTime) > 30000) {
-            goBack();
+          // Timer Countdown Logic
+          if (gState.timerActive && gState.timerRemaining > 0) {
+            gState.timerRemaining--;
+            if (gState.timerRemaining == 0) {
+              gState.timerActive = false;
+              // Set local timer notification flag instead of HA notification
+              gState.notificationTitle = "TIMER EXPIRED";
+              gState.notificationBody = "Kitchen timer finished!";
+              gState.notificationSeverity = "alert";
+              // Play timer completion sound at max volume
+              id(display_speaker).set_volume(1.0);
+              id(swipe_buzzer).play("alert:d=250,o=4,b=200:c,e,g,c");
+            }
           }
           // Also reset main page to 0 if idle
           if (gState.currentView == VIEW_MAIN_DASHBOARD && gState.mainPageIndex != 0 && (millis() - gState.lastTouchTime) > 30000) {
@@ -413,8 +423,11 @@ interval:
 
           // Notification Actions
           if (gState.notificationActionRequested) {
-            ESP_LOGI("main", "Notification action requested, executing script");
+            ESP_LOGI("main", "Notification action requested, clearing local and HA state");
             gState.notificationActionRequested = false;
+            // Clear local state immediately for fast feedback
+            gState.notificationTitle = "";
+            gState.notificationBody = "";
             id(clear_notification).execute();
           }
 
@@ -436,6 +449,20 @@ interval:
             gState.musicSkipLoading = true;
             gState.musicSkipLoadingStartTime = millis();
             id(call_music_skip).execute();
+          }
+
+          // Music Transfer Actions
+          if (gState.musicTransferOfficeRequested) {
+            gState.musicTransferOfficeRequested = false;
+            gState.musicTransferOfficeLoading = true;
+            gState.musicTransferOfficeStartTime = millis();
+            id(call_music_transfer_office).execute();
+          }
+          if (gState.musicTransferLivingRequested) {
+            gState.musicTransferLivingRequested = false;
+            gState.musicTransferLivingLoading = true;
+            gState.musicTransferLivingStartTime = millis();
+            id(call_music_transfer_living).execute();
           }
 
           // Reset To-Do Loading after timeout
@@ -554,3 +581,13 @@ script:
     then:
       - homeassistant.service:
           service: script.skip_song
+
+  - id: call_music_transfer_office
+    then:
+      - homeassistant.service:
+          service: script.warteschlange_ins_buro_ubertragen
+
+  - id: call_music_transfer_living
+    then:
+      - homeassistant.service:
+          service: script.warteschlange_ins_wohnzimmer_ubertragen
