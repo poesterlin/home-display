@@ -399,8 +399,8 @@ interval:
               gState.notificationTitle = "TIMER EXPIRED";
               gState.notificationBody = "Kitchen timer finished!";
               gState.notificationSeverity = "alert";
-              // Play timer completion sound at max volume
-              id(display_speaker).set_volume(1.0);
+              // Play timer completion sound at max volume (overdriven)
+              id(display_speaker).set_volume(10.0);
               id(swipe_buzzer).play("alert:d=8,o=6,b=285:d,p,d,p,d,p,d,p,d,p,d,p,d,p,d,p");
             }
           }
