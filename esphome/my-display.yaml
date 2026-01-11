@@ -23,6 +23,15 @@ esphome:
     - includes/notification.h
     - includes/scrolling_text.h
     - includes/diagram.h
+    - includes/render_helpers.h
+    - includes/render_pages.h
+    - includes/render_details.h
+    - includes/render_detail_vacuum.h
+    - includes/render_detail_lights.h
+    - includes/render_detail_todo.h
+    - includes/render_detail_climate.h
+    - includes/render_detail_music.h
+    - includes/render_detail_timer.h
     - includes/display_renderer.h
 
 # Globals are now in includes/state_manager.h

@@ -62,8 +62,13 @@ public:
     
     // Header Label (if provided)
     if (header) {
+      int tx, ty, tw, th;
+      it.get_text_bounds(x + 12, drawY - 7, header, font_tiny, TextAlign::TOP_LEFT, &tx, &ty, &tw, &th);
+      it.filled_rectangle(tx - 2, ty, tw + 4, th, C_BLACK);
       it.printf(x + 12, drawY - 7, font_tiny, color, TextAlign::TOP_LEFT, " %s ", header);
     }
+
+
 
     if (loading) {
       float angle = (millis() % 1000) * 2.0f * 3.14159265f / 1000.0f;

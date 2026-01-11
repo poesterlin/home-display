@@ -72,8 +72,82 @@ This is an ESPHome project for a 240x320 touchscreen display running on ESP32-S3
 ### Core Components
 - `state_manager.h`: Central state management with `gState` global
 - `touch_handler.h`: Touch input processing and gesture detection  
-- `display_renderer.h`: All rendering logic for pages and components
+- **display_renderer.h**: Main rendering orchestrator (refactored into modular components)
+- **render_helpers.h**: Shared drawing utilities (boxes, headers, icons)
+- **render_pages.h**: Main dashboard carousel pages (Status, Music, House, Devices)
+- **render_details.h**: Detail view dispatcher
+- **render_detail_*.h**: Individual detail view implementations (vacuum, lights, todo, climate, music, timer)
 - `sensors.yaml`: Home Assistant sensor integration
+
+### Display Renderer Architecture
+
+The display rendering system is organized into modular components to improve maintainability and enable parallel development. All rendering code lives in `esphome/includes/` as header files.
+
+#### Module Breakdown
+
+**`display_renderer.h` (Main Entry Point - ~25 lines)**
+- Single include point for YAML configuration
+- Contains `renderDisplay()` main orchestrator
+- Routes to either dashboard pages or detail views
+- Handles notification overlay rendering
+
+**`render_helpers.h` (Shared Utilities - ~100 lines)**
+Common drawing functions used across multiple pages:
+- `drawRetroBox()` - Decorative box with pronounced corners
+- `drawCommonHeader()` - Time/date display with timer override
+- `drawPageIndicator()` - Carousel navigation dots
+- `drawDetailHeader()` - Back button + title for detail views
+- `drawWindowIcon()` - Window status indicator (open/shut)
+- `drawBulbIcon()` - Light bulb status indicator (on/off)
+
+**`render_pages.h` (Main Dashboard Pages - ~265 lines)**
+All 4 main carousel pages:
+- `renderPage0_Status()` - Environment metrics, todo preview, hardware badges
+- `renderPage1_Music()` - Media player with visualizer and controls
+- `renderPage3_House()` - Perimeter windows, illumination, biometrics
+- `renderPage4_Devices()` - Vacuum, washing machine, 3D printer status
+
+**`render_details.h` (Detail Dispatcher - ~30 lines)**
+Routes to appropriate detail view based on `gState.currentView`:
+- `renderDetailViews(display::Display& it, ViewState view)`
+- Includes all `render_detail_*.h` files
+
+**Detail View Modules** (Each ~50-125 lines):
+- `render_detail_vacuum.h` - Robot vacuum controls, battery, consumables, history
+- `render_detail_lights.h` - Light toggles for living room and office
+- `render_detail_todo.h` - Shopping list and todo items with tabs
+- `render_detail_climate.h` - Air quality, thermal dynamics, environment stats
+- `render_detail_music.h` - Playback transfer, volume slider, track controls
+- `render_detail_timer.h` - Countdown, time slider, start/stop/reset controls
+
+#### Dependency Chain
+```
+display_renderer.h
+├── render_helpers.h
+├── render_pages.h → render_helpers.h
+└── render_details.h
+    ├── render_detail_vacuum.h → render_helpers.h
+    ├── render_detail_lights.h → render_helpers.h
+    ├── render_detail_todo.h → render_helpers.h
+    ├── render_detail_climate.h → render_helpers.h
+    ├── render_detail_music.h → render_helpers.h
+    └── render_detail_timer.h → render_helpers.h
+```
+
+#### Key Design Principles
+- **Single Responsibility**: Each file has one clear purpose
+- **No Circular Dependencies**: Helpers → Pages → Dispatcher → Main
+- **Backward Compatible**: YAML config still includes only `display_renderer.h`
+- **Easy Testing**: Individual modules can be tested in isolation
+- **Parallel Development**: Multiple developers can work on different views simultaneously
+
+#### Adding New Views
+1. Create new `render_detail_[feature].h` file with `renderDetail_[Feature]()`
+2. Add enum to `ViewState` in `state_manager.h`
+3. Include new header in `render_details.h`
+4. Add case to `renderDetailViews()` switch statement
+5. Update `renderDisplay()` if needed for routing
+6. Add navigation logic in `touch_handler.h`
 
 ## Code Style Guidelines
 
