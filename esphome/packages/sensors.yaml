@@ -383,7 +383,11 @@ interval:
           }
           if (gPendingNotificationSound) {
             gPendingNotificationSound = false;
-            id(display_speaker).set_volume(0.9);
+            float vol = 0.9;
+            if (gState.notificationSeverity == "warn") vol = 2.0;
+            else if (gState.notificationSeverity == "alert") vol = 4.0;
+            else if (gState.notificationSeverity == "question") vol = 1.5;
+            id(display_speaker).set_volume(vol);
             id(swipe_buzzer).play("notif:d=16,o=4,b=100:g,e");
           }
 
