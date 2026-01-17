@@ -5,6 +5,8 @@
   import SliderRenderer from "./SliderRenderer.svelte";
   import GaugeRenderer from "./GaugeRenderer.svelte";
   import IconRenderer from "./IconRenderer.svelte";
+  import ProceduralIconRenderer from "./ProceduralIconRenderer.svelte";
+  import ContainerRenderer from "./ContainerRenderer.svelte";
 
   interface Props {
     component: Component;
@@ -23,6 +25,10 @@
   <GaugeRenderer {component} />
 {:else if component.type === "icon"}
   <IconRenderer {component} />
+{:else if component.type === "procedural_icon"}
+  <ProceduralIconRenderer {component} />
+{:else if component.type === "container"}
+  <ContainerRenderer {component} />
 {:else}
   <div class="unknown-component">
     Unknown: {component.type}

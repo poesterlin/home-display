@@ -41,7 +41,32 @@
 </script>
 
 <div class="property-editor">
-  {#if selectedComponent}
+    <!-- Detail View specific properties -->
+    {#if projectStore.viewMode === 'detail' && projectStore.currentDetailView && !selectedComponent}
+      <h3>Detail View Properties</h3>
+      <div class="property-section">
+        <div class="field">
+          <span class="field-label">Title</span>
+          <input
+            type="text"
+            value={projectStore.currentDetailView.title}
+            oninput={(e) => projectStore.updateDetailView(projectStore.currentDetailView!.id, { title: e.currentTarget.value })}
+          />
+        </div>
+        <div class="field">
+          <span class="field-label">Height</span>
+          <input
+            type="number"
+            min={projectStore.display.height}
+            step={10}
+            value={projectStore.currentDetailView.height}
+            oninput={(e) => projectStore.updateDetailView(projectStore.currentDetailView!.id, { height: parseInt(e.currentTarget.value) || projectStore.display.height })}
+          />
+        </div>
+      </div>
+    {/if}
+
+    {#if selectedComponent}
     <h3>Properties</h3>
 
     <div class="property-section">
@@ -164,6 +189,43 @@
             oninput={(e) => updateProperty("icon", e.currentTarget.value)}
           />
         </div>
+        <div class="field">
+          <span class="field-label">On Tap</span>
+          <select
+            value={(selectedComponent as any).onTap?.type ?? "none"}
+            onchange={(e) => {
+              const val = e.currentTarget.value;
+              if (val === "none") {
+                updateProperty("onTap", undefined);
+              } else {
+                updateProperty("onTap", { type: val, targetId: "" });
+              }
+            }}
+          >
+            <option value="none">None</option>
+            <option value="OPEN_DETAIL">Open Detail</option>
+            <option value="NEXT_PAGE">Next Page</option>
+            <option value="PREV_PAGE">Prev Page</option>
+            <option value="GO_BACK">Go Back</option>
+          </select>
+        </div>
+        {#if (selectedComponent as any).onTap?.type === 'OPEN_DETAIL'}
+          <div class="field">
+            <span class="field-label">Target</span>
+            <select
+              value={(selectedComponent as any).onTap?.targetId ?? ""}
+              onchange={(e) => {
+                const onTap = { ...(selectedComponent as any).onTap, targetId: e.currentTarget.value };
+                updateProperty("onTap", onTap);
+              }}
+            >
+              <option value="" disabled>Select Detail View</option>
+              {#each projectStore.detailViews as view}
+                <option value={view.id}>{view.title}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
       </div>
     {/if}
 

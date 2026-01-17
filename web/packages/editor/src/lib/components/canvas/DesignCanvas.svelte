@@ -4,6 +4,7 @@
   import { historyStore } from "$lib/stores/history.svelte";
   import ComponentRenderer from "./renderers/ComponentRenderer.svelte";
   import SelectionOverlay from "./SelectionOverlay.svelte";
+  import DetailHeader from "./DetailHeader.svelte";
   import type { Component } from "@esphome-designer/schema";
 
   let canvasEl: HTMLDivElement | undefined = $state();
@@ -92,6 +93,22 @@
           size: { width: 32, height: 32 },
           scale: 1,
         } as Component;
+      
+      case "procedural_icon":
+        return {
+          ...base,
+          type: "procedural_icon",
+          iconType: "bulb",
+          size: { width: 32, height: 32 },
+        } as Component;
+      
+      case "container":
+        return {
+          ...base,
+          type: "container",
+          label: "Container",
+          size: { width: 100, height: 60 },
+        } as Component;
 
       default:
         return {
@@ -133,8 +150,9 @@
 <div
   class="canvas-wrapper"
   style:width="{projectStore.display.width}px"
-  style:height="{projectStore.display.height}px"
+  style:height="{(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? projectStore.currentDetailView.height : projectStore.display.height}px"
 >
+  <DetailHeader />
   <div
     bind:this={canvasEl}
     class="canvas"
@@ -144,8 +162,9 @@
     onclick={handleCanvasClick}
     ondrop={handleDrop}
     ondragover={handleDragOver}
+    style:height="{(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? projectStore.currentDetailView.height - 45 : '100%'}px"
   >
-    {#each projectStore.currentPage.components as component (component.id)}
+    {#each projectStore.activeComponents as component (component.id)}
       <ComponentRenderer {component} />
     {/each}
 
@@ -154,7 +173,12 @@
 
   <!-- Display size indicator -->
   <div class="size-indicator">
-    {projectStore.display.width} x {projectStore.display.height}
+    {projectStore.display.width} x {(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? projectStore.currentDetailView.height : projectStore.display.height}
+    {#if projectStore.viewMode === 'dashboard'}
+      (Dashboard: {projectStore.currentDashboardPage.name})
+    {:else}
+      (Detail: {projectStore.currentDetailView?.title})
+    {/if}
   </div>
 </div>
 
@@ -171,7 +195,7 @@
     height: 100%;
     background: #1a1a1a;
     position: relative;
-    overflow: hidden;
+    overflow-y: auto;
     cursor: crosshair;
   }
 

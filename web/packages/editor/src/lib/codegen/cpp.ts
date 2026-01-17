@@ -5,12 +5,10 @@
  */
 
 import type {
-  Project,
-  Page,
   Component,
-  Color,
+  Project
 } from "@esphome-designer/schema";
-import { entityToId } from "./esphome";
+import { assert } from "$lib/utils";
 
 export function generateCppRenderer(project: Project): string {
   const lines: string[] = [];
@@ -23,250 +21,125 @@ export function generateCppRenderer(project: Project): string {
   lines.push(``);
   lines.push(`#pragma once`);
   lines.push(`#include "esphome.h"`);
-  lines.push(``);
-
-  // Constants
-  lines.push(`// Display dimensions`);
-  lines.push(`const int DISPLAY_WIDTH = ${project.display.width};`);
-  lines.push(`const int DISPLAY_HEIGHT = ${project.display.height};`);
-  lines.push(``);
-
-  // Color constants
-  lines.push(`// Colors`);
-  lines.push(`const Color C_BLACK(0, 0, 0);`);
-  lines.push(`const Color C_WHITE(255, 255, 255);`);
-  lines.push(`const Color C_ACCENT(74, 158, 255);`);
-  lines.push(`const Color C_ORANGE(255, 107, 0);`);
-  lines.push(``);
-
-  // Forward declaration
-  lines.push(`// Forward declarations`);
-  lines.push(`extern esphome::globals::GlobalsComponent<int>* current_page;`);
+  lines.push(`#include "state_manager.h"`);
+  lines.push(`#include "render_helpers.h"`);
   lines.push(``);
 
   // Generate page render functions
-  for (let i = 0; i < project.pages.length; i++) {
-    const page = project.pages[i];
-    lines.push(generatePageRenderer(page, i, project));
+  project.dashboardPages.forEach((page, i) => {
+    lines.push(generateViewRenderer(page, `Page${i}`, project));
+    lines.push(``);
+  });
+
+  // Generate detail view render functions
+  project.detailViews.forEach((view) => {
+    const safeId = view.id.toUpperCase().replace(/-/g, '_');
+    lines.push(generateViewRenderer(view, `Detail_${safeId}`, project, true));
+    lines.push(``);
+  });
+
+  // Main render dispatcher
+  lines.push(`void renderDisplay(display::Display& it) {`);
+  lines.push(`  it.fill(Theme::BACKGROUND);`);
+  lines.push(``);
+  lines.push(`  if (gState.viewMode == DASHBOARD) {`);
+  lines.push(`    drawCommonHeader(it);`);
+  lines.push(`    switch (gState.mainPageIndex) {`);
+  project.dashboardPages.forEach((_, i) => {
+    lines.push(`      case ${i}: renderPage${i}(it); break;`);
+  });
+  lines.push(`    }`);
+  lines.push(`    drawPageIndicator(it, gState.mainPageIndex, ${project.dashboardPages.length});`);
+  lines.push(`  } else {`);
+  lines.push(`    switch (gState.currentView) {`);
+  project.detailViews.forEach((view) => {
+    const safeId = view.id.toUpperCase().replace(/-/g, '_');
+    lines.push(`      case VIEW_DETAIL_${safeId}: renderDetail_${safeId}(it); break;`);
+  });
+  lines.push(`    }`);
+  lines.push(`  }`);
+  lines.push(`}`);
+
+  return lines.join("\n");
+}
+
+function generateViewRenderer(view: any, name: string, project: Project, isDetail = false): string {
+  const lines: string[] = [];
+  lines.push(`void render${name}(display::Display& it) {`);
+
+  if (isDetail) {
+    lines.push(`  // Detail view with scroll offset and fixed header`);
+    lines.push(`  int ly = 45; // Local Y starts after header`);
+    lines.push(`  auto getSY = [&](int y) { return y + gState.scrollY; };`);
     lines.push(``);
   }
 
-  // Main render dispatcher
-  lines.push(`// Main display render function`);
-  lines.push(`void renderDisplay(display::Display& it, int page) {`);
-  lines.push(`  // Clear display`);
-  lines.push(`  it.fill(C_BLACK);`);
-  lines.push(``);
-  lines.push(`  // Render current page`);
-  lines.push(`  switch (page) {`);
-  for (let i = 0; i < project.pages.length; i++) {
-    lines.push(`    case ${i}:`);
-    lines.push(`      renderPage${i}(it);`);
-    lines.push(`      break;`);
-  }
-  lines.push(`    default:`);
-  lines.push(`      renderPage0(it);`);
-  lines.push(`      break;`);
-  lines.push(`  }`);
-  lines.push(`}`);
+  view.components.forEach((comp: Component) => {
+    lines.push(generateComponentCode(comp, project, isDetail));
+  });
 
-  return lines.join("\n");
-}
-
-function generatePageRenderer(page: Page, index: number, project: Project): string {
-  const lines: string[] = [];
-
-  lines.push(`// Page ${index}: ${page.name}`);
-  lines.push(`void renderPage${index}(display::Display& it) {`);
-
-  // Background color
-  if (page.backgroundColor) {
-    lines.push(`  it.fill(${colorToCpp(page.backgroundColor)});`);
-  }
-
-  // Page title comment
-  lines.push(`  // Page: ${page.name}`);
-  lines.push(``);
-
-  // Render each component
-  for (const comp of page.components) {
-    lines.push(generateComponentCode(comp, project));
+  if (isDetail) {
+    lines.push(``);
+    lines.push(`  // Draw Header Last (Always On Top)`);
+    lines.push(`  it.fill_rectangle(0, 0, 240, 45, Theme::BACKGROUND);`);
+    lines.push(`  it.line(0, 44, 240, 44, Theme::ACCENT);`);
+    lines.push(`  it.printf(120, 22, id(font_medium), Theme::FOREGROUND, TextAlign::CENTER, "${view.title.toUpperCase()}");`);
+    lines.push(`  // Back Button`);
+    lines.push(`  it.filled_rectangle(5, 8, 50, 28, Theme::BACKGROUND_SECONDARY);`);
+    lines.push(`  it.rectangle(5, 8, 50, 28, Theme::ACCENT);`);
+    lines.push(`  it.print(30, 22, id(font_small), Theme::FOREGROUND, TextAlign::CENTER, "< BACK");`);
   }
 
   lines.push(`}`);
   return lines.join("\n");
 }
 
-function generateComponentCode(comp: Component, project: Project): string {
+function generateComponentCode(comp: Component, project: Project, isDetail: boolean): string {
+  const yCoord = isDetail ? `getSY(${comp.position.y})` : comp.position.y;
+
   switch (comp.type) {
+    case "container":
+      assert(comp.size, "Container component must have size defined");
+      return `  drawThemedBox(it, ${comp.position.x}, ${yCoord}, ${comp.size.width}, ${comp.size.height}, "${(comp as any).label ?? ""}");`;
+
     case "text":
-      return generateTextCode(comp);
+      return generateTextCode(comp, yCoord);
+
     case "button":
-      return generateButtonCode(comp);
-    case "slider":
-      return generateSliderCode(comp);
-    case "gauge":
-      return generateGaugeCode(comp);
-    case "icon":
-      return generateIconCode(comp);
+      assert(project.theme, "Project theme must be defined to generate button code");
+      return generateButtonCode(comp, yCoord, project.theme);
+
+    case "procedural_icon":
+      return `  // Procedural Icon: ${comp.iconType} at (${comp.position.x}, ${yCoord})`;
+
     default:
-      return `  // Unknown component type: ${(comp as Component).type}`;
+      return `  // Unsupported component: ${comp.type}`;
   }
 }
 
-function generateTextCode(comp: Component & { type: "text" }): string {
-  const x = comp.position.x;
-  const y = comp.position.y;
-  const color = comp.color ? colorToCpp(comp.color) : "C_WHITE";
-  const font = comp.fontSize === "small" ? "font_small" : comp.fontSize === "large" ? "font_large" : "font_medium";
-  const align = comp.align === "center" ? "TextAlign::CENTER" : comp.align === "right" ? "TextAlign::TOP_RIGHT" : "TextAlign::TOP_LEFT";
-
-  const lines: string[] = [];
-  lines.push(`  // Text: ${comp.id}`);
+function generateTextCode(comp: any, y: string | number): string {
+  const color = comp.color ? `Color(${comp.color.r}, ${comp.color.g}, ${comp.color.b})` : "Theme::FOREGROUND";
+  const font = comp.fontSize === "small" ? "id(font_small)" : comp.fontSize === "large" ? "id(font_large)" : "id(font_medium)";
 
   if (comp.textBinding) {
-    const sensorId = entityToId(comp.textBinding.entityId);
-    lines.push(`  if (id(${sensorId}).has_state()) {`);
-    lines.push(`    it.printf(${x}, ${y}, id(${font}), ${color}, ${align}, "%s", id(${sensorId}).state.c_str());`);
-    lines.push(`  } else {`);
-    lines.push(`    it.print(${x}, ${y}, id(${font}), ${color}, ${align}, "${comp.text ?? "---"}");`);
-    lines.push(`  }`);
-  } else {
-    lines.push(`  it.print(${x}, ${y}, id(${font}), ${color}, ${align}, "${escapeString(comp.text ?? "")}");`);
+    const stateVar = `gState.${comp.textBinding.entityId.replace(/\./g, '_')}_text.c_str()`;
+    return `  it.printf(${comp.position.x}, ${y}, ${font}, ${color}, TextAlign::TOP_LEFT, "%s", ${stateVar});`;
   }
-
-  return lines.join("\n");
+  return `  it.print(${comp.position.x}, ${y}, ${font}, ${color}, TextAlign::TOP_LEFT, "${comp.text ?? ""}");`;
 }
 
-function generateButtonCode(comp: Component & { type: "button" }): string {
+function generateButtonCode(comp: any, y: string | number, theme: any): string {
   const x = comp.position.x;
-  const y = comp.position.y;
-  const w = comp.size?.width ?? 80;
-  const h = comp.size?.height ?? 36;
-  const bgColor = comp.backgroundColor ? colorToCpp(comp.backgroundColor) : "Color(50, 50, 50)";
-  const label = escapeString(comp.label ?? "Button");
+  const w = comp.size.width;
+  const h = comp.size.height;
+  const shadow = theme.style.buttonShadow ? `3` : `0`;
 
-  const lines: string[] = [];
-  lines.push(`  // Button: ${comp.id}`);
-  lines.push(`  it.filled_rectangle(${x}, ${y}, ${w}, ${h}, ${bgColor});`);
-  lines.push(`  it.rectangle(${x}, ${y}, ${w}, ${h}, Color(100, 100, 100));`);
-  lines.push(`  it.printf(${x + w / 2}, ${y + h / 2}, id(font_medium), C_WHITE, TextAlign::CENTER, "${label}");`);
-
-  return lines.join("\n");
-}
-
-function generateSliderCode(comp: Component & { type: "slider" }): string {
-  const x = comp.position.x;
-  const y = comp.position.y;
-  const w = comp.size?.width ?? 120;
-  const h = comp.size?.height ?? 24;
-  const min = comp.min ?? 0;
-  const max = comp.max ?? 100;
-  const isVertical = comp.orientation === "vertical";
-
-  const lines: string[] = [];
-  lines.push(`  // Slider: ${comp.id}`);
-  lines.push(`  {`);
-
-  if (comp.valueBinding) {
-    const sensorId = entityToId(comp.valueBinding.entityId);
-    lines.push(`    float value = id(${sensorId}).has_state() ? id(${sensorId}).state : 0;`);
-  } else {
-    lines.push(`    float value = 50; // Mock value`);
-  }
-
-  lines.push(`    float normalized = (value - ${min}f) / (${max}f - ${min}f);`);
-  lines.push(`    normalized = fmax(0.0f, fmin(1.0f, normalized));`);
-  lines.push(``);
-  lines.push(`    // Track`);
-  lines.push(`    it.filled_rectangle(${x}, ${y}, ${w}, ${h}, Color(51, 51, 51));`);
-  lines.push(``);
-
-  if (isVertical) {
-    lines.push(`    // Fill (vertical)`);
-    lines.push(`    int fillH = (int)(${h} * normalized);`);
-    lines.push(`    it.filled_rectangle(${x}, ${y + h} - fillH, ${w}, fillH, C_ACCENT);`);
-  } else {
-    lines.push(`    // Fill (horizontal)`);
-    lines.push(`    int fillW = (int)(${w} * normalized);`);
-    lines.push(`    it.filled_rectangle(${x}, ${y}, fillW, ${h}, C_ACCENT);`);
-  }
-
-  lines.push(`  }`);
-  return lines.join("\n");
-}
-
-function generateGaugeCode(comp: Component & { type: "gauge" }): string {
-  const w = comp.size?.width ?? 80;
-  const h = comp.size?.height ?? 80;
-  const cx = comp.position.x + w / 2;
-  const cy = comp.position.y + h / 2;
-  const radius = Math.min(w, h) / 2 - 5;
-  const min = comp.min;
-  const max = comp.max;
-  const unit = escapeString(comp.unit ?? "");
-
-  const lines: string[] = [];
-  lines.push(`  // Gauge: ${comp.id}`);
-  lines.push(`  {`);
-
-  if (comp.valueBinding) {
-    const sensorId = entityToId(comp.valueBinding.entityId);
-    lines.push(`    float value = id(${sensorId}).has_state() ? id(${sensorId}).state : 0;`);
-  } else {
-    lines.push(`    float value = 65; // Mock value`);
-  }
-
-  lines.push(`    float normalized = (value - ${min}f) / (${max}f - ${min}f);`);
-  lines.push(`    normalized = fmax(0.0f, fmin(1.0f, normalized));`);
-  lines.push(`    float angle = -135.0f + (normalized * 270.0f);`);
-  lines.push(`    float radians = angle * PI / 180.0f;`);
-  lines.push(``);
-  lines.push(`    // Background circle`);
-  lines.push(`    it.filled_circle(${Math.round(cx)}, ${Math.round(cy)}, ${Math.round(radius)}, Color(42, 42, 42));`);
-  lines.push(``);
-  lines.push(`    // Needle`);
-  lines.push(`    int needleLen = ${Math.round(radius - 15)};`);
-  lines.push(`    int endX = ${Math.round(cx)} + (int)(needleLen * cos(radians));`);
-  lines.push(`    int endY = ${Math.round(cy)} + (int)(needleLen * sin(radians));`);
-  lines.push(`    it.line(${Math.round(cx)}, ${Math.round(cy)}, endX, endY, C_ORANGE);`);
-  lines.push(``);
-  lines.push(`    // Center dot`);
-  lines.push(`    it.filled_circle(${Math.round(cx)}, ${Math.round(cy)}, 4, C_ORANGE);`);
-  lines.push(``);
-  lines.push(`    // Value text`);
-  lines.push(`    char buf[16];`);
-  lines.push(`    snprintf(buf, sizeof(buf), "%.0f${unit}", value);`);
-  lines.push(`    it.printf(${Math.round(cx)}, ${Math.round(cy + radius / 2)}, id(font_medium), C_WHITE, TextAlign::CENTER, "%s", buf);`);
-  lines.push(`  }`);
-
-  return lines.join("\n");
-}
-
-function generateIconCode(comp: Component & { type: "icon" }): string {
-  const x = comp.position.x;
-  const y = comp.position.y;
-  const color = comp.color ? colorToCpp(comp.color) : "C_WHITE";
-  const iconName = escapeString(comp.icon);
-
-  const lines: string[] = [];
-  lines.push(`  // Icon: ${comp.id}`);
-  lines.push(`  // Note: Icon rendering requires MDI font setup`);
-  lines.push(`  // Icon: ${iconName} at (${x}, ${y})`);
-  lines.push(`  it.printf(${x}, ${y}, id(font_medium), ${color}, TextAlign::CENTER, "?"); // Placeholder for icon`);
-
-  return lines.join("\n");
-}
-
-function colorToCpp(color: Color): string {
-  return `Color(${color.r}, ${color.g}, ${color.b})`;
-}
-
-function escapeString(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t");
+  return `
+  {
+    // Button: ${comp.id}
+    it.filled_rectangle(${x} + ${shadow}, ${y} + ${shadow}, ${w} - ${shadow}, ${h} - ${shadow}, Theme::BACKGROUND);
+    it.filled_rectangle(${x}, ${y}, ${w} - ${shadow}, ${h} - ${shadow}, Theme::BACKGROUND_SECONDARY);
+    it.rectangle(${x}, ${y}, ${w} - ${shadow}, ${h} - ${shadow}, Theme::ACCENT);
+    it.printf(${x} + ${w}/2, ${y} + ${h}/2, id(font_medium), Theme::FOREGROUND, TextAlign::CENTER, "${comp.label ?? ""}");
+  }`;
 }

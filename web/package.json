@@ -1,7 +1,9 @@
 {
   "name": "esphome-designer",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bun run --filter @esphome-designer/editor dev",
     "build": "bun run generate:types && bun run --filter @esphome-designer/editor build",

@@ -4,6 +4,10 @@
   import PropertyEditor from "$lib/components/sidebar/PropertyEditor.svelte";
   import Toolbar from "$lib/components/toolbar/Toolbar.svelte";
   import ExportPanel from "$lib/components/ExportPanel.svelte";
+  import ViewTypeSelector from "$lib/components/sidebar/ViewTypeSelector.svelte";
+  import DashboardPageList from "$lib/components/sidebar/DashboardPageList.svelte";
+  import DetailViewList from "$lib/components/sidebar/DetailViewList.svelte";
+  import { projectStore } from "$lib/stores/project.svelte";
 
   let showExport = $state(false);
 </script>
@@ -16,6 +20,13 @@
 
 <div class="editor-container">
   <aside class="sidebar left">
+    <ViewTypeSelector />
+    {#if projectStore.viewMode === 'dashboard'}
+      <DashboardPageList />
+    {:else}
+      <DetailViewList />
+    {/if}
+    <div class="separator"></div>
     <ComponentPalette />
   </aside>
 
@@ -48,6 +59,8 @@
     background: var(--color-bg-secondary);
     border-color: var(--color-border);
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .sidebar.left {
@@ -56,6 +69,12 @@
 
   .sidebar.right {
     border-left: 1px solid var(--color-border);
+  }
+
+  .separator {
+    height: 1px;
+    background: #333;
+    margin: 8px 0;
   }
 
   .canvas-area {

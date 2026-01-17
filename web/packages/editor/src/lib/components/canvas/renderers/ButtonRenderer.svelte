@@ -1,51 +1,102 @@
 <script lang="ts">
-  import type { Component } from "@esphome-designer/schema";
+  import type { ButtonComponent } from "@esphome-designer/schema";
   import Draggable from "../Draggable.svelte";
+  import { projectStore } from "../../../stores/project.svelte";
+  import { colorToCss } from "../../../utils/color-utils";
 
   interface Props {
-    component: Component & { type: "button" };
+    component: ButtonComponent;
   }
 
   let { component }: Props = $props();
+  const theme = $derived(projectStore.theme);
 
   const bgColor = $derived(
-    component.backgroundColor
-      ? `rgb(${component.backgroundColor.r}, ${component.backgroundColor.g}, ${component.backgroundColor.b})`
-      : "#333333"
+    colorToCss(component.backgroundColor, colorToCss(theme.colors.backgroundSecondary))
   );
+  const accentColor = $derived(colorToCss(theme.colors.accent));
+  const foregroundColor = $derived(colorToCss(theme.colors.foreground));
+  const shadowColor = $derived(colorToCss(theme.colors.background, "black"));
+
+  // Retro style constants
+  const shadowOffset = $derived(theme.values.shadowOffset ?? 3);
+  const cornerSize = $derived(theme.values.cornerSize ?? 10);
 </script>
 
 <Draggable {component}>
-  <div class="button-component" style:background-color={bgColor}>
-    {#if component.icon}
-      <span class="icon">{component.icon}</span>
-    {/if}
-    <span class="label">{component.label ?? "Button"}</span>
+  <div class="button-wrapper" style:width="100%" style:height="100%">
+    <svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 {component.size.width} {component.size.height}"
+      preserveAspectRatio="none"
+    >
+      <!-- Shadow -->
+      {#if theme.style.buttonShadow}
+        <rect
+          x={shadowOffset}
+          y={shadowOffset}
+          width={component.size.width - shadowOffset}
+          height={component.size.height - shadowOffset}
+          fill={shadowColor}
+        />
+      {/if}
+
+      <!-- Main Body -->
+      <rect
+        x="0"
+        y="0"
+        width={component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)}
+        height={component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)}
+        fill={bgColor}
+        stroke={accentColor}
+        stroke-width="1"
+      />
+
+      <!-- Corner Accents -->
+      {#if theme.style.buttonCornerAccents}
+        <g stroke="white" stroke-width="1.5" fill="none">
+          <!-- Top Left -->
+          <path d="M 0 {cornerSize} L 0 0 L {cornerSize} 0" />
+          <!-- Top Right -->
+          <path
+            d="M {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0) - cornerSize} 0 
+               L {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)} 0 
+               L {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)} {cornerSize}"
+          />
+          <!-- Bottom Left -->
+          <path
+            d="M 0 {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0) - cornerSize} 
+               L 0 {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)} 
+               L {cornerSize} {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)}"
+          />
+          <!-- Bottom Right -->
+          <path
+            d="M {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0) - cornerSize} {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)} 
+               L {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)} {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)} 
+               L {component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)} {component.size.height - (theme.style.buttonShadow ? shadowOffset : 0) - cornerSize}"
+          />
+        </g>
+      {/if}
+
+      <!-- Label -->
+      <text
+        x={(component.size.width - (theme.style.buttonShadow ? shadowOffset : 0)) / 2}
+        y={(component.size.height - (theme.style.buttonShadow ? shadowOffset : 0)) / 2}
+        fill={foregroundColor}
+        font-family="monospace"
+        font-size="14"
+        text-anchor="middle"
+        dominant-baseline="central"
+      >
+        {component.label ?? ""}
+      </text>
+    </svg>
   </div>
 </Draggable>
 
 <style>
-  .button-component {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    border: 1px solid #666;
-    border-radius: 4px;
-    font-family: sans-serif;
-    font-size: 12px;
-    color: white;
-  }
-
-  .icon {
-    font-size: 14px;
-  }
-
-  .label {
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
+  .button-wrapper {
+    overflow: visible;
   }
 </style>

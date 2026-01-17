@@ -7,212 +7,222 @@
 import type {
   Project,
   Page,
+  DetailView,
   Component,
   DisplayConfig,
   FontDefinition,
 } from "@esphome-designer/schema";
+import { RETRO_THEME } from "../themes/retro";
+
+const LATEST_VERSION = "1.0.0";
+const STORAGE_KEY = "esphome-designer-project";
 
 function createProjectStore() {
   // Core project state
   let project = $state<Project>({
+    version: LATEST_VERSION,
     name: "New Project",
+    theme: RETRO_THEME,
     display: {
       width: 240,
       height: 320,
       platform: "ili9xxx",
     },
-    pages: [
+    dashboardPages: [
       {
         id: "page-1",
         name: "Home",
         components: [],
       },
     ],
+    detailViews: [],
     fonts: [],
   });
 
-  // Current page tracking
-  let currentPageId = $state("page-1");
+  // Load from localStorage on init (only if in browser)
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.version === LATEST_VERSION) {
+          project = parsed;
+        } else {
+          console.warn(`Project version mismatch (${parsed.version} vs ${LATEST_VERSION}). Starting fresh.`);
+        }
+      } catch (e) {
+        console.error("Failed to parse saved project", e);
+      }
+    }
+
+    // Auto-save when project changes (browser only)
+    $effect.root(() => {
+      $effect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+      });
+    });
+  }
+
+  // Current view tracking
+  let currentDashboardPageId = $state(project.dashboardPages[0]?.id ?? "page-1");
+  let currentDetailViewId = $state<string | null>(null);
+  let viewMode = $state<"dashboard" | "detail">("dashboard");
 
   // Derived state
-  const currentPage = $derived(
-    project.pages.find((p) => p.id === currentPageId) ?? project.pages[0]
+  const currentDashboardPage = $derived(
+    project.dashboardPages.find((p) => p.id === currentDashboardPageId) ?? project.dashboardPages[0]
   );
 
-  const currentPageIndex = $derived(
-    project.pages.findIndex((p) => p.id === currentPageId)
+  const currentDetailView = $derived(
+    project.detailViews.find((v) => v.id === currentDetailViewId) ?? null
+  );
+
+  const activeComponents = $derived(
+    viewMode === "dashboard" ? currentDashboardPage.components : (currentDetailView?.components ?? [])
   );
 
   return {
     // Getters
-    get project() {
-      return project;
-    },
-    get currentPage() {
-      return currentPage;
-    },
-    get currentPageId() {
-      return currentPageId;
-    },
-    get currentPageIndex() {
-      return currentPageIndex;
-    },
-    get display() {
-      return project.display;
-    },
-    get pages() {
-      return project.pages;
-    },
-    get fonts() {
-      return project.fonts ?? [];
-    },
+    get project() { return project; },
+    get theme() { return project.theme ?? RETRO_THEME; },
+    get viewMode() { return viewMode; },
+    get currentDashboardPageId() { return currentDashboardPageId; },
+    get currentDetailViewId() { return currentDetailViewId; },
+    get currentDashboardPage() { return currentDashboardPage; },
+    get currentDetailView() { return currentDetailView; },
+    get activeComponents() { return activeComponents; },
+    get display() { return project.display; },
+    get dashboardPages() { return project.dashboardPages; },
+    get detailViews() { return project.detailViews; },
+    get fonts() { return project.fonts ?? []; },
 
-    // Page management
-    setCurrentPage(id: string) {
-      if (project.pages.some((p) => p.id === id)) {
-        currentPageId = id;
+    // Navigation
+    setViewMode(mode: "dashboard" | "detail") {
+      viewMode = mode;
+    },
+    setDashboardPage(id: string) {
+      if (project.dashboardPages.some((p) => p.id === id)) {
+        currentDashboardPageId = id;
+        viewMode = "dashboard";
+      }
+    },
+    setDetailView(id: string | null) {
+      if (id === null || project.detailViews.some((v) => v.id === id)) {
+        currentDetailViewId = id;
+        if (id) viewMode = "detail";
       }
     },
 
-    addPage(page?: Partial<Page>) {
+    // Dashboard Page management
+    addDashboardPage(page?: Partial<Page>) {
       const newPage: Page = {
         id: page?.id ?? `page-${Date.now()}`,
-        name: page?.name ?? `Page ${project.pages.length + 1}`,
+        name: page?.name ?? `Page ${project.dashboardPages.length + 1}`,
         components: page?.components ?? [],
         backgroundColor: page?.backgroundColor,
       };
-      project.pages.push(newPage);
-      currentPageId = newPage.id;
+      project.dashboardPages.push(newPage);
+      currentDashboardPageId = newPage.id;
+      viewMode = "dashboard";
       return newPage;
     },
 
-    deletePage(id: string) {
-      if (project.pages.length <= 1) return; // Keep at least one page
-      const idx = project.pages.findIndex((p) => p.id === id);
+    deleteDashboardPage(id: string) {
+      if (project.dashboardPages.length <= 1) return;
+      const idx = project.dashboardPages.findIndex((p) => p.id === id);
       if (idx !== -1) {
-        project.pages.splice(idx, 1);
-        if (currentPageId === id) {
-          currentPageId = project.pages[0].id;
+        project.dashboardPages.splice(idx, 1);
+        if (currentDashboardPageId === id) {
+          currentDashboardPageId = project.dashboardPages[0].id;
         }
       }
     },
 
-    updatePage(id: string, updates: Partial<Page>) {
-      const page = project.pages.find((p) => p.id === id);
-      if (page) {
-        Object.assign(page, updates);
+    // Detail View management
+    addDetailView(view?: Partial<DetailView>) {
+      const newView: DetailView = {
+        id: view?.id ?? `detail-${Date.now()}`,
+        title: view?.title ?? `Detail ${project.detailViews.length + 1}`,
+        height: view?.height ?? 640,
+        components: view?.components ?? [],
+        maxScrollY: view?.maxScrollY ?? 0,
+      };
+      project.detailViews.push(newView);
+      currentDetailViewId = newView.id;
+      viewMode = "detail";
+      return newView;
+    },
+
+    updateDetailView(id: string, updates: Partial<DetailView>) {
+      const view = project.detailViews.find((v) => v.id === id);
+      if (view) {
+        Object.assign(view, updates);
+      }
+    },
+
+    deleteDetailView(id: string) {
+      const idx = project.detailViews.findIndex((v) => v.id === id);
+      if (idx !== -1) {
+        project.detailViews.splice(idx, 1);
+        if (currentDetailViewId === id) {
+          currentDetailViewId = null;
+          viewMode = "dashboard";
+        }
       }
     },
 
     // Component management
     addComponent(component: Component) {
-      currentPage.components.push(component);
+      if (viewMode === "dashboard") {
+        currentDashboardPage.components.push(component);
+      } else if (currentDetailView) {
+        currentDetailView.components.push(component);
+      }
       return component;
     },
 
     updateComponent(id: string, updates: Partial<Component>) {
-      const idx = currentPage.components.findIndex((c) => c.id === id);
+      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!components) return;
+      const idx = components.findIndex((c) => c.id === id);
       if (idx !== -1) {
-        currentPage.components[idx] = {
-          ...currentPage.components[idx],
-          ...updates,
-        } as Component;
+        components[idx] = { ...components[idx], ...updates } as Component;
       }
     },
 
     deleteComponent(id: string) {
-      const idx = currentPage.components.findIndex((c) => c.id === id);
+      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!components) return;
+      const idx = components.findIndex((c) => c.id === id);
       if (idx !== -1) {
-        currentPage.components.splice(idx, 1);
+        components.splice(idx, 1);
       }
     },
 
     getComponent(id: string): Component | undefined {
-      return currentPage.components.find((c) => c.id === id);
+      return activeComponents.find((c) => c.id === id);
     },
 
     moveComponent(id: string, dx: number, dy: number) {
-      const component = currentPage.components.find((c) => c.id === id);
+      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!components) return;
+      const component = components.find((c) => c.id === id);
       if (component) {
-        component.position.x += dx;
-        component.position.y += dy;
-        // Clamp to display bounds
-        component.position.x = Math.max(
-          0,
-          Math.min(component.position.x, project.display.width - 1)
-        );
-        component.position.y = Math.max(
-          0,
-          Math.min(component.position.y, project.display.height - 1)
-        );
-      }
-    },
-
-    resizeComponent(id: string, width: number, height: number) {
-      const component = currentPage.components.find((c) => c.id === id);
-      if (component && component.size) {
-        component.size.width = Math.max(10, width);
-        component.size.height = Math.max(10, height);
-      }
-    },
-
-    // Display config
-    updateDisplay(config: Partial<DisplayConfig>) {
-      Object.assign(project.display, config);
-    },
-
-    // Font management
-    addFont(font: FontDefinition) {
-      if (!project.fonts) project.fonts = [];
-      project.fonts.push(font);
-    },
-
-    deleteFont(id: string) {
-      if (project.fonts) {
-        const idx = project.fonts.findIndex((f) => f.id === id);
-        if (idx !== -1) {
-          project.fonts.splice(idx, 1);
-        }
+        component.position.x = Math.max(0, Math.min(component.position.x + dx, project.display.width - 1));
+        component.position.y = Math.max(0, Math.min(component.position.y + dy, project.display.height - 1));
       }
     },
 
     // Project management
-    updateProject(updates: Partial<Project>) {
-      Object.assign(project, updates);
-    },
-
     loadProject(p: Project) {
       project = p;
-      currentPageId = p.pages[0]?.id ?? "";
+      currentDashboardPageId = p.dashboardPages[0]?.id ?? "";
+      currentDetailViewId = null;
+      viewMode = "dashboard";
     },
 
-    newProject() {
-      project = {
-        name: "New Project",
-        display: { width: 240, height: 320, platform: "ili9xxx" },
-        pages: [{ id: "page-1", name: "Home", components: [] }],
-        fonts: [],
-      };
-      currentPageId = "page-1";
-    },
-
-    // Serialization
     exportJSON(): string {
       return JSON.stringify(project, null, 2);
-    },
-
-    importJSON(json: string): boolean {
-      try {
-        const parsed = JSON.parse(json) as Project;
-        // Basic validation
-        if (!parsed.name || !parsed.display || !parsed.pages) {
-          throw new Error("Invalid project structure");
-        }
-        this.loadProject(parsed);
-        return true;
-      } catch {
-        return false;
-      }
     },
   };
 }

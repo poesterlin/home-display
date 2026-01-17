@@ -51,6 +51,21 @@
       "required": ["service"],
       "additionalProperties": false
     },
+    "NavigationAction": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["OPEN_DETAIL", "GO_BACK", "NEXT_PAGE", "PREV_PAGE"] },
+        "targetId": { "type": "string" }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "OnTapAction": {
+      "oneOf": [
+        { "$ref": "#/definitions/ActionBinding" },
+        { "$ref": "#/definitions/NavigationAction" }
+      ]
+    },
     "BaseComponent": {
       "type": "object",
       "properties": {
@@ -59,7 +74,10 @@
         "position": { "$ref": "#/definitions/Position" },
         "size": { "$ref": "#/definitions/Size" },
         "visible": { "type": "boolean", "default": true },
-        "visibleWhen": { "$ref": "#/definitions/EntityBinding" }
+        "visibleWhen": { "$ref": "#/definitions/EntityBinding" },
+        "loadingBinding": { "$ref": "#/definitions/EntityBinding" },
+        "onTap": { "$ref": "#/definitions/OnTapAction" },
+        "variant": { "enum": ["default", "retro", "minimal"], "default": "retro" }
       },
       "required": ["id", "type", "position"]
     },
@@ -159,13 +177,44 @@
         }
       ]
     },
+    "ProceduralIconComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "procedural_icon" },
+            "iconType": { "enum": ["bulb", "window", "vacuum", "climate"] },
+            "stateBinding": { "$ref": "#/definitions/EntityBinding" },
+            "color": { "$ref": "#/definitions/Color" }
+          },
+          "required": ["type", "size", "iconType"]
+        }
+      ]
+    },
+    "ContainerComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "container" },
+            "label": { "type": "string" },
+            "backgroundColor": { "$ref": "#/definitions/Color" }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
     "Component": {
       "oneOf": [
         { "$ref": "#/definitions/TextComponent" },
         { "$ref": "#/definitions/ButtonComponent" },
         { "$ref": "#/definitions/SliderComponent" },
         { "$ref": "#/definitions/GaugeComponent" },
-        { "$ref": "#/definitions/IconComponent" }
+        { "$ref": "#/definitions/IconComponent" },
+        { "$ref": "#/definitions/ProceduralIconComponent" },
+        { "$ref": "#/definitions/ContainerComponent" }
       ]
     },
     "Page": {
@@ -181,6 +230,61 @@
       },
       "required": ["id", "name", "components"],
       "additionalProperties": false
+    },
+    "DetailView": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "height": { "type": "number", "default": 640 },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Component" }
+        },
+        "maxScrollY": { "type": "number" }
+      },
+      "required": ["id", "title", "components"],
+      "additionalProperties": false
+    },
+    "Theme": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "colors": {
+          "type": "object",
+          "properties": {
+            "background": { "$ref": "#/definitions/Color" },
+            "backgroundSecondary": { "$ref": "#/definitions/Color" },
+            "foreground": { "$ref": "#/definitions/Color" },
+            "foregroundMuted": { "$ref": "#/definitions/Color" },
+            "accent": { "$ref": "#/definitions/Color" },
+            "accentSecondary": { "$ref": "#/definitions/Color" },
+            "success": { "$ref": "#/definitions/Color" },
+            "warning": { "$ref": "#/definitions/Color" },
+            "error": { "$ref": "#/definitions/Color" }
+          },
+          "required": ["background", "foreground", "accent"]
+        },
+        "style": {
+          "type": "object",
+          "properties": {
+            "buttonShadow": { "type": "boolean" },
+            "buttonCornerAccents": { "type": "boolean" },
+            "containerCorners": { "type": "boolean" },
+            "headerBorders": { "type": "boolean" }
+          }
+        },
+        "values": {
+          "type": "object",
+          "properties": {
+            "shadowOffset": { "type": "number" },
+            "cornerSize": { "type": "number" },
+            "borderRadius": { "type": "number" }
+          }
+        }
+      },
+      "required": ["id", "name", "colors"]
     },
     "FontDefinition": {
       "type": "object",
@@ -205,18 +309,28 @@
     "Project": {
       "type": "object",
       "properties": {
+        "version": { 
+          "type": "string", 
+          "description": "Schema version. ALWAYS increment this if there are breaking changes to the JSON structure.",
+          "default": "1.0.0"
+        },
         "name": { "type": "string" },
+        "theme": { "$ref": "#/definitions/Theme" },
         "display": { "$ref": "#/definitions/DisplayConfig" },
-        "pages": {
+        "dashboardPages": {
           "type": "array",
           "items": { "$ref": "#/definitions/Page" }
+        },
+        "detailViews": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/DetailView" }
         },
         "fonts": {
           "type": "array",
           "items": { "$ref": "#/definitions/FontDefinition" }
         }
       },
-      "required": ["name", "display", "pages"],
+      "required": ["name", "display", "dashboardPages", "detailViews"],
       "additionalProperties": false
     }
   }

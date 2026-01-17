@@ -1,0 +1,67 @@
+<script lang="ts">
+  import type { ContainerComponent } from "@esphome-designer/schema";
+  import Draggable from "../Draggable.svelte";
+  import { projectStore } from "../../../stores/project.svelte";
+  import { colorToCss } from "../../../utils/color-utils";
+
+  interface Props {
+    component: ContainerComponent;
+  }
+
+  let { component }: Props = $props();
+  const theme = $derived(projectStore.theme);
+  
+  const bgColor = $derived(colorToCss(component.backgroundColor, "transparent"));
+  const accentColor = $derived(colorToCss(theme.colors.accent));
+  const foregroundColor = $derived(colorToCss(theme.colors.foreground));
+  const cornerSize = $derived(theme.values.cornerSize ?? 10);
+</script>
+
+<Draggable {component}>
+  <div class="container-wrapper" style:width="100%" style:height="100%">
+    <svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 {component.size.width} {component.size.height}"
+      preserveAspectRatio="none"
+    >
+      <!-- Background -->
+      <rect x="0" y="0" width={component.size.width} height={component.size.height} fill={bgColor} />
+
+      <!-- Retro Corners -->
+      {#if theme.style.containerCorners}
+        <g stroke={accentColor} stroke-width="1.5" fill="none">
+          <!-- Top Left -->
+          <path d="M 0 {cornerSize} L 0 0 L {cornerSize} 0" />
+          <path d="M 3 {cornerSize} L 3 3 L {cornerSize} 3" />
+          
+          <!-- Top Right -->
+          <path d="M {component.size.width - cornerSize} 0 L {component.size.width} 0 L {component.size.width} {cornerSize}" />
+          <path d="M {component.size.width - cornerSize} 3 L {component.size.width - 3} 3 L {component.size.width - 3} {cornerSize}" />
+          
+          <!-- Bottom Left -->
+          <path d="M 0 {component.size.height - cornerSize} L 0 {component.size.height} L {cornerSize} {component.size.height}" />
+          <path d="M 3 {component.size.height - cornerSize} L 3 {component.size.height - 3} L {cornerSize} {component.size.height - 3}" />
+          
+          <!-- Bottom Right -->
+          <path d="M {component.size.width - cornerSize} {component.size.height} L {component.size.width} {component.size.height} L {component.size.width} {component.size.height - cornerSize}" />
+          <path d="M {component.size.width - cornerSize} {component.size.height - 3} L {component.size.width - 3} {component.size.height - 3} L {component.size.width - 3} {component.size.height - cornerSize}" />
+        </g>
+      {/if}
+
+      <!-- Label -->
+      {#if component.label}
+        <text
+          x="10"
+          y="15"
+          fill={accentColor}
+          font-family="monospace"
+          font-size="12"
+          font-weight="bold"
+        >
+          {component.label.toUpperCase()}
+        </text>
+      {/if}
+    </svg>
+  </div>
+</Draggable>

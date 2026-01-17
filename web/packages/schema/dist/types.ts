@@ -5,7 +5,14 @@
  * Run: bun run generate:types
  */
 
-export type Component = TextComponent | ButtonComponent | SliderComponent | GaugeComponent | IconComponent;
+export type Component =
+  | TextComponent
+  | ButtonComponent
+  | SliderComponent
+  | GaugeComponent
+  | IconComponent
+  | ProceduralIconComponent
+  | ContainerComponent;
 export type TextComponent = BaseComponent & {
   type: "text";
   text?: string;
@@ -14,6 +21,7 @@ export type TextComponent = BaseComponent & {
   color?: Color;
   align?: "left" | "center" | "right";
 };
+export type OnTapAction = ActionBinding | NavigationAction;
 export type ButtonComponent = BaseComponent & {
   type: "button";
   label?: string;
@@ -49,12 +57,60 @@ export type IconComponent = BaseComponent & {
   color?: Color;
   scale?: number;
 };
+export type ProceduralIconComponent = BaseComponent & {
+  type: "procedural_icon";
+  iconType: "bulb" | "window" | "vacuum" | "climate";
+  stateBinding?: EntityBinding;
+  color?: Color;
+};
+export type ContainerComponent = BaseComponent & {
+  type: "container";
+  label?: string;
+  backgroundColor?: Color;
+};
 
 export interface Project {
+  /**
+   * Schema version. ALWAYS increment this if there are breaking changes to the JSON structure.
+   */
+  version?: string;
   name: string;
+  theme?: Theme;
   display: DisplayConfig;
-  pages: Page[];
+  dashboardPages: Page[];
+  detailViews: DetailView[];
   fonts?: FontDefinition[];
+}
+export interface Theme {
+  id: string;
+  name: string;
+  colors: {
+    background: Color;
+    backgroundSecondary?: Color;
+    foreground: Color;
+    foregroundMuted?: Color;
+    accent: Color;
+    accentSecondary?: Color;
+    success?: Color;
+    warning?: Color;
+    error?: Color;
+  };
+  style?: {
+    buttonShadow?: boolean;
+    buttonCornerAccents?: boolean;
+    containerCorners?: boolean;
+    headerBorders?: boolean;
+  };
+  values?: {
+    shadowOffset?: number;
+    cornerSize?: number;
+    borderRadius?: number;
+  };
+}
+export interface Color {
+  r: number;
+  g: number;
+  b: number;
 }
 export interface DisplayConfig {
   width: number;
@@ -67,11 +123,6 @@ export interface Page {
   backgroundColor?: Color;
   components: Component[];
 }
-export interface Color {
-  r: number;
-  g: number;
-  b: number;
-}
 export interface BaseComponent {
   id: string;
   type: string;
@@ -79,6 +130,9 @@ export interface BaseComponent {
   size?: Size;
   visible?: boolean;
   visibleWhen?: EntityBinding;
+  loadingBinding?: EntityBinding;
+  onTap?: OnTapAction;
+  variant?: "default" | "retro" | "minimal";
 }
 export interface Position {
   x: number;
@@ -96,6 +150,17 @@ export interface ActionBinding {
   service: string;
   target?: EntityBinding;
   data?: {};
+}
+export interface NavigationAction {
+  type: "OPEN_DETAIL" | "GO_BACK" | "NEXT_PAGE" | "PREV_PAGE";
+  targetId?: string;
+}
+export interface DetailView {
+  id: string;
+  title: string;
+  height?: number;
+  components: Component[];
+  maxScrollY?: number;
 }
 export interface FontDefinition {
   id: string;
