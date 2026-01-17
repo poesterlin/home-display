@@ -1,0 +1,16 @@
+{
+  "name": "esphome-designer",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter @esphome-designer/editor dev",
+    "build": "bun run generate:types && bun run --filter @esphome-designer/editor build",
+    "generate:types": "bun run --filter @esphome-designer/schema generate",
+    "preview": "bun run --filter @esphome-designer/editor preview",
+    "check": "bun run --filter @esphome-designer/editor check",
+    "lint": "bun run --filter '*' lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

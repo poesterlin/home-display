@@ -1,0 +1,26 @@
+{
+  "name": "@esphome-designer/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/types.ts",
+  "types": "./dist/types.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types.ts",
+      "import": "./dist/types.ts"
+    },
+    "./schema": {
+      "import": "./components.json",
+      "require": "./components.json"
+    }
+  },
+  "scripts": {
+    "generate": "bun run generate-types.ts",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "^5.7.0"
+  }
+}

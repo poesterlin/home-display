@@ -1,0 +1,223 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://esphome-designer.local/schema/components.json",
+  "title": "ESPHome Designer Schema",
+  "description": "Schema for ESPHome visual display editor components",
+  "definitions": {
+    "Position": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "required": ["x", "y"],
+      "additionalProperties": false
+    },
+    "Size": {
+      "type": "object",
+      "properties": {
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      },
+      "required": ["width", "height"],
+      "additionalProperties": false
+    },
+    "Color": {
+      "type": "object",
+      "properties": {
+        "r": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "g": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "b": { "type": "integer", "minimum": 0, "maximum": 255 }
+      },
+      "required": ["r", "g", "b"],
+      "additionalProperties": false
+    },
+    "EntityBinding": {
+      "type": "object",
+      "properties": {
+        "entityId": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_0-9]+$" },
+        "attribute": { "type": ["string", "null"] }
+      },
+      "required": ["entityId"],
+      "additionalProperties": false
+    },
+    "ActionBinding": {
+      "type": "object",
+      "properties": {
+        "service": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_0-9]+$" },
+        "target": { "$ref": "#/definitions/EntityBinding" },
+        "data": { "type": "object" }
+      },
+      "required": ["service"],
+      "additionalProperties": false
+    },
+    "BaseComponent": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "position": { "$ref": "#/definitions/Position" },
+        "size": { "$ref": "#/definitions/Size" },
+        "visible": { "type": "boolean", "default": true },
+        "visibleWhen": { "$ref": "#/definitions/EntityBinding" }
+      },
+      "required": ["id", "type", "position"]
+    },
+    "TextComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "text" },
+            "text": { "type": "string" },
+            "textBinding": { "$ref": "#/definitions/EntityBinding" },
+            "fontSize": { "enum": ["small", "medium", "large"], "default": "medium" },
+            "color": { "$ref": "#/definitions/Color" },
+            "align": { "enum": ["left", "center", "right"], "default": "left" }
+          },
+          "required": ["type"]
+        }
+      ]
+    },
+    "ButtonComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "button" },
+            "label": { "type": "string" },
+            "icon": { "type": "string" },
+            "backgroundColor": { "$ref": "#/definitions/Color" },
+            "pressAction": { "$ref": "#/definitions/ActionBinding" },
+            "holdAction": { "$ref": "#/definitions/ActionBinding" }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
+    "SliderComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "slider" },
+            "min": { "type": "number", "default": 0 },
+            "max": { "type": "number", "default": 100 },
+            "step": { "type": "number", "default": 1 },
+            "valueBinding": { "$ref": "#/definitions/EntityBinding" },
+            "onChange": { "$ref": "#/definitions/ActionBinding" },
+            "orientation": { "enum": ["horizontal", "vertical"], "default": "horizontal" }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
+    "GaugeComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "gauge" },
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "valueBinding": { "$ref": "#/definitions/EntityBinding" },
+            "unit": { "type": "string" },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": { "type": "number" },
+                  "to": { "type": "number" },
+                  "color": { "$ref": "#/definitions/Color" }
+                },
+                "required": ["from", "to", "color"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["type", "size", "min", "max"]
+        }
+      ]
+    },
+    "IconComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "icon" },
+            "icon": { "type": "string" },
+            "color": { "$ref": "#/definitions/Color" },
+            "scale": { "type": "number", "default": 1 }
+          },
+          "required": ["type", "size", "icon"]
+        }
+      ]
+    },
+    "Component": {
+      "oneOf": [
+        { "$ref": "#/definitions/TextComponent" },
+        { "$ref": "#/definitions/ButtonComponent" },
+        { "$ref": "#/definitions/SliderComponent" },
+        { "$ref": "#/definitions/GaugeComponent" },
+        { "$ref": "#/definitions/IconComponent" }
+      ]
+    },
+    "Page": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "backgroundColor": { "$ref": "#/definitions/Color" },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Component" }
+        }
+      },
+      "required": ["id", "name", "components"],
+      "additionalProperties": false
+    },
+    "FontDefinition": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "file": { "type": "string" },
+        "size": { "type": "integer" }
+      },
+      "required": ["id", "file", "size"],
+      "additionalProperties": false
+    },
+    "DisplayConfig": {
+      "type": "object",
+      "properties": {
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "platform": { "enum": ["ili9xxx", "st7789", "ssd1306", "waveshare_epaper"] }
+      },
+      "required": ["width", "height", "platform"],
+      "additionalProperties": false
+    },
+    "Project": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "display": { "$ref": "#/definitions/DisplayConfig" },
+        "pages": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Page" }
+        },
+        "fonts": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/FontDefinition" }
+        }
+      },
+      "required": ["name", "display", "pages"],
+      "additionalProperties": false
+    }
+  }
+}

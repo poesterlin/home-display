@@ -1,0 +1,1 @@
+import{f as s,a as p}from"../chunks/Bhf7Q89C.js";import{j as e,k as i}from"../chunks/DVY8GL-s.js";import{s as m}from"../chunks/BdegMV_c.js";var n=s('<div class="app-layout svelte-12qhfyh"><!></div>');function v(a,r){var o=n(),t=e(o);m(t,()=>r.children),i(o),p(a,o)}export{v as component};

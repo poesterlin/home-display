@@ -1,0 +1,7 @@
+[install]
+# Use exact versions for reproducible builds
+exact = true
+
+[workspace]
+# Packages in this workspace
+packages = ["packages/*"]
