@@ -12,7 +12,7 @@ export function getDb() {
       throw new Error('DATABASE_URL environment variable is not set');
     }
 
-    db = drizzle({ schema });
+    db = drizzle(connectionString, { schema });
   }
 
   return db;

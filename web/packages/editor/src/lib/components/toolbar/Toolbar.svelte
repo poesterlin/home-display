@@ -8,17 +8,6 @@
 
   let { onExport }: Props = $props();
 
-  function handleNew() {
-    if (
-      confirm(
-        "Create new project? Unsaved changes will be lost."
-      )
-    ) {
-      projectStore.newProject();
-      historyStore.clear();
-    }
-  }
-
   function handleSave() {
     const json = projectStore.exportJSON();
     const blob = new Blob([json], { type: "application/json" });
@@ -52,6 +41,14 @@
 
 <header class="toolbar">
   <div class="toolbar-left">
+    <a href="/" class="projects-link">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+      <span>Projects</span>
+    </a>
+    <div class="separator"></div>
     <div class="logo">ESPHome Designer</div>
   </div>
 
@@ -59,7 +56,7 @@
     <input
       type="text"
       class="project-name"
-      value={projectStore.project.name}
+      value={projectStore.project?.name ?? ""}
       oninput={(e: Event) =>
         projectStore.updateProject({ name: (e.target as HTMLInputElement).value })
       }
@@ -67,7 +64,6 @@
   </div>
 
   <div class="toolbar-right">
-    <button onclick={handleNew} title="New Project">New</button>
     <button onclick={handleLoad} title="Load Project">Load</button>
     <button onclick={handleSave} title="Save Project">Save</button>
     <div class="separator"></div>
@@ -104,6 +100,23 @@
     flex: 1;
     display: flex;
     justify-content: center;
+  }
+
+  .projects-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    text-decoration: none;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+  }
+
+  .projects-link:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
   }
 
   .logo {

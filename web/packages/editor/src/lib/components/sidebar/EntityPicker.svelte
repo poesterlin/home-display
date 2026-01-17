@@ -16,8 +16,13 @@
     return (component as any).valueBinding;
   });
 
-  let entityId = $state(currentBinding?.entityId ?? "");
-  let attribute = $state(currentBinding?.attribute ?? "");
+  let entityId = $state("");
+  let attribute = $state("");
+
+  $effect(() => {
+    entityId = currentBinding?.entityId ?? "";
+    attribute = currentBinding?.attribute ?? "";
+  });
 
   function handleUpdate() {
     if (!entityId.trim()) {

@@ -13,94 +13,91 @@ import type {
   FontDefinition,
 } from "@esphome-designer/schema";
 import { RETRO_THEME } from "../themes/retro";
+import { assert } from "$lib/utils";
 
 const LATEST_VERSION = "1.0.0";
-const STORAGE_KEY = "esphome-designer-project";
+const PROJECTS_INDEX_KEY = "esphome-designer-projects-index";
+const PROJECT_PREFIX = "esphome-designer-project-";
 
 function createProjectStore() {
   // Core project state
-  let project = $state<Project>({
-    version: LATEST_VERSION,
-    name: "New Project",
-    theme: RETRO_THEME,
-    display: {
-      width: 240,
-      height: 320,
-      platform: "ili9xxx",
-    },
-    dashboardPages: [
-      {
-        id: "page-1",
-        name: "Home",
-        components: [],
-      },
-    ],
-    detailViews: [],
-    fonts: [],
-  });
-
-  // Load from localStorage on init (only if in browser)
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.version === LATEST_VERSION) {
-          project = parsed;
-        } else {
-          console.warn(`Project version mismatch (${parsed.version} vs ${LATEST_VERSION}). Starting fresh.`);
-        }
-      } catch (e) {
-        console.error("Failed to parse saved project", e);
-      }
-    }
-  }
+  let project = $state<Project | null>(null);
 
   // Current view tracking
-  let currentDashboardPageId = $state(project.dashboardPages[0]?.id ?? "page-1");
+  let currentDashboardPageId = $state<string | null>(null);
   let currentDetailViewId = $state<string | null>(null);
   let viewMode = $state<"dashboard" | "detail">("dashboard");
 
+  function saveToLocalStorage() {
+    if (typeof window === "undefined" || !project) return;
+
+    assert(project.id, "Project must have an ID to be saved");
+
+    // Save project data
+    localStorage.setItem(`${PROJECT_PREFIX}${project.id}`, JSON.stringify(project));
+
+    // Update index
+    const index = getProjectsIndex();
+    const existing = index.find(p => p.id === project!.id);
+    if (existing) {
+      existing.name = project.name;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      index.push({
+        id: project.id,
+        name: project.name,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    localStorage.setItem(PROJECTS_INDEX_KEY, JSON.stringify(index));
+  }
+
+  function getProjectsIndex(): { id: string, name: string, updatedAt: string }[] {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem(PROJECTS_INDEX_KEY);
+    return saved ? JSON.parse(saved) : [];
+  }
+
   // Derived state
   const currentDashboardPage = $derived(
-    project.dashboardPages.find((p) => p.id === currentDashboardPageId) ?? project.dashboardPages[0]
+    project?.dashboardPages.find((p) => p.id === currentDashboardPageId) ?? project?.dashboardPages[0]
   );
 
   const currentDetailView = $derived(
-    project.detailViews.find((v) => v.id === currentDetailViewId) ?? null
+    project?.detailViews.find((v) => v.id === currentDetailViewId) ?? null
   );
 
   const activeComponents = $derived(
-    viewMode === "dashboard" ? currentDashboardPage.components : (currentDetailView?.components ?? [])
+    viewMode === "dashboard" ? (currentDashboardPage?.components ?? []) : (currentDetailView?.components ?? [])
   );
 
   return {
     // Getters
     get project() { return project; },
-    get theme() { return project.theme ?? RETRO_THEME; },
+    get theme() { return project?.theme ?? RETRO_THEME; },
     get viewMode() { return viewMode; },
     get currentDashboardPageId() { return currentDashboardPageId; },
     get currentDetailViewId() { return currentDetailViewId; },
     get currentDashboardPage() { return currentDashboardPage; },
     get currentDetailView() { return currentDetailView; },
     get activeComponents() { return activeComponents; },
-    get display() { return project.display; },
-    get dashboardPages() { return project.dashboardPages; },
-    get detailViews() { return project.detailViews; },
-    get fonts() { return project.fonts ?? []; },
+    get display() { return project?.display; },
+    get dashboardPages() { return project?.dashboardPages ?? []; },
+    get detailViews() { return project?.detailViews ?? []; },
+    get fonts() { return project?.fonts ?? []; },
 
     // Navigation
     setViewMode(mode: "dashboard" | "detail") {
       viewMode = mode;
     },
     setDashboardPage(id: string) {
-      if (project.dashboardPages.some((p) => p.id === id)) {
+      if (project?.dashboardPages.some((p) => p.id === id)) {
         currentDashboardPageId = id;
         viewMode = "dashboard";
       }
     },
     setDetailView(id: string | null) {
-      if (id === null || project.detailViews.some((v) => v.id === id)) {
+      if (id === null || project?.detailViews.some((v) => v.id === id)) {
         currentDetailViewId = id;
         if (id) viewMode = "detail";
       }
@@ -108,6 +105,7 @@ function createProjectStore() {
 
     // Dashboard Page management
     addDashboardPage(page?: Partial<Page>) {
+      if (!project) return;
       const newPage: Page = {
         id: page?.id ?? `page-${Date.now()}`,
         name: page?.name ?? `Page ${project.dashboardPages.length + 1}`,
@@ -117,43 +115,49 @@ function createProjectStore() {
       project.dashboardPages.push(newPage);
       currentDashboardPageId = newPage.id;
       viewMode = "dashboard";
+      saveToLocalStorage();
       return newPage;
     },
 
     deleteDashboardPage(id: string) {
-      if (project.dashboardPages.length <= 1) return;
+      if (!project || project.dashboardPages.length <= 1) return;
       const idx = project.dashboardPages.findIndex((p) => p.id === id);
       if (idx !== -1) {
         project.dashboardPages.splice(idx, 1);
         if (currentDashboardPageId === id) {
           currentDashboardPageId = project.dashboardPages[0].id;
         }
+        saveToLocalStorage();
       }
     },
 
     // Detail View management
     addDetailView(view?: Partial<DetailView>) {
+      if (!project) return;
       const newView: DetailView = {
         id: view?.id ?? `detail-${Date.now()}`,
         title: view?.title ?? `Detail ${project.detailViews.length + 1}`,
         height: view?.height ?? 640,
         components: view?.components ?? [],
-        maxScrollY: view?.maxScrollY ?? 0,
       };
       project.detailViews.push(newView);
       currentDetailViewId = newView.id;
       viewMode = "detail";
+      saveToLocalStorage();
       return newView;
     },
 
     updateDetailView(id: string, updates: Partial<DetailView>) {
+      if (!project) return;
       const view = project.detailViews.find((v) => v.id === id);
       if (view) {
         Object.assign(view, updates);
+        saveToLocalStorage();
       }
     },
 
     deleteDetailView(id: string) {
+      if (!project) return;
       const idx = project.detailViews.findIndex((v) => v.id === id);
       if (idx !== -1) {
         project.detailViews.splice(idx, 1);
@@ -161,34 +165,41 @@ function createProjectStore() {
           currentDetailViewId = null;
           viewMode = "dashboard";
         }
+        saveToLocalStorage();
       }
     },
 
     // Component management
     addComponent(component: Component) {
-      if (viewMode === "dashboard") {
+      if (!project) return;
+      if (viewMode === "dashboard" && currentDashboardPage) {
         currentDashboardPage.components.push(component);
       } else if (currentDetailView) {
         currentDetailView.components.push(component);
       }
+      saveToLocalStorage();
       return component;
     },
 
     updateComponent(id: string, updates: Partial<Component>) {
-      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!project) return;
+      const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
       if (!components) return;
       const idx = components.findIndex((c) => c.id === id);
       if (idx !== -1) {
         components[idx] = { ...components[idx], ...updates } as Component;
+        saveToLocalStorage();
       }
     },
 
     deleteComponent(id: string) {
-      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!project) return;
+      const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
       if (!components) return;
       const idx = components.findIndex((c) => c.id === id);
       if (idx !== -1) {
         components.splice(idx, 1);
+        saveToLocalStorage();
       }
     },
 
@@ -197,29 +208,78 @@ function createProjectStore() {
     },
 
     moveComponent(id: string, dx: number, dy: number) {
-      const components = viewMode === "dashboard" ? currentDashboardPage.components : currentDetailView?.components;
+      if (!project) return;
+      const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
       if (!components) return;
       const component = components.find((c) => c.id === id);
       if (component) {
         component.position.x = Math.max(0, Math.min(component.position.x + dx, project.display.width - 1));
         component.position.y = Math.max(0, Math.min(component.position.y + dy, project.display.height - 1));
+        saveToLocalStorage();
       }
     },
 
     // Project management
     updateProject(updates: Partial<Project>) {
-      Object.assign(project, updates);
+      if (project) {
+        Object.assign(project, updates);
+        saveToLocalStorage();
+      }
     },
 
-    loadProject(p: Project) {
-      project = p;
-      currentDashboardPageId = p.dashboardPages[0]?.id ?? "";
+    createNewProject(name: string): Project {
+      const newProject: Project = {
+        id: crypto.randomUUID(),
+        version: LATEST_VERSION,
+        name,
+        theme: RETRO_THEME,
+        display: { width: 240, height: 320, platform: "ili9xxx" },
+        dashboardPages: [{ id: "page-1", name: "Home", components: [] }],
+        detailViews: [],
+        fonts: [],
+      };
+      project = newProject;
+      currentDashboardPageId = "page-1";
       currentDetailViewId = null;
       viewMode = "dashboard";
+      saveToLocalStorage();
+      return newProject;
+    },
+
+    loadProjectById(id: string): boolean {
+      if (typeof window === "undefined") return false;
+      const saved = localStorage.getItem(`${PROJECT_PREFIX}${id}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          project = parsed;
+          currentDashboardPageId = parsed.dashboardPages[0]?.id ?? "";
+          currentDetailViewId = null;
+          viewMode = "dashboard";
+          return true;
+        } catch (e) {
+          console.error("Failed to parse project", e);
+        }
+      }
+      return false;
+    },
+
+    deleteProject(id: string) {
+      if (typeof window === "undefined") return;
+      localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
+      const index = getProjectsIndex().filter(p => p.id !== id);
+      localStorage.setItem(PROJECTS_INDEX_KEY, JSON.stringify(index));
+      if (project?.id === id) {
+        project = null;
+      }
+    },
+
+    listProjects() {
+      return getProjectsIndex();
     },
 
     exportJSON(): string {
-      return JSON.stringify(project, null, 2);
+      return project ? JSON.stringify(project, null, 2) : "";
     },
   };
 }

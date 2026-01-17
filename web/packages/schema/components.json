@@ -374,8 +374,9 @@
         "version": { 
           "type": "string", 
           "description": "Schema version. ALWAYS increment this if there are breaking changes to the JSON structure.",
-          "default": "1.0.0"
+          "default": "1.0.1"
         },
+        "id": { "type": "string" },
         "name": { "type": "string" },
         "theme": { "$ref": "#/definitions/Theme" },
         "display": { "$ref": "#/definitions/DisplayConfig" },

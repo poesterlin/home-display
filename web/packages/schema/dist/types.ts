@@ -75,6 +75,7 @@ export interface Project {
    * Schema version. ALWAYS increment this if there are breaking changes to the JSON structure.
    */
   version?: string;
+  id?: string;
   name: string;
   theme?: Theme;
   display: DisplayConfig;

@@ -15,12 +15,16 @@
   class="detail-header" 
   style:border-bottom="1px solid {colorToRgb(theme.colors.foregroundMuted || {r:128,g:128,b:128})}"
 >
-  <div class="back-button" onclick={onBack}>
+  <button 
+    class="back-button" 
+    onclick={onBack}
+    aria-label="Back"
+  >
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={colorToRgb(theme.colors.accent || {r:0,g:255,b:255})} stroke-width="2">
       <path d="M15 18l-6-6 6-6" />
     </svg>
     <span style:color={colorToRgb(theme.colors.accent || {r:0,g:255,b:255})}>BACK</span>
-  </div>
+  </button>
   
   <h1 style:color={colorToRgb(theme.colors.foreground || {r:255,g:255,b:255})}>{(title || "").toUpperCase()}</h1>
   
@@ -48,6 +52,10 @@
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: inherit;
   }
 
   h1 {
