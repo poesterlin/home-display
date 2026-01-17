@@ -2,6 +2,8 @@
   import { projectStore } from "$lib/stores/project.svelte";
   import { generateESPHomeYAML } from "$lib/codegen/esphome";
   import { generateCppRenderer } from "$lib/codegen/cpp";
+  import { generateTouchHandler } from "$lib/codegen/touch-handler";
+  import { generateSensorsYAML } from "$lib/codegen/sensors";
 
   interface Props {
     onClose: () => void;
@@ -11,7 +13,9 @@
 
   let yamlOutput = $state("");
   let cppOutput = $state("");
-  let activeTab = $state<"yaml" | "cpp" | "json">("yaml");
+  let touchOutput = $state("");
+  let sensorsOutput = $state("");
+  let activeTab = $state<"yaml" | "cpp" | "touch" | "sensors" | "json">("yaml");
 
   // Generate on mount
   $effect(() => {
@@ -22,11 +26,28 @@
     try {
       yamlOutput = generateESPHomeYAML(projectStore.project);
       cppOutput = generateCppRenderer(projectStore.project);
+      touchOutput = generateTouchHandler(projectStore.project);
+      sensorsOutput = generateSensorsYAML(projectStore.project);
     } catch (err) {
       console.error("Code generation failed:", err);
       yamlOutput = `# Error generating YAML: ${err}`;
       cppOutput = `// Error generating C++: ${err}`;
+      touchOutput = `// Error generating Touch Handler: ${err}`;
+      sensorsOutput = `# Error generating Sensors YAML: ${err}`;
     }
+  }
+
+  function copyAllFiles() {
+    const allCode = [
+      `// FILE: display.yaml\n${yamlOutput}`,
+      `// FILE: display_renderer.h\n${cppOutput}`,
+      `// FILE: touch_handler.h\n${touchOutput}`,
+      `// FILE: sensors.yaml\n${sensorsOutput}`,
+      `// FILE: project.json\n${projectStore.exportJSON()}`
+    ].join("\n\n" + "=".repeat(50) + "\n\n");
+    
+    copyToClipboard(allCode);
+    alert("All files copied to clipboard!");
   }
 
   function download(filename: string, content: string) {
@@ -43,6 +64,8 @@
     const projectName = projectStore.project.name.toLowerCase().replace(/\s+/g, "-");
     download(`${projectName}.yaml`, yamlOutput);
     download(`${projectName}_renderer.h`, cppOutput);
+    download(`touch_handler.h`, touchOutput);
+    download(`sensors.yaml`, sensorsOutput);
     download(`${projectName}.json`, projectStore.exportJSON());
   }
 
@@ -51,7 +74,15 @@
   }
 
   const currentOutput = $derived(
-    activeTab === "yaml" ? yamlOutput : activeTab === "cpp" ? cppOutput : projectStore.exportJSON()
+    activeTab === "yaml"
+      ? yamlOutput
+      : activeTab === "cpp"
+        ? cppOutput
+        : activeTab === "touch"
+          ? touchOutput
+          : activeTab === "sensors"
+            ? sensorsOutput
+            : projectStore.exportJSON()
   );
 
   const currentFilename = $derived(
@@ -59,7 +90,11 @@
       ? "display.yaml"
       : activeTab === "cpp"
         ? "display_renderer.h"
-        : "project.json"
+        : activeTab === "touch"
+          ? "touch_handler.h"
+          : activeTab === "sensors"
+            ? "sensors.yaml"
+            : "project.json"
   );
 </script>
 
@@ -72,6 +107,7 @@
   <div class="actions">
     <button onclick={generate}>Regenerate</button>
     <button onclick={() => copyToClipboard(currentOutput)}>Copy to Clipboard</button>
+    <button onclick={copyAllFiles}>Copy All for AI Validation</button>
     <button onclick={() => download(currentFilename, currentOutput)}>
       Download {currentFilename}
     </button>
@@ -84,6 +120,12 @@
     </button>
     <button class:active={activeTab === "cpp"} onclick={() => (activeTab = "cpp")}>
       C++ Renderer
+    </button>
+    <button class:active={activeTab === "touch"} onclick={() => (activeTab = "touch")}>
+      Touch Handler
+    </button>
+    <button class:active={activeTab === "sensors"} onclick={() => (activeTab = "sensors")}>
+      Sensors
     </button>
     <button class:active={activeTab === "json"} onclick={() => (activeTab = "json")}>
       Project JSON

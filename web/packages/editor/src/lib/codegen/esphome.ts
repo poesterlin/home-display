@@ -22,11 +22,17 @@ export function generateESPHomeYAML(project: Project): string {
   lines.push(`  device_name: ${deviceName}`);
   lines.push(``);
 
+  lines.push(`packages:`);
+  lines.push(`  sensors: !include sensors.yaml`);
+  lines.push(``);
+
   // ESPHome core config
   lines.push(`esphome:`);
   lines.push(`  name: \${device_name}`);
   lines.push(`  includes:`);
   lines.push(`    - includes/display_renderer.h`);
+  lines.push(`    - includes/state_manager.h`);
+  lines.push(`    - includes/touch_handler.h`);
   lines.push(``);
 
   // Display hardware config
@@ -37,7 +43,7 @@ export function generateESPHomeYAML(project: Project): string {
   lines.push(`      width: ${project.display.width}`);
   lines.push(`      height: ${project.display.height}`);
   lines.push(`    lambda: |-`);
-  lines.push(`      renderDisplay(it, id(current_page));`);
+  lines.push(`      renderDisplay(it);`);
   lines.push(``);
 
   // Fonts
@@ -65,35 +71,8 @@ export function generateESPHomeYAML(project: Project): string {
   }
 
   // Extract entity bindings
-  const bindings = extractAllBindings(project);
-
-  // Sensors from Home Assistant
-  if (bindings.sensors.length > 0) {
-    lines.push(`sensor:`);
-    for (const entity of bindings.sensors) {
-      lines.push(`  - platform: homeassistant`);
-      lines.push(`    id: ${entityToId(entity)}`);
-      lines.push(`    entity_id: ${entity}`);
-      lines.push(`    internal: true`);
-      lines.push(`    on_value:`);
-      lines.push(`      - component.update: main_display`);
-    }
-    lines.push(``);
-  }
-
-  // Text sensors from Home Assistant
-  if (bindings.textSensors.length > 0) {
-    lines.push(`text_sensor:`);
-    for (const entity of bindings.textSensors) {
-      lines.push(`  - platform: homeassistant`);
-      lines.push(`    id: ${entityToId(entity)}`);
-      lines.push(`    entity_id: ${entity}`);
-      lines.push(`    internal: true`);
-      lines.push(`    on_value:`);
-      lines.push(`      - component.update: main_display`);
-    }
-    lines.push(``);
-  }
+  // (We'll still keep the extraction logic if needed for other things, but remove YAML output)
+  // const bindings = extractAllBindings(project);
 
   // Globals for page navigation
   lines.push(`globals:`);

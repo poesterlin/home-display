@@ -207,6 +207,10 @@ function createProjectStore() {
     },
 
     // Project management
+    updateProject(updates: Partial<Project>) {
+      Object.assign(project, updates);
+    },
+
     loadProject(p: Project) {
       project = p;
       currentDashboardPageId = p.dashboardPages[0]?.id ?? "";

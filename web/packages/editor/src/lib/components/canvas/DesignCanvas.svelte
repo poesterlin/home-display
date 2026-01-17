@@ -9,6 +9,12 @@
 
   let canvasEl: HTMLDivElement | undefined = $state();
 
+  const canvasHeight = $derived(
+    projectStore.viewMode === "detail" && projectStore.currentDetailView
+      ? projectStore.currentDetailView.height || projectStore.display.height
+      : projectStore.display.height
+  );
+
   function handleCanvasClick(e: MouseEvent) {
     if (e.target === canvasEl) {
       selectionStore.clear();
@@ -147,17 +153,19 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<div
-  class="canvas-wrapper"
-  style:width="{projectStore.display.width}px"
-  style:height="{(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? (projectStore.currentDetailView.height || 320) : projectStore.display.height}px"
->
-  <DetailHeader 
-    title={projectStore.currentDetailView?.title || ""} 
-    onBack={() => projectStore.setViewMode("dashboard")} 
-  />
   <div
-    bind:this={canvasEl}
+    class="canvas-wrapper"
+    style:width="{projectStore.display.width}px"
+    style:height="{canvasHeight}px"
+  >
+    {#if projectStore.viewMode === 'detail' && projectStore.currentDetailView}
+      <DetailHeader 
+        title={projectStore.currentDetailView.title} 
+        onBack={() => projectStore.setViewMode("dashboard")} 
+      />
+    {/if}
+    <div
+      bind:this={canvasEl}
     class="canvas"
     role="application"
     tabindex="0"
@@ -165,7 +173,7 @@
     onclick={handleCanvasClick}
     ondrop={handleDrop}
     ondragover={handleDragOver}
-    style:height="{(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? (projectStore.currentDetailView.height || 320) - 45 : '100%'}px"
+    style:height="{projectStore.viewMode === 'detail' ? canvasHeight - 45 : '100%'}px"
   >
     {#each projectStore.activeComponents as component (component.id)}
       <ComponentRenderer {component} />
@@ -176,7 +184,7 @@
 
   <!-- Display size indicator -->
   <div class="size-indicator">
-    {projectStore.display.width} x {(projectStore.viewMode === 'detail' && projectStore.currentDetailView) ? (projectStore.currentDetailView.height || 320) : projectStore.display.height}
+    {projectStore.display.width} x {canvasHeight}
     {#if projectStore.viewMode === 'dashboard'}
       (Dashboard: {projectStore.currentDashboardPage.name})
     {:else}

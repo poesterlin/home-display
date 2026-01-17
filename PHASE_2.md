@@ -90,6 +90,55 @@ Before generating code, we need to extend the schema to define:
 }
 ```
 
+#### ActionBinding Extension (Unified with WEB_ARCHITECTURE.md)
+
+The existing `ActionBinding` in WEB_ARCHITECTURE.md only supports HA service calls. We extend it to support navigation actions:
+
+```json
+{
+  "ActionBinding": {
+    "oneOf": [
+      { "$ref": "#/definitions/ServiceAction" },
+      { "$ref": "#/definitions/NavigationAction" }
+    ]
+  },
+  "ServiceAction": {
+    "type": "object",
+    "properties": {
+      "type": { "const": "SERVICE" },
+      "service": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_0-9]+$" },
+      "target": { "$ref": "#/definitions/EntityBinding" },
+      "data": { "type": "object" }
+    },
+    "required": ["type", "service"]
+  },
+  "NavigationAction": {
+    "type": "object",
+    "properties": {
+      "type": { "enum": ["OPEN_DETAIL", "GO_BACK", "NEXT_PAGE", "PREV_PAGE"] },
+      "targetId": {
+        "type": "string",
+        "pattern": "^[A-Z_]+$",
+        "description": "Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL."
+      }
+    },
+    "required": ["type"]
+  }
+}
+```
+
+**Usage Examples:**
+```json
+// Navigation action
+"onTap": { "type": "OPEN_DETAIL", "targetId": "TEMPS" }
+
+// Service action
+"onTap": { "type": "SERVICE", "service": "light.toggle", "target": { "entityId": "light.living_room" } }
+
+// Back navigation
+"onTap": { "type": "GO_BACK" }
+```
+
 #### Project Schema Additions
 ```json
 {
@@ -315,12 +364,21 @@ DisplayState gState;
 
 | CppType   | Example Input | Generated Code                    |
 |-----------|---------------|-----------------------------------|
-| float     | 0             | `float temp = 0;`                 |
+| float     | 0             | `float temp = 0.0f;`              |
+| float     | 23.5          | `float temp = 23.5f;`             |
+| float     | (undefined)   | `float temp = 0.0f;`              |
 | int       | 42            | `int count = 42;`                 |
+| int       | (undefined)   | `int count = 0;`                  |
 | bool      | false         | `bool enabled = false;`           |
+| bool      | true          | `bool enabled = true;`            |
 | std::string | "offline"   | `std::string status = "offline";` |
+| std::string | (undefined) | `std::string status = "";`        |
 
-**String defaults must be quoted in schema and unquoted in C++**
+**Notes:**
+- String defaults in schema are **unquoted** (e.g., `"defaultValue": "offline"`)
+- Generator adds C++ quotes automatically
+- Float values get `f` suffix for proper C++ typing
+- Undefined/null defaults are handled gracefully with sensible defaults
 
 ---
 
@@ -348,10 +406,12 @@ export async function generateStateManager(
   // Step 2: Generate scroll constants
   const scrollConstants = generateScrollConstants(detailViews);
 
-  // Step 3: Generate DisplayState struct
+  // Step 3: Generate DisplayState struct (with numPages from project)
+  const numPages = project.pages?.length ?? 0;
   const structDefinition = generateDisplayStateStruct(
     project.state?.fields ?? [],
-    detailViews
+    detailViews,
+    numPages
   );
 
   return {
@@ -414,14 +474,15 @@ function generateScrollConstants(views: DetailView[]): string {
 
 function generateDisplayStateStruct(
   fields: StateField[],
-  views: DetailView[]
+  views: DetailView[],
+  numPages: number
 ): string {
   const lines: string[] = [];
 
   lines.push("struct DisplayState {");
   lines.push("  // Navigation");
-  lines.push("  ViewState viewMode = DASHBOARD;");
   lines.push("  int mainPageIndex = 0;");
+  lines.push(`  int numPages = ${numPages};`);
   lines.push("  ViewState currentView = DASHBOARD;");
   lines.push("  int scrollY = 0;");
   lines.push("  int maxScrollY = 0;");
@@ -434,12 +495,19 @@ function generateDisplayStateStruct(
   }
   lines.push("");
 
+  lines.push("  // Helper: check if we're in the main dashboard");
+  lines.push("  bool isDashboard() const {");
+  lines.push("    return currentView == DASHBOARD;");
+  lines.push("  }");
+  lines.push("");
+
   lines.push("  // Update scroll bounds based on current view");
   lines.push("  void updateScrollBounds() {");
   lines.push("    switch (currentView) {");
   views.forEach((view) => {
-    lines.push(`      case ${view.id}:`);
-    lines.push(`        maxScrollY = SCROLL_Y_MAX_${view.id};`);
+    const viewEnumName = `VIEW_DETAIL_${view.id}`;
+    lines.push(`      case ${viewEnumName}:`);
+    lines.push(`        maxScrollY = SCROLL_Y_MAX_${viewEnumName};`);
     lines.push(`        break;`);
   });
   lines.push("      default:");
@@ -558,11 +626,17 @@ DisplayState gState;
 ```typescript
 test("generates correct ViewState enum", async () => {
   const project: Project = {
+    name: "Test Project",
+    display: { width: 240, height: 320, platform: "ili9xxx" },
+    fonts: [],
     pages: [
       {
+        id: "page-0",
+        name: "Status",
+        components: [],
         details: [
-          { id: "VIEW_TEMPS", title: "Temps", height: 320, components: [] },
-          { id: "VIEW_VACUUM", title: "Vacuum", height: 400, components: [] },
+          { id: "TEMPS", title: "Temps", height: 320, components: [] },
+          { id: "VACUUM", title: "Vacuum", height: 400, components: [] },
         ],
       },
     ],
@@ -571,23 +645,30 @@ test("generates correct ViewState enum", async () => {
   const state = await generateStateManager(project);
 
   expect(state.enumDefinition).toContain("enum ViewState {");
-  expect(state.enumDefinition).toContain("VIEW_TEMPS = 1");
-  expect(state.enumDefinition).toContain("VIEW_VACUUM = 2");
+  expect(state.enumDefinition).toContain("VIEW_DETAIL_TEMPS = 1");
+  expect(state.enumDefinition).toContain("VIEW_DETAIL_VACUUM = 2");
 });
 ```
 
 ### Unit Test: Struct Generation
 
 ```typescript
-test("generates DisplayState with sensor fields", async () => {
+test("generates DisplayState with sensor fields and numPages", async () => {
   const project: Project = {
+    name: "Test Project",
+    display: { width: 240, height: 320, platform: "ili9xxx" },
+    fonts: [],
+    pages: [
+      { id: "page-0", name: "Status", components: [] },
+      { id: "page-1", name: "Music", components: [] },
+    ],
     state: {
       fields: [
         {
           name: "outsideTemp",
           cppType: "float",
           haEntity: "sensor.outside_temp",
-          defaultValue: "0",
+          defaultValue: 0,
         },
       ],
     },
@@ -595,7 +676,60 @@ test("generates DisplayState with sensor fields", async () => {
 
   const state = await generateStateManager(project);
 
-  expect(state.structDefinition).toContain("float outsideTemp = 0;");
+  expect(state.structDefinition).toContain("float outsideTemp = 0.0f;");
+  expect(state.structDefinition).toContain("int numPages = 2;");
+  expect(state.structDefinition).toContain("bool isDashboard()");
+});
+```
+
+### Unit Test: Header Height Customization
+
+```typescript
+test("uses custom headerHeight for scroll bounds", async () => {
+  const project: Project = {
+    name: "Test Project",
+    display: { width: 240, height: 320, platform: "ili9xxx" },
+    fonts: [],
+    pages: [
+      {
+        id: "page-0",
+        name: "Status",
+        components: [],
+        details: [
+          { id: "CLIMATE", title: "Climate", height: 500, headerHeight: 60, components: [] },
+        ],
+      },
+    ],
+  };
+
+  const state = await generateStateManager(project);
+
+  // 500 - 60 = 440
+  expect(state.scrollConstants).toContain("SCROLL_Y_MAX_VIEW_DETAIL_CLIMATE = 440");
+});
+```
+
+### Unit Test: String Default Value Handling
+
+```typescript
+test("handles string default values correctly", async () => {
+  const project: Project = {
+    name: "Test Project",
+    display: { width: 240, height: 320, platform: "ili9xxx" },
+    fonts: [],
+    pages: [],
+    state: {
+      fields: [
+        { name: "status", cppType: "std::string", haEntity: "sensor.status", defaultValue: "offline" },
+        { name: "emptyStr", cppType: "std::string", haEntity: "sensor.empty" },  // no default
+      ],
+    },
+  };
+
+  const state = await generateStateManager(project);
+
+  expect(state.structDefinition).toContain('std::string status = "offline";');
+  expect(state.structDefinition).toContain('std::string emptyStr = "";');
 });
 ```
 

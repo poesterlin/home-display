@@ -42,7 +42,7 @@ export function generateCppRenderer(project: Project): string {
   lines.push(`void renderDisplay(display::Display& it) {`);
   lines.push(`  it.fill(Theme::BACKGROUND);`);
   lines.push(``);
-  lines.push(`  if (gState.viewMode == DASHBOARD) {`);
+  lines.push(`  if (gState.currentView == VIEW_MAIN_DASHBOARD) {`);
   lines.push(`    drawCommonHeader(it);`);
   lines.push(`    switch (gState.mainPageIndex) {`);
   project.dashboardPages.forEach((_, i) => {

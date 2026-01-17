@@ -6,13 +6,18 @@
   ],
   "scripts": {
     "dev": "bun run --filter @esphome-designer/editor dev",
-    "build": "bun run generate:types && bun run --filter @esphome-designer/editor build",
+    "build": "bun run generate:types && bun run --filter @esphome-designer/compilation-service build && bun run --filter @esphome-designer/editor build",
     "generate:types": "bun run --filter @esphome-designer/schema generate",
     "preview": "bun run --filter @esphome-designer/editor preview",
     "check": "bun run --filter @esphome-designer/editor check",
-    "lint": "bun run --filter '*' lint"
+    "lint": "bun run --filter '*' lint",
+    "db:generate": "cd packages/compilation-service && bun run db:generate",
+    "db:push": "cd packages/compilation-service && bun run db:push"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
-  }
+    "typescript": "^5.7.0",
+    "@types/bun": "latest"
+  },
+  "module": "index.ts",
+  "type": "module"
 }

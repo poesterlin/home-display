@@ -41,28 +41,39 @@
       "required": ["entityId"],
       "additionalProperties": false
     },
-    "ActionBinding": {
+    "ServiceAction": {
       "type": "object",
       "properties": {
+        "type": { "const": "SERVICE_CALL" },
         "service": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_0-9]+$" },
         "target": { "$ref": "#/definitions/EntityBinding" },
         "data": { "type": "object" }
       },
-      "required": ["service"],
+      "required": ["type", "service"],
       "additionalProperties": false
     },
     "NavigationAction": {
       "type": "object",
       "properties": {
         "type": { "enum": ["OPEN_DETAIL", "GO_BACK", "NEXT_PAGE", "PREV_PAGE"] },
-        "targetId": { "type": "string" }
+        "targetId": {
+          "type": "string",
+          "pattern": "^[A-Z_]+$",
+          "description": "Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL."
+        }
       },
       "required": ["type"],
       "additionalProperties": false
     },
+    "ActionBinding": {
+      "oneOf": [
+        { "$ref": "#/definitions/ServiceAction" },
+        { "$ref": "#/definitions/NavigationAction" }
+      ]
+    },
     "OnTapAction": {
       "oneOf": [
-        { "$ref": "#/definitions/ActionBinding" },
+        { "$ref": "#/definitions/ServiceAction" },
         { "$ref": "#/definitions/NavigationAction" }
       ]
     },
@@ -77,6 +88,9 @@
         "visibleWhen": { "$ref": "#/definitions/EntityBinding" },
         "loadingBinding": { "$ref": "#/definitions/EntityBinding" },
         "onTap": { "$ref": "#/definitions/OnTapAction" },
+        "onHold": { "$ref": "#/definitions/OnTapAction" },
+        "onDragStart": { "$ref": "#/definitions/OnTapAction" },
+        "onDragEnd": { "$ref": "#/definitions/OnTapAction" },
         "variant": { "enum": ["default", "retro", "minimal"], "default": "retro" }
       },
       "required": ["id", "type", "position"]
@@ -234,16 +248,64 @@
     "DetailView": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z_]+$",
+          "description": "Short view name in UPPER_SNAKE_CASE (e.g., TEMPS, VACUUM). Generator prepends VIEW_DETAIL_ prefix for enum."
+        },
         "title": { "type": "string" },
-        "height": { "type": "number", "default": 640 },
+        "height": {
+          "type": "number",
+          "description": "Total virtual height in pixels; maxScrollY = height - headerHeight"
+        },
+        "headerHeight": {
+          "type": "number",
+          "default": 45,
+          "description": "Height of the detail view header (default: 45px)"
+        },
         "components": {
           "type": "array",
           "items": { "$ref": "#/definitions/Component" }
-        },
-        "maxScrollY": { "type": "number" }
+        }
       },
-      "required": ["id", "title", "components"],
+      "required": ["id", "title", "height", "components"],
+      "additionalProperties": false
+    },
+    "StateField": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z_]+$",
+          "description": "Variable name in gState (e.g., outsideTemp)"
+        },
+        "cppType": {
+          "type": "string",
+          "enum": ["float", "int", "bool", "std::string"],
+          "description": "C++ type"
+        },
+        "haEntity": {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[a-z_0-9]+$",
+          "description": "Home Assistant entity (sensor.outside_temp)"
+        },
+        "defaultValue": {
+          "type": ["string", "number", "boolean"],
+          "description": "Initial value (e.g., 0, false, '')"
+        }
+      },
+      "required": ["name", "cppType", "haEntity"],
+      "additionalProperties": false
+    },
+    "StateConfig": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/StateField" },
+          "description": "Sensor fields to include in DisplayState"
+        }
+      },
       "additionalProperties": false
     },
     "Theme": {
@@ -317,6 +379,7 @@
         "name": { "type": "string" },
         "theme": { "$ref": "#/definitions/Theme" },
         "display": { "$ref": "#/definitions/DisplayConfig" },
+        "state": { "$ref": "#/definitions/StateConfig" },
         "dashboardPages": {
           "type": "array",
           "items": { "$ref": "#/definitions/Page" }

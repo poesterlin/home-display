@@ -21,7 +21,7 @@ export type TextComponent = BaseComponent & {
   color?: Color;
   align?: "left" | "center" | "right";
 };
-export type OnTapAction = ActionBinding | NavigationAction;
+export type OnTapAction = ServiceAction | NavigationAction;
 export type ButtonComponent = BaseComponent & {
   type: "button";
   label?: string;
@@ -30,6 +30,7 @@ export type ButtonComponent = BaseComponent & {
   pressAction?: ActionBinding;
   holdAction?: ActionBinding;
 };
+export type ActionBinding = ServiceAction | NavigationAction;
 export type SliderComponent = BaseComponent & {
   type: "slider";
   min?: number;
@@ -77,6 +78,7 @@ export interface Project {
   name: string;
   theme?: Theme;
   display: DisplayConfig;
+  state?: StateConfig;
   dashboardPages: Page[];
   detailViews: DetailView[];
   fonts?: FontDefinition[];
@@ -117,6 +119,30 @@ export interface DisplayConfig {
   height: number;
   platform: "ili9xxx" | "st7789" | "ssd1306" | "waveshare_epaper";
 }
+export interface StateConfig {
+  /**
+   * Sensor fields to include in DisplayState
+   */
+  fields?: StateField[];
+}
+export interface StateField {
+  /**
+   * Variable name in gState (e.g., outsideTemp)
+   */
+  name: string;
+  /**
+   * C++ type
+   */
+  cppType: "float" | "int" | "bool" | "std::string";
+  /**
+   * Home Assistant entity (sensor.outside_temp)
+   */
+  haEntity: string;
+  /**
+   * Initial value (e.g., 0, false, '')
+   */
+  defaultValue?: string | number | boolean;
+}
 export interface Page {
   id: string;
   name: string;
@@ -132,6 +158,9 @@ export interface BaseComponent {
   visibleWhen?: EntityBinding;
   loadingBinding?: EntityBinding;
   onTap?: OnTapAction;
+  onHold?: OnTapAction;
+  onDragStart?: OnTapAction;
+  onDragEnd?: OnTapAction;
   variant?: "default" | "retro" | "minimal";
 }
 export interface Position {
@@ -146,21 +175,34 @@ export interface EntityBinding {
   entityId: string;
   attribute?: string | null;
 }
-export interface ActionBinding {
+export interface ServiceAction {
+  type: "SERVICE_CALL";
   service: string;
   target?: EntityBinding;
   data?: {};
 }
 export interface NavigationAction {
   type: "OPEN_DETAIL" | "GO_BACK" | "NEXT_PAGE" | "PREV_PAGE";
+  /**
+   * Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL.
+   */
   targetId?: string;
 }
 export interface DetailView {
+  /**
+   * Short view name in UPPER_SNAKE_CASE (e.g., TEMPS, VACUUM). Generator prepends VIEW_DETAIL_ prefix for enum.
+   */
   id: string;
   title: string;
-  height?: number;
+  /**
+   * Total virtual height in pixels; maxScrollY = height - headerHeight
+   */
+  height: number;
+  /**
+   * Height of the detail view header (default: 45px)
+   */
+  headerHeight?: number;
   components: Component[];
-  maxScrollY?: number;
 }
 export interface FontDefinition {
   id: string;

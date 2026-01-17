@@ -17,6 +17,7 @@
   },
   "scripts": {
     "generate": "bun run generate-types.ts",
+    "test": "bun test",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
