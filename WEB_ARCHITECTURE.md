@@ -112,7 +112,113 @@ esphome-designer/
 
 The JSON schema defines all possible components and their properties. This is the **single source of truth**.
 
-### Schema Structure
+---
+
+## Phase 1 Implementation: Dual-Mode Navigation & Core Components
+
+Based on the hand-coded reference, the generator and UI will prioritize a dual-mode interaction model.
+
+### 1. Global Navigation Logic (Hardcoded Pattern)
+Every project follows a fixed navigation structure:
+- **Main Dashboard (Carousel):**
+    - Horizontal Swipes (Left/Right) switch between root pages.
+    - Pages are **fixed height** (240x320) and non-scrollable.
+    - *Reference:* `esphome/includes/state_manager.h` (`ViewState`, `mainPageIndex`) and `esphome/includes/touch_handler.h`.
+- **Detail Views (Apps):**
+    - Vertically scrollable.
+    - Triggered by `openDetail(viewId)` action.
+    - Includes a hardcoded "Back" button that resets `viewMode` to `DASHBOARD`.
+    - *Reference:* `esphome/includes/render_details.h` and `esphome/includes/render_detail_*.h`.
+
+### 2. The "Retro" Visual Language
+Components support a `variant` property. The default "retro" variant replicates the hand-coded aesthetic:
+- **RetroContainer:** Implements `drawRetroBox` with decorative corners and label cutouts.
+- **Button:** Supports loading states (circle animation) and debouncing logic.
+- *Reference:* `esphome/includes/render_helpers.h` (`drawRetroBox`) and `esphome/includes/button.h`.
+
+### 3. Special Components
+
+#### IconComponent (Procedural Icons)
+Instead of raster images, we use procedural drawing functions:
+```json
+{
+  "type": "icon",
+  "iconType": "bulb | window | vacuum | climate",
+  "stateBinding": { "entityId": "light.living_room" },
+  "color": { "r": 255, "g": 200, "b": 0 }
+}
+```
+*Reference:* `esphome/includes/render_helpers.h` (`drawBulbIcon`, `drawWindowIcon`).
+
+#### MusicComponent (Media Player)
+A compound component mirroring the hand-coded music page:
+```json
+{
+  "type": "music_player",
+  "entityId": "media_player.spotify",
+  "showVisualizer": true,
+  "controls": ["play", "skip", "like"]
+}
+```
+*Reference:* `esphome/includes/render_pages.h` (`renderPage1_Music`) and `esphome/includes/scrolling_text.h`.
+
+### 4. Touch Interaction Logic
+The generated `touch_handler.h` will be a hardcoded template that:
+1. Detects `startX/Y` on touch down.
+2. If `viewMode == DETAIL`, calculates vertical `deltaY` for scrolling.
+3. On touch release, if `deltaX > threshold` and `viewMode == DASHBOARD`, triggers `nextPage()` or `prevPage()`.
+4. Otherwise, triggers `handleTap(x, y)` which iterates through component hit-boxes.
+*Reference:* `esphome/includes/touch_handler.h`.
+
+---
+
+## Proposed Schema Changes
+
+To support the transition from manual C++ to generated code, the following additions to `components.json` are required:
+
+### 1. View Definitions
+```json
+"ViewMode": {
+  "enum": ["DASHBOARD", "DETAIL"]
+},
+"DetailView": {
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "components": { "type": "array", "items": { "$ref": "#/definitions/Component" } },
+    "maxScrollY": { "type": "number" }
+  }
+}
+```
+
+### 2. Action Schema Extension
+Add navigation-specific actions to `ActionBinding`:
+```json
+"NavigationAction": {
+  "type": "object",
+  "properties": {
+    "type": { "enum": ["OPEN_DETAIL", "GO_BACK", "NEXT_PAGE", "PREV_PAGE"] },
+    "targetId": { "type": "string" }
+  }
+}
+```
+
+### 3. Component "Retro" Properties
+Add `variant` and `loadingBinding` to `BaseComponent`:
+```json
+"BaseComponent": {
+  "properties": {
+    "variant": { "enum": ["default", "retro", "minimal"], "default": "retro" },
+    "loadingBinding": { "$ref": "#/definitions/EntityBinding" },
+    "onTap": { "$ref": "#/definitions/ActionBinding" }
+  }
+}
+```
+
+---
+
+## Component Schema Details
 
 ```json
 {
