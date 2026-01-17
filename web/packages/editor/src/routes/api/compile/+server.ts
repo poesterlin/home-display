@@ -1,10 +1,6 @@
 import { json } from "@sveltejs/kit";
-import {
-  submitCompilationJob,
-  getJobStatus,
-  getAllJobs,
-} from "@esphome-designer/compilation-service";
 import type { RequestHandler } from "./$types";
+import { getAllJobs, getJobStatus, submitCompilationJob } from "$lib/utils/worker";
 
 export const POST: RequestHandler = async ({ request }) => {
   try {

@@ -1,9 +1,7 @@
-import { CompilationQueue } from './queue/index.js';
+import type { CompilationJob, NewCompilationJob } from '$lib/db/schema';
+import { CompilationQueue } from '$lib/queue/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { CompilationJob, CompilationRequest, CompilationResult } from './types/index.js';
-
-// Export database utilities
-export { getDb, schema } from './db/index.js';
+export { getDb, schema } from '$lib/db/index.js';
 
 let compilationQueue: CompilationQueue | null = null;
 
@@ -37,7 +35,7 @@ export async function submitCompilationJob(
     throw new Error('Compilation queue not started');
   }
   
-  const job: CompilationJob = {
+  const job: NewCompilationJob = {
     id: uuidv4(),
     projectId,
     projectName,

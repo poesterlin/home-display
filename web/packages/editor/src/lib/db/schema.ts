@@ -14,5 +14,5 @@ export const compilationJobs = pgTable('compilation_jobs', {
   completedAt: timestamp('completed_at'),
 });
 
-export type CompilationJobDB = typeof compilationJobs.$inferSelect;
-export type NewCompilationJobDB = typeof compilationJobs.$inferInsert;
+export type CompilationJob = typeof compilationJobs.$inferSelect;
+export type NewCompilationJob = typeof compilationJobs.$inferInsert;

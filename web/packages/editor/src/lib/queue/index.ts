@@ -1,8 +1,8 @@
 import { Worker } from 'worker_threads';
 import { EventEmitter } from 'events';
-import { CompilationJob } from '../types/index.js';
-import { getDb, schema } from '../db/index.js';
+import { getDb, schema } from '$lib/db/index.js';
 import { eq, desc } from 'drizzle-orm';
+import type { CompilationJob } from '$lib/db/schema';
 
 interface WorkerThread {
   worker: Worker;

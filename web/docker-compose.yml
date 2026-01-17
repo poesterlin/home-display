@@ -9,8 +9,3 @@ services:
       - DATABASE_URL=postgresql://postgres:password@homelab:5432/esphome
       - NODE_ENV=development
       - CONCURRENT_JOBS=2
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./src:/app/packages/editor/src
-      - ../compilation-service/src:/app/packages/compilation-service/src
-      - /tmp/esphome-builds:/tmp/esphome-builds

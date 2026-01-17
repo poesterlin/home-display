@@ -1,2 +1,6 @@
 
 web/packages/editor/.svelte-kit/
+
+web/packages/editor/build/
+
+web/packages/editor/.env

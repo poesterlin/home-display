@@ -1,7 +1,6 @@
-import { startWorker, stopWorker } from "@esphome-designer/compilation-service";
-import { getDb, schema } from "@esphome-designer/compilation-service/dist/db/index.js";
+import { startWorker, stopWorker } from "$lib/utils/worker";
 import type { Handle } from "@sveltejs/kit";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { getDb } from "./lib/db";
 
 let workerStarted = false;
 
