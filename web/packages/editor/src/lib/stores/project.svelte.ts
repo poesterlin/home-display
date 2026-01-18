@@ -1,16 +1,10 @@
-/**
- * Project Store - Central state management for the ESPHome Designer project
- *
- * Uses Svelte 5 runes for reactive state management.
- */
-
 import type {
   Project,
   Page,
   DetailView,
   Component,
   DisplayConfig,
-  FontDefinition,
+  Theme,
 } from "@esphome-designer/schema";
 import { RETRO_THEME } from "../themes/retro";
 import { assert, toUpperSnakeCase } from "$lib/utils";
@@ -19,8 +13,8 @@ const LATEST_VERSION = "1.0.0";
 const PROJECTS_INDEX_KEY = "esphome-designer-projects-index";
 const PROJECT_PREFIX = "esphome-designer-project-";
 
-export type ProjectConfig = { 
-  display?: Partial<DisplayConfig>, 
+export type ProjectConfig = {
+  display?: Partial<DisplayConfig>,
   theme?: Theme
 };
 
@@ -94,6 +88,14 @@ function createProjectStore() {
     // Navigation
     setViewMode(mode: "dashboard" | "detail") {
       viewMode = mode;
+
+      if (mode === "dashboard" && project) {
+        currentDashboardPageId = project.dashboardPages[0]?.id ?? null;
+      }
+
+      if (mode === "detail" && project) {
+        currentDetailViewId = project.detailViews[0]?.id ?? null;
+      }
     },
     setDashboardPage(id: string) {
       if (project?.dashboardPages.some((p) => p.id === id)) {
@@ -234,10 +236,10 @@ function createProjectStore() {
     },
 
     createNewProject(name: string, config?: ProjectConfig): Project {
-      const display = { 
-        width: config?.display?.width ?? 240, 
-        height: config?.display?.height ?? 320, 
-        platform: config?.display?.platform ?? "ili9xxx" 
+      const display = {
+        width: config?.display?.width ?? 240,
+        height: config?.display?.height ?? 320,
+        platform: config?.display?.platform ?? "ili9xxx"
       } as DisplayConfig;
 
       const newProject: Project = {
@@ -299,7 +301,7 @@ function createProjectStore() {
         const parsed = JSON.parse(json);
         // Simple validation
         if (!parsed.id || !parsed.name || !parsed.display) return false;
-        
+
         project = parsed;
         currentDashboardPageId = parsed.dashboardPages[0]?.id ?? "";
         currentDetailViewId = null;
