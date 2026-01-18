@@ -10,9 +10,11 @@
   let canvasEl: HTMLDivElement | undefined = $state();
 
   const canvasHeight = $derived(
-    projectStore.project && projectStore.viewMode === "detail" && projectStore.currentDetailView
+    projectStore.project &&
+      projectStore.viewMode === "detail" &&
+      projectStore.currentDetailView
       ? projectStore.currentDetailView.height || projectStore.display!.height
-      : projectStore.display?.height ?? 320
+      : (projectStore.display?.height ?? 320),
   );
 
   function handleCanvasClick(e: MouseEvent) {
@@ -99,7 +101,7 @@
           size: { width: 32, height: 32 },
           scale: 1,
         } as Component;
-      
+
       case "procedural_icon":
         return {
           ...base,
@@ -107,7 +109,7 @@
           iconType: "bulb",
           size: { width: 32, height: 32 },
         } as Component;
-      
+
       case "container":
         return {
           ...base,
@@ -153,19 +155,19 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
+<div
+  class="canvas-wrapper"
+  style:width="{projectStore.display?.width ?? 240}px"
+  style:height="{canvasHeight}px"
+>
+  {#if projectStore.viewMode === "detail" && projectStore.currentDetailView}
+    <DetailHeader
+      title={projectStore.currentDetailView.title}
+      onBack={() => projectStore.setViewMode("dashboard")}
+    />
+  {/if}
   <div
-    class="canvas-wrapper"
-    style:width="{(projectStore.display?.width ?? 240)}px"
-    style:height="{canvasHeight}px"
-  >
-    {#if projectStore.viewMode === 'detail' && projectStore.currentDetailView}
-      <DetailHeader 
-        title={projectStore.currentDetailView.title} 
-        onBack={() => projectStore.setViewMode("dashboard")} 
-      />
-    {/if}
-    <div
-      bind:this={canvasEl}
+    bind:this={canvasEl}
     class="canvas"
     role="application"
     tabindex="0"
@@ -173,7 +175,9 @@
     onclick={handleCanvasClick}
     ondrop={handleDrop}
     ondragover={handleDragOver}
-    style:height="{projectStore.viewMode === 'detail' ? canvasHeight - 45 : (projectStore.display?.height ?? 320)}px"
+    style:height="{projectStore.viewMode === 'detail'
+      ? canvasHeight - 45
+      : (projectStore.display?.height ?? 320)}px"
   >
     {#if projectStore.activeComponents}
       {#each projectStore.activeComponents as component (component.id)}
@@ -187,7 +191,7 @@
   <!-- Display size indicator -->
   <div class="size-indicator">
     {projectStore.display?.width ?? 240} x {canvasHeight}
-    {#if projectStore.viewMode === 'dashboard' && projectStore.currentDashboardPage}
+    {#if projectStore.viewMode === "dashboard" && projectStore.currentDashboardPage}
       (Dashboard: {projectStore.currentDashboardPage.name})
     {:else}
       (Detail: {projectStore.currentDetailView?.title || "Unknown"})
@@ -210,6 +214,7 @@
     position: relative;
     overflow: visible;
     cursor: crosshair;
+    overflow: hidden;
   }
 
   .canvas:focus {
