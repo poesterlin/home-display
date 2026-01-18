@@ -3,6 +3,7 @@
   import { selectionStore } from "$lib/stores/selection.svelte";
   import { historyStore } from "$lib/stores/history.svelte";
   import EntityPicker from "./EntityPicker.svelte";
+  import IconSearcher from "./IconSearcher.svelte";
 
   // Get selected component
   const selectedComponent = $derived(
@@ -191,15 +192,15 @@
             oninput={(e) => updateProperty("label", e.currentTarget.value)}
           />
         </div>
-        <div class="field">
-          <span class="field-label">Icon</span>
-          <input
-            type="text"
-            value={(selectedComponent as any).icon ?? ""}
-            placeholder="mdi:icon-name"
-            oninput={(e) => updateProperty("icon", e.currentTarget.value)}
-          />
-        </div>
+       <div class="field">
+           <span class="field-label">Icon</span>
+           <input
+             type="text"
+             value={(selectedComponent as any).icon ?? ""}
+             placeholder="mdi:icon-name"
+             oninput={(e) => updateProperty("icon", e.currentTarget.value)}
+           />
+         </div>
         <div class="field">
           <span class="field-label">On Tap</span>
           <select
@@ -320,11 +321,9 @@
         <label class="section-label">Icon</label>
         <div class="field">
           <span class="field-label">Icon</span>
-          <input
-            type="text"
+          <IconSearcher
             value={(selectedComponent as any).icon ?? ""}
-            placeholder="mdi:home"
-            oninput={(e) => updateProperty("icon", e.currentTarget.value)}
+            onSelect={(icon) => updateProperty("icon", icon)}
           />
         </div>
         <div class="field">

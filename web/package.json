@@ -16,7 +16,8 @@
   },
   "devDependencies": {
     "typescript": "^5.7.0",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@mdi/js": "^7.4.47"
   },
   "module": "index.ts",
   "type": "module"
