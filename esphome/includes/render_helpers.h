@@ -72,6 +72,7 @@ void drawCommonHeader(display::Display& it) {
 }
 
 void drawPageIndicator(display::Display& it, int page, int count) {
+  if (count <= 1) return;
   for (int i = 0; i < count; i++) {
     int dot_x = 120 - (count * 7) + (i * 14) + 7;
     if (i == page) {

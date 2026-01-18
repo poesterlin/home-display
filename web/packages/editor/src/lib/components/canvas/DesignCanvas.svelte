@@ -5,6 +5,7 @@
   import ComponentRenderer from "./renderers/ComponentRenderer.svelte";
   import SelectionOverlay from "./SelectionOverlay.svelte";
   import DetailHeader from "./DetailHeader.svelte";
+  import PageIndicator from "./PageIndicator.svelte";
   import type { Component } from "@esphome-designer/schema";
 
   let canvasEl: HTMLDivElement | undefined = $state();
@@ -193,6 +194,13 @@
     {/if}
 
     <SelectionOverlay />
+
+    {#if projectStore.viewMode === "dashboard"}
+      <PageIndicator
+        count={projectStore.dashboardPages.length}
+        currentIndex={projectStore.currentPageIndex}
+      />
+    {/if}
   </div>
 
   <!-- Display size indicator -->

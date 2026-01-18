@@ -5,22 +5,25 @@
   interface Props {
     count: number;
     currentIndex: number;
+    isStatic?: boolean;
   }
 
-  let { count, currentIndex }: Props = $props();
+  let { count, currentIndex, isStatic = false }: Props = $props();
   const theme = $derived(projectStore.theme);
 </script>
 
-<div class="indicator-container">
-  {#each Array(count) as _, i}
-    <div
-      class="dot"
-      style:background-color={i === currentIndex 
-        ? colorToRgb(theme.colors.accent || {r:0,g:255,b:255}) 
-        : colorToRgb(theme.colors.foregroundMuted || {r:128,g:128,b:128})}
-    ></div>
-  {/each}
-</div>
+{#if count > 1}
+  <div class="indicator-container" class:static={isStatic}>
+    {#each Array(count) as _, i}
+      <div
+        class="dot"
+        style:background-color={i === currentIndex 
+          ? colorToRgb(theme.colors.accent || {r:0,g:255,b:255}) 
+          : colorToRgb(theme.colors.foregroundMuted || {r:128,g:128,b:128})}
+      ></div>
+    {/each}
+  </div>
+{/if}
 
 <style>
   .indicator-container {
@@ -32,6 +35,13 @@
     justify-content: center;
     gap: 8px;
     pointer-events: none;
+  }
+
+  .indicator-container.static {
+    position: static;
+    bottom: auto;
+    left: auto;
+    right: auto;
   }
 
   .dot {

@@ -82,6 +82,10 @@ function createProjectStore() {
     get activeComponents() { return activeComponents; },
     get display() { return project?.display; },
     get dashboardPages() { return project?.dashboardPages ?? []; },
+    get currentPageIndex() {
+      if (!project) return 0;
+      return project.dashboardPages.findIndex(p => p.id === currentDashboardPageId);
+    },
     get detailViews() { return project?.detailViews ?? []; },
     get fonts() { return project?.fonts ?? []; },
 
@@ -138,6 +142,24 @@ function createProjectStore() {
       }
     },
 
+    reorderDashboardPage(oldIndex: number, newIndex: number) {
+      if (!project) return;
+      if (newIndex < 0 || newIndex >= project.dashboardPages.length) return;
+      
+      const page = project.dashboardPages.splice(oldIndex, 1)[0];
+      project.dashboardPages.splice(newIndex, 0, page);
+      saveToLocalStorage();
+    },
+
+    renameDashboardPage(id: string, newName: string) {
+      if (!project) return;
+      const page = project.dashboardPages.find(p => p.id === id);
+      if (page) {
+        page.name = newName;
+        saveToLocalStorage();
+      }
+    },
+
     // Detail View management
     addDetailView(view?: Partial<DetailView>) {
       if (!project) return;
@@ -173,6 +195,24 @@ function createProjectStore() {
           currentDetailViewId = null;
           viewMode = "dashboard";
         }
+        saveToLocalStorage();
+      }
+    },
+
+    reorderDetailView(oldIndex: number, newIndex: number) {
+      if (!project) return;
+      if (newIndex < 0 || newIndex >= project.detailViews.length) return;
+      
+      const view = project.detailViews.splice(oldIndex, 1)[0];
+      project.detailViews.splice(newIndex, 0, view);
+      saveToLocalStorage();
+    },
+
+    renameDetailView(id: string, newTitle: string) {
+      if (!project) return;
+      const view = project.detailViews.find(v => v.id === id);
+      if (view) {
+        view.title = newTitle;
         saveToLocalStorage();
       }
     },
