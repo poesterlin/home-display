@@ -129,9 +129,16 @@
 
   // Keyboard shortcuts
   function handleKeyDown(e: KeyboardEvent) {
-    // Delete selected components
-    if (e.key === "Delete" || e.key === "Backspace") {
+    // Check if the event target is a form input field
+    const isFormInput =
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      (e.target instanceof HTMLElement && e.target.contentEditable === "true");
+
+    // Delete selected components (but not when editing form inputs)
+    if ((e.key === "Delete" || e.key === "Backspace") && !isFormInput) {
       if (selectionStore.hasSelection) {
+        e.preventDefault();
         historyStore.record("Delete components");
         for (const id of selectionStore.selectedIds) {
           projectStore.deleteComponent(id);
