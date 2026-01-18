@@ -11,6 +11,9 @@
     "preview": "bun run --filter @esphome-designer/editor preview",
     "check": "bun run --filter @esphome-designer/editor check",
     "lint": "bun run --filter '*' lint",
+    "test": "bun run --filter @esphome-designer/editor test",
+    "test:watch": "bun run --filter @esphome-designer/editor test:watch",
+    "test:codegen": "bun run --filter @esphome-designer/editor test:codegen",
     "db:generate": "cd packages/editor && bun run db:generate",
     "db:push": "cd packages/editor && bun run db:push"
   },

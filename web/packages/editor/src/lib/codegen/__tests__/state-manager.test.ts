@@ -318,7 +318,7 @@ describe("State Manager Generator", () => {
 
       expect(state.structDefinition).toContain("int mainPageIndex = 0;");
       expect(state.structDefinition).toContain("int numPages = 1;");
-      expect(state.structDefinition).toContain("ViewState currentView = DASHBOARD;");
+      expect(state.structDefinition).toContain("ViewState currentView = VIEW_MAIN_DASHBOARD;");
       expect(state.structDefinition).toContain("int scrollY = 0;");
       expect(state.structDefinition).toContain("int maxScrollY = 0;");
     });
