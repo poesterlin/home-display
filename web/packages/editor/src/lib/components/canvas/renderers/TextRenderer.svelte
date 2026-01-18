@@ -12,7 +12,7 @@
     component.fontSize === "small" ? 12 : component.fontSize === "large" ? 20 : 14
   );
 
-  const textAlign = $derived(component.align ?? "left");
+  const textAlign = $derived("flex-" + (component.align === "left" || component.align === undefined ? "start" : component.align === "right" ? "end" : "center"));
 
   const colorStyle = $derived(
     component.color
@@ -25,7 +25,7 @@
   <div
     class="text-component"
     style:font-size="{fontSize}px"
-    style:text-align={textAlign}
+    style:justify-content="{textAlign}"
     style:color={colorStyle}
   >
     {component.text ?? "Text"}
