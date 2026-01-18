@@ -220,6 +220,25 @@
         }
       ]
     },
+    "ImageComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "image" },
+            "file": { "type": "string" },
+            "image_type": { "enum": ["BINARY", "GRAYSCALE", "RGB565", "RGB"], "description": "Specifies how to encode image internally." },
+            "resize": { "type": "string", "pattern": "^\\d+x\\d+$" },
+            "transparency": { "enum": ["opaque", "chroma_key", "alpha_channel"] },
+            "invert_alpha": { "type": "boolean", "default": false },
+            "dither": { "enum": ["NONE", "FLOYDSTEINBERG"] },
+            "byte_order": { "enum": ["big_endian", "little_endian"] }
+          },
+          "required": ["type", "file", "image_type", "size"]
+        }
+      ]
+    },
     "Component": {
       "oneOf": [
         { "$ref": "#/definitions/TextComponent" },
@@ -228,7 +247,8 @@
         { "$ref": "#/definitions/GaugeComponent" },
         { "$ref": "#/definitions/IconComponent" },
         { "$ref": "#/definitions/ProceduralIconComponent" },
-        { "$ref": "#/definitions/ContainerComponent" }
+        { "$ref": "#/definitions/ContainerComponent" },
+        { "$ref": "#/definitions/ImageComponent" }
       ]
     },
     "Page": {

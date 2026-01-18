@@ -7,6 +7,7 @@
   import IconRenderer from "./IconRenderer.svelte";
   import ProceduralIconRenderer from "./ProceduralIconRenderer.svelte";
   import ContainerRenderer from "./ContainerRenderer.svelte";
+  import ImageRenderer from "./ImageRenderer.svelte";
 
   interface Props {
     component: Component;
@@ -29,6 +30,8 @@
   <ProceduralIconRenderer {component} />
 {:else if component.type === "container"}
   <ContainerRenderer {component} />
+{:else if component.type === "image"}
+  <ImageRenderer {component} />
 {:else}
   <div class="unknown-component">
     Unknown: {component.type}

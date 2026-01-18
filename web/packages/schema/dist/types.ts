@@ -12,7 +12,8 @@ export type Component =
   | GaugeComponent
   | IconComponent
   | ProceduralIconComponent
-  | ContainerComponent;
+  | ContainerComponent
+  | ImageComponent;
 export type TextComponent = BaseComponent & {
   type: "text";
   text?: string;
@@ -68,6 +69,19 @@ export type ContainerComponent = BaseComponent & {
   type: "container";
   label?: string;
   backgroundColor?: Color;
+};
+export type ImageComponent = BaseComponent & {
+  type: "image";
+  file: string;
+  /**
+   * Specifies how to encode image internally.
+   */
+  image_type: "BINARY" | "GRAYSCALE" | "RGB565" | "RGB";
+  resize?: string;
+  transparency?: "opaque" | "chroma_key" | "alpha_channel";
+  invert_alpha?: boolean;
+  dither?: "NONE" | "FLOYDSTEINBERG";
+  byte_order?: "big_endian" | "little_endian";
 };
 
 export interface Project {

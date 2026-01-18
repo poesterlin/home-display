@@ -7,7 +7,9 @@
 import type {
   Component,
   Project,
-  StateField
+  StateField,
+  ButtonComponent,
+  ImageComponent
 } from "@esphome-designer/schema";
 import { assert } from "$lib/utils";
 
@@ -120,9 +122,26 @@ function generateComponentCode(comp: Component, project: Project, stateFields: S
     case "procedural_icon":
       return `  // Procedural Icon: ${comp.iconType} at (${comp.position.x}, ${yCoord})`;
 
+    case "image": // Added case for image
+      return generateImageCode(comp as ImageComponent, yCoord);
+
     default:
       return `  // Unsupported component: ${comp.type}`;
   }
+}
+
+function generateImageCode(comp: ImageComponent, y: string | number): string {
+  const x = comp.position.x;
+  const imageId = comp.id;
+
+  // The ESPHome display lambda uses `id(image_id)` to reference the image component.
+  // The position (x, y) are direct.
+  // No explicit resize or transparency parameters are passed here; they are configured in the ESPHome YAML image definition.
+  let imageCall = `it.image(${x}, ${y}, id(${imageId}))`;
+
+  return `
+  // Image: ${comp.id}
+  ${imageCall};`;
 }
 
 function generateTextCode(comp: any, y: string | number, stateFields: StateFieldMap): string {
