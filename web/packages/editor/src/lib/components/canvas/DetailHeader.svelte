@@ -1,6 +1,7 @@
 <script lang="ts">
   import { projectStore } from "../../stores/project.svelte";
   import { colorToRgb } from "../../utils/themed-drawing";
+  import * as mdiIcons from '@mdi/js';
 
   interface Props {
     title: string;
@@ -20,8 +21,8 @@
     onclick={onBack}
     aria-label="Back"
   >
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={colorToRgb(theme.colors.accent || {r:0,g:255,b:255})} stroke-width="2">
-      <path d="M15 18l-6-6 6-6" />
+    <svg width="24" height="24" viewBox="0 0 24 24" class="icon">
+      <path d={mdiIcons.mdiChevronLeft} />
     </svg>
     <span style:color={colorToRgb(theme.colors.accent || {r:0,g:255,b:255})}>BACK</span>
   </button>
@@ -56,6 +57,12 @@
     border: none;
     padding: 0;
     font-family: inherit;
+    color: inherit;
+  }
+
+  .icon {
+    fill: currentColor;
+    stroke: none;
   }
 
   h1 {

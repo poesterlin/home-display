@@ -4,6 +4,7 @@
   import type { DisplayConfig } from "@esphome-designer/schema";
   import { fade, fly, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import * as mdiIcons from '@mdi/js';
   
   // Define it here if the import fails
   type ProjectConfig = { 
@@ -61,14 +62,13 @@
 
   <main>
     <section class="actions" in:fade={{ delay: 200, duration: 800 }}>
-      <button class="primary large create-btn" onclick={() => showModal = true}>
-        <div class="btn-content">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>Craft New Interface</span>
-        </div>
+       <button class="primary large create-btn" onclick={() => showModal = true}>
+         <div class="btn-content">
+           <svg width="24" height="24" viewBox="0 0 24 24" class="icon">
+             <path d={mdiIcons.mdiPlus} />
+           </svg>
+           <span>Craft New Interface</span>
+         </div>
         <div class="btn-shine"></div>
       </button>
     </section>
@@ -117,7 +117,9 @@
                   <option value="ssd1306">SSD1306 (Small 0.96" OLEDs)</option>
                   <option value="waveshare_epaper">Waveshare (E-Ink / E-Paper)</option>
                 </select>
-                <svg class="select-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <svg class="select-arrow icon" width="12" height="12" viewBox="0 0 24 24">
+                  <path d={mdiIcons.mdiChevronDown} />
+                </svg>
               </div>
               <p class="field-hint">Identify your controller chip from your display's back PCB or datasheet.</p>
             </div>
@@ -142,9 +144,8 @@
       {#if projects.length === 0}
         <div class="empty-state" in:scale={{ start: 0.95, delay: 600 }}>
           <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
+            <svg width="48" height="48" viewBox="0 0 24 24" class="icon">
+              <path d={mdiIcons.mdiViewGrid} />
             </svg>
           </div>
           <p>The canvas is empty. Start your first display design today.</p>
@@ -158,19 +159,23 @@
                   <h3>{project.name}</h3>
                   <div class="meta">
                     <span class="date">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" class="icon">
+                        <path d={mdiIcons.mdiClock} />
+                      </svg>
                       {new Date(project.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
                 <div class="card-actions">
                   <button class="delete-btn" onclick={(e) => deleteProject(project.id, e)} title="Delete Project">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                    <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
+                      <path d={mdiIcons.mdiDelete} />
                     </svg>
                   </button>
                   <div class="arrow">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" class="icon">
+                      <path d={mdiIcons.mdiChevronRight} />
+                    </svg>
                   </div>
                 </div>
               </a>
@@ -565,5 +570,10 @@
     font-size: 1.1rem;
     max-width: 300px;
     margin: 0 auto;
+  }
+
+  .icon {
+    fill: currentColor;
+    stroke: none;
   }
 </style>
