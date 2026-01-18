@@ -76,7 +76,7 @@ function createHistoryStore() {
       undoStack = newUndoStack;
 
       const project = JSON.parse(entry.snapshot) as Project;
-      projectStore.loadProject(project);
+      projectStore.importJSON(entry.snapshot);
     },
 
     // Redo last undone action
@@ -102,7 +102,7 @@ function createHistoryStore() {
       redoStack = newRedoStack;
 
       const project = JSON.parse(entry.snapshot) as Project;
-      projectStore.loadProject(project);
+      projectStore.importJSON(entry.snapshot);
     },
 
     // Clear all history
