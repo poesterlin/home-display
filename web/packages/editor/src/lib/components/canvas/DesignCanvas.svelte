@@ -176,7 +176,7 @@
     ondrop={handleDrop}
     ondragover={handleDragOver}
     style:height="{projectStore.viewMode === 'detail'
-      ? canvasHeight - 45
+      ? canvasHeight
       : (projectStore.display?.height ?? 320)}px"
   >
     {#if projectStore.activeComponents}
