@@ -1,212 +1,50 @@
-# ESPHome Display - Editor API
+# ESPHome Display - Metadata Export API
 
-This document describes the HTTP API endpoints exposed by the ESPHome Display integration for use by the web editor.
+This document describes the API used to export Home Assistant environment data for use in the ESPHome Display Web Editor. This "Offline Mode" ensures user privacy by removing the need for the editor to have direct access to the user's Home Assistant instance.
 
 ## Overview
 
-The API allows the ESPHome Designer web editor to fetch entity and service information from Home Assistant, enabling autocomplete and validation features without requiring direct WebSocket access.
+Instead of real-time requests, the integration generates a **Metadata Bundle**. The user downloads this bundle from Home Assistant and uploads it to the Web Editor to enable autocomplete, icons, and service validation.
 
-## Base URL
+## Endpoint: Export Metadata
 
-```
-http://<home-assistant-url>/api/esphome_display
-```
+### GET `/api/esphome_display/export`
 
-## Authentication
+Generates a complete snapshot of entities and services.
 
-All endpoints require a valid Home Assistant authentication. The editor should include either:
-
-1. **Long-Lived Access Token** (recommended for editor):
-   ```
-   Authorization: Bearer <token>
-   ```
-
-2. **Session Cookie** (if editor is served from HA):
-   ```
-   Cookie: <ha_session_cookie>
-   ```
-
-## Endpoints
-
-### GET /api/esphome_display/entities
-
-Returns all entities suitable for display bindings, filtered and formatted for the editor.
-
-**Response:**
+**Response Body:**
 ```json
 {
+  "version": "1.0.0",
+  "generated_at": "2026-01-18T19:00:00Z",
   "entities": [
     {
-      "entity_id": "sensor.living_room_temperature",
+      "entity_id": "sensor.living_room_temp",
       "domain": "sensor",
-      "name": "Living Room Temperature",
-      "state": "21.5",
-      "unit": "°C",
+      "name": "Living Room Temp",
       "device_class": "temperature",
-      "attributes": ["temperature", "humidity", "battery"]
-    },
-    {
-      "entity_id": "light.kitchen",
-      "domain": "light",
-      "name": "Kitchen Light",
-      "state": "on",
-      "attributes": ["brightness", "color_temp", "rgb_color"]
+      "unit": "°C",
+      "attributes": ["battery_level", "offset"]
     }
   ],
-  "domains": [
-    { "domain": "sensor", "count": 45 },
-    { "domain": "light", "count": 12 },
-    { "domain": "switch", "count": 8 }
-  ]
-}
-```
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `domain` | string | Filter by domain (e.g., `sensor`, `light`) |
-| `device_class` | string | Filter by device class (e.g., `temperature`, `motion`) |
-| `include_internal` | boolean | Include internal/hidden entities (default: false) |
-
-**Example:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://homeassistant.local:8123/api/esphome_display/entities?domain=light"
-```
-
----
-
-### GET /api/esphome_display/services
-
-Returns all available services with their schemas, formatted for the editor's service call builder.
-
-**Response:**
-```json
-{
   "services": {
     "light": {
       "turn_on": {
         "name": "Turn on",
         "description": "Turn on a light",
-        "target": {
-          "entity": { "domain": ["light"] }
-        },
         "fields": {
           "brightness": {
             "name": "Brightness",
-            "description": "Brightness level (0-255)",
             "selector": { "number": { "min": 0, "max": 255 } }
-          },
-          "color_temp": {
-            "name": "Color Temperature",
-            "selector": { "number": { "min": 153, "max": 500 } }
-          },
-          "transition": {
-            "name": "Transition",
-            "description": "Transition duration in seconds",
-            "selector": { "number": { "min": 0, "max": 300, "unit_of_measurement": "seconds" } }
           }
         }
-      },
-      "turn_off": {
-        "name": "Turn off",
-        "description": "Turn off a light",
-        "target": {
-          "entity": { "domain": ["light"] }
-        },
-        "fields": {}
-      },
-      "toggle": {
-        "name": "Toggle",
-        "description": "Toggle a light",
-        "target": {
-          "entity": { "domain": ["light"] }
-        },
-        "fields": {}
       }
-    },
-    "switch": {
-      "turn_on": { "..." : "..." },
-      "turn_off": { "..." : "..." }
     }
   },
-  "domains": ["light", "switch", "climate", "cover", "media_player", "script", "automation", "scene"]
-}
-```
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `domain` | string | Filter by domain (e.g., `light`, `climate`) |
-
-**Example:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://homeassistant.local:8123/api/esphome_display/services?domain=light"
-```
-
----
-
-### GET /api/esphome_display/states
-
-Returns current states for specific entities. Useful for live preview in the editor.
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `entity_id` | string | Comma-separated list of entity IDs |
-
-**Response:**
-```json
-{
-  "states": {
-    "sensor.temperature": {
-      "state": "21.5",
-      "attributes": {
-        "unit_of_measurement": "°C",
-        "friendly_name": "Temperature"
-      },
-      "last_changed": "2024-01-15T10:30:00Z"
-    },
-    "light.living_room": {
-      "state": "on",
-      "attributes": {
-        "brightness": 255,
-        "friendly_name": "Living Room"
-      },
-      "last_changed": "2024-01-15T09:00:00Z"
-    }
-  }
-}
-```
-
-**Example:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://homeassistant.local:8123/api/esphome_display/states?entity_id=sensor.temperature,light.living_room"
-```
-
----
-
-### GET /api/esphome_display/devices
-
-Returns ESPHome devices configured in the integration, for targeting service calls.
-
-**Response:**
-```json
-{
   "devices": [
     {
       "name": "kitchen_display",
-      "esphome_device": "abcd1234",
-      "friendly_name": "Kitchen Display",
-      "todo_entity": "todo.shopping_list"
-    },
-    {
-      "name": "hallway_panel",
-      "esphome_device": "efgh5678",
-      "friendly_name": "Hallway Panel",
-      "todo_entity": null
+      "friendly_name": "Kitchen Display"
     }
   ]
 }
@@ -214,156 +52,41 @@ Returns ESPHome devices configured in the integration, for targeting service cal
 
 ---
 
-### POST /api/esphome_display/validate_service
+## Implementation Logic (Python/Integration Side)
 
-Validates a service call configuration without executing it.
+To make this efficient, the integration should compile the following data points into the JSON response:
 
-**Request:**
-```json
-{
-  "service": "light.turn_on",
-  "target": {
-    "entity_id": "light.living_room"
-  },
-  "data": {
-    "brightness": 255,
-    "transition": 2
-  }
-}
-```
+1.  **Entity Registry**: Map through `hass.states.all()` to extract IDs and attributes.
+2.  **Service Registry**: Map through `hass.services.async_services()` to extract schemas.
+3.  **Area/Device Mapping**: (Optional) Include area names so the editor can group entities.
 
-**Response (valid):**
-```json
-{
-  "valid": true,
-  "warnings": []
-}
-```
-
-**Response (invalid):**
-```json
-{
-  "valid": false,
-  "errors": [
-    {
-      "field": "data.brightness",
-      "message": "Value must be between 0 and 255"
-    }
-  ],
-  "warnings": [
-    {
-      "field": "target.entity_id",
-      "message": "Entity 'light.living_room' is currently unavailable"
-    }
-  ]
-}
-```
+### Recommended Privacy Filtering
+To keep the export file "safe" for users to handle, the integration should:
+*   **Strip States**: Do not export actual state values (e.g., don't include that the light is currently "on"). Only export the *capability* (domain/attributes).
+*   **Strip Sensitive Attributes**: Remove attributes like `latitude`, `longitude`, or `access_token`.
 
 ---
 
-## WebSocket Events (Optional)
+## Editor Workflow
 
-For real-time updates, the integration can expose a WebSocket subscription:
+### 1. Import Flow
+1.  User opens the Web Editor.
+2.  User clicks **"Sync with Home Assistant"**.
+3.  Editor provides a link to the user's local HA instance: `http://homeassistant.local:8123/api/esphome_display/export`.
+4.  User saves the JSON file and uploads it to the Editor.
 
-### Subscribe to State Changes
+### 2. Editor Consumption
+The Editor stores this JSON in a local variable (or user profile). 
 
-```json
-{
-  "type": "esphome_display/subscribe_states",
-  "entity_ids": ["sensor.temperature", "light.living_room"]
-}
-```
-
-**Event:**
-```json
-{
-  "type": "event",
-  "event": {
-    "event_type": "esphome_display_state_changed",
-    "data": {
-      "entity_id": "sensor.temperature",
-      "new_state": "22.0",
-      "old_state": "21.5"
-    }
-  }
-}
-```
+*   **Autocomplete**: When the user types `{{ `, the editor searches the `entities` array in the JSON.
+*   **Service Builder**: When the user adds a button action, the editor populates the dropdowns using the `services` object from the JSON.
+*   **Validation**: If a user types `light.turn_on` but passes a string to a `brightness` field, the editor flags it as an error based on the `selector` type in the metadata.
 
 ---
 
-## Error Responses
+## Benefits of this Update
 
-All endpoints return standard HTTP error codes:
-
-| Code | Description |
-|------|-------------|
-| 401 | Unauthorized - Invalid or missing authentication |
-| 403 | Forbidden - User lacks permission |
-| 404 | Not found - Endpoint or entity doesn't exist |
-| 500 | Internal error - Check HA logs |
-
-**Error Response Format:**
-```json
-{
-  "error": "unauthorized",
-  "message": "Invalid access token"
-}
-```
-
----
-
-## Editor Integration
-
-### Connection Flow
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Web Editor     │────>│  HA HTTP API    │────>│  Integration    │
-│                 │     │  /api/esphome_  │     │  (Python)       │
-│  Settings:      │     │  display/*      │     │                 │
-│  - HA URL       │     └─────────────────┘     └────────┬────────┘
-│  - Access Token │                                      │
-└─────────────────┘                                      ▼
-                                                ┌─────────────────┐
-                                                │  HA Core        │
-                                                │  - States       │
-                                                │  - Services     │
-                                                │  - Registry     │
-                                                └─────────────────┘
-```
-
-### Recommended Editor Settings
-
-Store in browser localStorage (encrypted/hashed if possible):
-
-```typescript
-interface HAConnection {
-  url: string;        // "http://homeassistant.local:8123"
-  token: string;      // Long-lived access token
-  deviceId?: string;  // Default target device
-}
-```
-
-### Caching Strategy
-
-- **Entities**: Cache for 5 minutes, refresh on editor focus
-- **Services**: Cache for 1 hour (rarely changes)
-- **States**: Don't cache, fetch on demand for preview
-
----
-
-## Security Considerations
-
-1. **Token Scope**: Editor only needs read access to states and services. Consider creating a dedicated user with limited permissions.
-
-2. **CORS**: If editor is hosted externally, HA needs CORS configuration:
-   ```yaml
-   # configuration.yaml
-   http:
-     cors_allowed_origins:
-       - "https://your-editor-domain.com"
-   ```
-
-3. **Local Network**: For security, consider only allowing API access from local network.
-
-4. **Token Storage**: Editor should warn users about token storage in browser. Consider using session-only storage option.
+*   **Zero Credential Sharing**: The Web Editor never sees the user's Long-Lived Access Token.
+*   **No CORS Issues**: Since the user is downloading a file via their browser and uploading it, there are no cross-origin security blocks.
+*   **Persistence**: The user can continue designing their display while offline (e.g., on a plane) as long as they have their metadata file.
+*   **Speed**: Autocomplete is instantaneous because the data is local to the browser.
