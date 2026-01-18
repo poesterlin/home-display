@@ -1,0 +1,8 @@
+# Home Assistant Development Configuration
+default_config:
+
+logger:
+  default: info
+  logs:
+    homeassistant.helpers.frame: warning  # Suppress frame warnings
+    homeassistant.components.cloud: info   # Reduce cloud logging
