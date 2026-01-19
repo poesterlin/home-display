@@ -71,6 +71,172 @@
         { "$ref": "#/definitions/NavigationAction" }
       ]
     },
+    "ComparisonOperator": {
+      "type": "string",
+      "enum": ["eq", "neq", "gt", "gte", "lt", "lte", "contains", "not_contains", "matches"]
+    },
+    "LogicalOperator": {
+      "type": "string",
+      "enum": ["and", "or"]
+    },
+    "EntityCondition": {
+      "type": "object",
+      "description": "Condition based on a Home Assistant entity state",
+      "properties": {
+        "type": { "const": "entity" },
+        "entityId": { "type": "string" },
+        "attribute": {
+          "type": ["string", "null"],
+          "description": "Optional attribute to check instead of state"
+        },
+        "operator": { "$ref": "#/definitions/ComparisonOperator" },
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        }
+      },
+      "required": ["type", "entityId", "operator", "value"],
+      "additionalProperties": false
+    },
+    "StateCondition": {
+      "type": "object",
+      "description": "Condition based on internal state variable",
+      "properties": {
+        "type": { "const": "state" },
+        "variable": { "type": "string" },
+        "operator": { "$ref": "#/definitions/ComparisonOperator" },
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        }
+      },
+      "required": ["type", "variable", "operator", "value"],
+      "additionalProperties": false
+    },
+    "TimeCondition": {
+      "type": "object",
+      "description": "Condition based on time of day",
+      "properties": {
+        "type": { "const": "time" },
+        "after": {
+          "type": "string",
+          "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+          "description": "HH:MM format"
+        },
+        "before": {
+          "type": "string",
+          "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "CompoundCondition": {
+      "type": "object",
+      "description": "Combines multiple conditions with AND/OR",
+      "properties": {
+        "type": { "const": "compound" },
+        "operator": { "$ref": "#/definitions/LogicalOperator" },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Condition" },
+          "minItems": 2
+        }
+      },
+      "required": ["type", "operator", "conditions"],
+      "additionalProperties": false
+    },
+    "NotCondition": {
+      "type": "object",
+      "description": "Negates a condition",
+      "properties": {
+        "type": { "const": "not" },
+        "condition": { "$ref": "#/definitions/Condition" }
+      },
+      "required": ["type", "condition"],
+      "additionalProperties": false
+    },
+    "Condition": {
+      "oneOf": [
+        { "$ref": "#/definitions/EntityCondition" },
+        { "$ref": "#/definitions/StateCondition" },
+        { "$ref": "#/definitions/TimeCondition" },
+        { "$ref": "#/definitions/CompoundCondition" },
+        { "$ref": "#/definitions/NotCondition" }
+      ]
+    },
+    "ConditionalVariant": {
+      "type": "object",
+      "description": "A single variant/state within a conditional area",
+      "properties": {
+        "id": { "type": "string" },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name for the editor UI"
+        },
+        "condition": {
+          "$ref": "#/definitions/Condition",
+          "description": "When null/undefined, this is the default/fallback variant"
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0,
+          "description": "Higher priority variants are evaluated first"
+        },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Component" },
+          "description": "Components rendered when this variant is active"
+        },
+        "transition": {
+          "type": "object",
+          "properties": {
+            "type": { "enum": ["none", "fade", "slide"] },
+            "duration": { "type": "integer", "description": "milliseconds" }
+          }
+        }
+      },
+      "required": ["id", "name", "components"],
+      "additionalProperties": false
+    },
+    "ConditionalAreaComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "conditional_area" },
+            "variants": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/ConditionalVariant" },
+              "minItems": 1
+            },
+            "defaultVariantId": {
+              "type": "string",
+              "description": "ID of variant to show when no conditions match"
+            },
+            "evaluationMode": {
+              "type": "string",
+              "enum": ["first_match", "priority"],
+              "default": "first_match",
+              "description": "How to select variant when multiple conditions are true"
+            },
+            "clipContent": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to clip child components to area bounds"
+            }
+          },
+          "required": ["type", "variants"]
+        }
+      ]
+    },
     "OnTapAction": {
       "oneOf": [
         { "$ref": "#/definitions/ServiceAction" },
@@ -248,7 +414,8 @@
         { "$ref": "#/definitions/IconComponent" },
         { "$ref": "#/definitions/ProceduralIconComponent" },
         { "$ref": "#/definitions/ContainerComponent" },
-        { "$ref": "#/definitions/ImageComponent" }
+        { "$ref": "#/definitions/ImageComponent" },
+        { "$ref": "#/definitions/ConditionalAreaComponent" }
       ]
     },
     "Page": {

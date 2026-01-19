@@ -1,0 +1,99 @@
+import type { Component } from "@esphome-designer/schema";
+
+export function createComponent(type: string, x: number, y: number): Component {
+  const id = `${type}-${Date.now()}`;
+
+  const base = {
+    id,
+    position: { x, y },
+    size: { width: 100, height: 40 },
+  };
+
+  switch (type) {
+    case "text":
+      return {
+        ...base,
+        type: "text",
+        text: "Text",
+        fontSize: "medium",
+        align: "left",
+      } as Component;
+
+    case "button":
+      return {
+        ...base,
+        type: "button",
+        label: "Button",
+        size: { width: 80, height: 36 },
+      } as Component;
+
+    case "slider":
+      return {
+        ...base,
+        type: "slider",
+        min: 0,
+        max: 100,
+        step: 1,
+        orientation: "horizontal",
+        size: { width: 120, height: 24 },
+      } as Component;
+
+    case "gauge":
+      return {
+        ...base,
+        type: "gauge",
+        min: 0,
+        max: 100,
+        size: { width: 80, height: 80 },
+      } as Component;
+
+    case "icon":
+      return {
+        ...base,
+        type: "icon",
+        icon: "mdi:home",
+        size: { width: 32, height: 32 },
+        scale: 1,
+      } as Component;
+
+    case "procedural_icon":
+      return {
+        ...base,
+        type: "procedural_icon",
+        iconType: "bulb",
+        size: { width: 32, height: 32 },
+      } as Component;
+
+    case "container":
+      return {
+        ...base,
+        type: "container",
+        label: "Container",
+        size: { width: 100, height: 60 },
+      } as Component;
+
+    case "conditional_area":
+      return {
+        ...base,
+        type: "conditional_area",
+        size: { width: 120, height: 80 },
+        variants: [
+          {
+            id: `variant-${Date.now()}`,
+            name: "Default",
+            components: [],
+            priority: 0,
+          }
+        ],
+        evaluationMode: "first_match",
+        clipContent: true,
+      } as Component;
+
+    default:
+      return {
+        ...base,
+        type: "text",
+        text: type,
+      } as Component;
+  }
+}

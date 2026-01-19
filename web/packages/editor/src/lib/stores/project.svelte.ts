@@ -229,30 +229,202 @@ function createProjectStore() {
       return component;
     },
 
+    addComponentToVariant(componentId: string, variantId: string, component: Component) {
+      const parent = this.getComponent(componentId);
+      if (parent?.type === "conditional_area") {
+        const variant = parent.variants.find(v => v.id === variantId);
+        if (variant) {
+          variant.components.push(component);
+          saveToLocalStorage();
+          return component;
+        }
+      }
+    },
+
     updateComponent(id: string, updates: Partial<Component>) {
       if (!project) return;
+
+      // Helper to update component in an array, including nested conditional areas
+      const updateInComponents = (components: Component[]): boolean => {
+        const idx = components.findIndex((c) => c.id === id);
+        if (idx !== -1) {
+          components[idx] = { ...components[idx], ...updates } as Component;
+          return true;
+        }
+        // Search in conditional areas
+        for (const comp of components) {
+          if (comp.type === "conditional_area") {
+            for (const variant of comp.variants) {
+              if (updateInComponents(variant.components)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
+      // Search in current view
       const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
-      if (!components) return;
-      const idx = components.findIndex((c) => c.id === id);
-      if (idx !== -1) {
-        components[idx] = { ...components[idx], ...updates } as Component;
+      if (components && updateInComponents(components)) {
         saveToLocalStorage();
       }
     },
 
     deleteComponent(id: string) {
       if (!project) return;
-      const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
-      if (!components) return;
-      const idx = components.findIndex((c) => c.id === id);
-      if (idx !== -1) {
-        components.splice(idx, 1);
-        saveToLocalStorage();
+      // Search in pages
+      for (const page of project.dashboardPages) {
+        const idx = page.components.findIndex((c) => c.id === id);
+        if (idx !== -1) {
+          page.components.splice(idx, 1);
+          saveToLocalStorage();
+          return;
+        }
+        // Search in conditional areas
+        for (const comp of page.components) {
+          if (comp.type === "conditional_area") {
+            for (const variant of comp.variants) {
+              const cIdx = variant.components.findIndex(c => c.id === id);
+              if (cIdx !== -1) {
+                variant.components.splice(cIdx, 1);
+                saveToLocalStorage();
+                return;
+              }
+            }
+          }
+        }
+      }
+      // Search in detail views
+      for (const view of project.detailViews) {
+        const idx = view.components.findIndex((c) => c.id === id);
+        if (idx !== -1) {
+          view.components.splice(idx, 1);
+          saveToLocalStorage();
+          return;
+        }
+        // Search in conditional areas
+        for (const comp of view.components) {
+          if (comp.type === "conditional_area") {
+            for (const variant of comp.variants) {
+              const cIdx = variant.components.findIndex(c => c.id === id);
+              if (cIdx !== -1) {
+                variant.components.splice(cIdx, 1);
+                saveToLocalStorage();
+                return;
+              }
+            }
+          }
+        }
       }
     },
 
     getComponent(id: string): Component | undefined {
-      return activeComponents.find((c) => c.id === id);
+      // Helper to search recursively
+      const findInComponents = (components: Component[]): Component | undefined => {
+        for (const c of components) {
+          if (c.id === id) return c;
+          if (c.type === "conditional_area") {
+            for (const v of c.variants) {
+              const found = findInComponents(v.components);
+              if (found) return found;
+            }
+          }
+        }
+        return undefined;
+      };
+
+      if (!project) return undefined;
+      for (const page of project.dashboardPages) {
+        const found = findInComponents(page.components);
+        if (found) return found;
+      }
+      for (const view of project.detailViews) {
+        const found = findInComponents(view.components);
+        if (found) return found;
+      }
+      return undefined;
+    },
+
+    getComponentAbsolutePosition(id: string): { x: number; y: number } {
+      const component = this.getComponent(id);
+      if (!component) return { x: 0, y: 0 };
+
+      let x = component.position.x;
+      let y = component.position.y;
+
+      // Find if this component is inside a conditional area
+      const findParent = (components: Component[], targetId: string): Component | null => {
+        for (const c of components) {
+          if (c.type === "conditional_area") {
+            for (const v of c.variants) {
+              if (v.components.some(child => child.id === targetId)) return c;
+              const found = findParent(v.components, targetId);
+              if (found) return found;
+            }
+          }
+        }
+        return null;
+      };
+
+      let parent: Component | null = null;
+      if (project) {
+        for (const page of project.dashboardPages) {
+          parent = findParent(page.components, id);
+          if (parent) break;
+        }
+        if (!parent) {
+          for (const view of project.detailViews) {
+            parent = findParent(view.components, id);
+            if (parent) break;
+          }
+        }
+      }
+
+      if (parent) {
+        const parentPos = this.getComponentAbsolutePosition(parent.id);
+        x += parentPos.x;
+        y += parentPos.y;
+      }
+
+      return { x, y };
+    },
+
+    addVariant(componentId: string) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "conditional_area") {
+        const newVariant = {
+          id: `variant-${Date.now()}`,
+          name: `Variant ${component.variants.length + 1}`,
+          components: [],
+          priority: 0,
+        };
+        component.variants.push(newVariant);
+        saveToLocalStorage();
+        return newVariant;
+      }
+    },
+
+    updateVariant(componentId: string, variantId: string, updates: any) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "conditional_area") {
+        const variant = component.variants.find(v => v.id === variantId);
+        if (variant) {
+          Object.assign(variant, updates);
+          saveToLocalStorage();
+        }
+      }
+    },
+
+    deleteVariant(componentId: string, variantId: string) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "conditional_area" && component.variants.length > 1) {
+        const idx = component.variants.findIndex(v => v.id === variantId);
+        if (idx !== -1) {
+          component.variants.splice(idx, 1);
+          saveToLocalStorage();
+        }
+      }
     },
 
     moveComponent(id: string, dx: number, dy: number) {

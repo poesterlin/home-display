@@ -96,10 +96,11 @@
     for (const id of selectionStore.selectedIds) {
       const component = projectStore.getComponent(id);
       if (component) {
+        const pos = projectStore.getComponentAbsolutePosition(id);
         bounds.push({
           id,
-          x: component.position.x,
-          y: component.position.y,
+          x: pos.x,
+          y: pos.y,
           width: component.size?.width ?? 50,
           height: component.size?.height ?? 20,
         });

@@ -63,10 +63,106 @@ function generateComponentCode(comp: Component): string {
        return generateButtonCode(comp);
      case "container":
        return generateContainerCode(comp);
+     case "conditional_area":
+       return generateConditionalAreaCode(comp as any);
      default:
        return `  // Unsupported component type for pages: ${comp.type}`;
    }
  }
+
+function generateConditionalAreaCode(comp: any): string {
+  const lines: string[] = [];
+  const { x, y } = comp.position;
+  const { width, height } = comp.size;
+
+  lines.push(`  // Conditional Area: ${comp.id}`);
+  lines.push(`  {`);
+  if (comp.clipContent !== false) {
+    lines.push(`    it.start_clipping(${x}, ${y}, ${width}, ${height});`);
+  }
+
+  // Sort variants by priority (highest first)
+  const variants = [...comp.variants].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  
+  const conditionalVariants = variants.filter(v => v.condition);
+  const defaultVariant = variants.find(v => !v.condition) || variants[variants.length - 1];
+
+  for (let i = 0; i < conditionalVariants.length; i++) {
+    const v = conditionalVariants[i];
+    const cond = generateConditionExpr(v.condition);
+    lines.push(`    ${i === 0 ? "if" : "else if"} (${cond}) {`);
+    lines.push(`      // Variant: ${v.name}`);
+    for (const child of v.components) {
+      // Adjust child position to be absolute
+      const adjustedChild = {
+        ...child,
+        position: {
+          x: child.position.x + x,
+          y: child.position.y + y
+        }
+      };
+      lines.push(generateComponentCode(adjustedChild as any).split("\n").map(l => "    " + l).join("\n"));
+    }
+    lines.push(`    }`);
+  }
+
+  if (defaultVariant) {
+    lines.push(`    else {`);
+    lines.push(`      // Variant: ${defaultVariant.name} (Default)`);
+    for (const child of defaultVariant.components) {
+      const adjustedChild = {
+        ...child,
+        position: {
+          x: child.position.x + x,
+          y: child.position.y + y
+        }
+      };
+      lines.push(generateComponentCode(adjustedChild as any).split("\n").map(l => "    " + l).join("\n"));
+    }
+    lines.push(`    }`);
+  }
+
+  if (comp.clipContent !== false) {
+    lines.push(`    it.end_clipping();`);
+  }
+  lines.push(`  }`);
+
+  return lines.join("\n");
+}
+
+function generateConditionExpr(cond: any): string {
+  if (!cond) return "true";
+
+  switch (cond.type) {
+    case "entity": {
+      const stateVar = `id(${entityToId(cond.entityId)}).state`;
+      const val = typeof cond.value === "string" ? `"${cond.value}"` : cond.value;
+      
+      switch (cond.operator) {
+        case "eq": return `${stateVar} == ${val}`;
+        case "neq": return `${stateVar} != ${val}`;
+        case "gt": return `${stateVar} > ${val}`;
+        case "gte": return `${stateVar} >= ${val}`;
+        case "lt": return `${stateVar} < ${val}`;
+        case "lte": return `${stateVar} <= ${val}`;
+        case "contains": return `${stateVar}.find(${val}) != std::string::npos`;
+        default: return "true";
+      }
+    }
+    case "compound": {
+      const op = cond.operator === "and" ? "&&" : "||";
+      return "(" + cond.conditions.map((c: any) => generateConditionExpr(c)).join(` ${op} `) + ")";
+    }
+    case "not":
+      return `!(${generateConditionExpr(cond.condition)})`;
+    case "time": {
+      // Very basic time check - requires some external time source usually
+      return "true"; // Placeholder
+    }
+    default:
+      return "true";
+  }
+}
 
 function generateTextCode(comp: any): string {
    const color = comp.color ? `Color(${comp.color.r}, ${comp.color.g}, ${comp.color.b})` : "Theme::FOREGROUND";

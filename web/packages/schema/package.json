@@ -10,6 +10,9 @@
       "types": "./dist/types.ts",
       "import": "./dist/types.ts"
     },
+    "./condition-builder": {
+      "import": "./condition-builder.ts"
+    },
     "./schema": {
       "import": "./components.json",
       "require": "./components.json"

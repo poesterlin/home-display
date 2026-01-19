@@ -125,8 +125,116 @@ function generateComponentCode(comp: Component, project: Project, stateFields: S
     case "image": // Added case for image
       return generateImageCode(comp as ImageComponent, yCoord);
 
+    case "conditional_area":
+      return generateConditionalAreaCode(comp as any, project, stateFields, isDetail);
+
     default:
       return `  // Unsupported component: ${comp.type}`;
+  }
+}
+
+function generateConditionalAreaCode(comp: any, project: Project, stateFields: StateFieldMap, isDetail: boolean): string {
+  const lines: string[] = [];
+  const yCoord = isDetail ? `getSY(${comp.position.y})` : comp.position.y;
+  const { x, y } = comp.position;
+  const { width, height } = comp.size;
+
+  lines.push(`  // Conditional Area: ${comp.id}`);
+  lines.push(`  {`);
+  if (comp.clipContent !== false) {
+    lines.push(`    it.start_clipping(${x}, ${yCoord}, ${width}, ${height});`);
+  }
+
+  // Sort variants by priority (highest first)
+  const variants = [...comp.variants].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  
+  const conditionalVariants = variants.filter(v => v.condition);
+  const defaultVariant = variants.find(v => !v.condition) || (variants.length > conditionalVariants.length ? variants.find(v => !v.condition) : null);
+
+  for (let i = 0; i < conditionalVariants.length; i++) {
+    const v = conditionalVariants[i];
+    const cond = generateConditionExpr(v.condition, stateFields);
+    lines.push(`    ${i === 0 ? "if" : "else if"} (${cond}) {`);
+    lines.push(`      // Variant: ${v.name}`);
+    for (const child of v.components) {
+      // Adjust child position to be absolute
+      const adjustedChild = {
+        ...child,
+        position: {
+          x: child.position.x + x,
+          y: child.position.y + y
+        }
+      };
+      lines.push(generateComponentCode(adjustedChild as any, project, stateFields, isDetail).split("\n").map(l => "    " + l).join("\n"));
+    }
+    lines.push(`    }`);
+  }
+
+  if (defaultVariant || (conditionalVariants.length > 0 && variants.length > conditionalVariants.length)) {
+    const dv = defaultVariant || variants.find(v => !v.condition);
+    if (dv) {
+      lines.push(`    else {`);
+      lines.push(`      // Variant: ${dv.name} (Default)`);
+      for (const child of dv.components) {
+        const adjustedChild = {
+          ...child,
+          position: {
+            x: child.position.x + x,
+            y: child.position.y + y
+          }
+        };
+        lines.push(generateComponentCode(adjustedChild as any, project, stateFields, isDetail).split("\n").map(l => "    " + l).join("\n"));
+      }
+      lines.push(`    }`);
+    }
+  }
+
+  if (comp.clipContent !== false) {
+    lines.push(`    it.end_clipping();`);
+  }
+  lines.push(`  }`);
+
+  return lines.join("\n");
+}
+
+function generateConditionExpr(cond: any, stateFields: StateFieldMap): string {
+  if (!cond) return "true";
+
+  switch (cond.type) {
+    case "entity": {
+      const field = stateFields.get(cond.entityId);
+      if (!field) return "false /* ERROR: Missing state field */";
+      
+      const stateVar = `gState.${field.name}`;
+      const val = typeof cond.value === "string" ? `"${cond.value}"` : cond.value;
+      
+      if (field.cppType === 'std::string') {
+        switch (cond.operator) {
+          case "eq": return `${stateVar} == ${val}`;
+          case "neq": return `${stateVar} != ${val}`;
+          case "contains": return `${stateVar}.find(${val}) != std::string::npos`;
+          default: return "false /* Unsupported string operator */";
+        }
+      } else {
+        switch (cond.operator) {
+          case "eq": return `${stateVar} == ${val}`;
+          case "neq": return `${stateVar} != ${val}`;
+          case "gt": return `${stateVar} > ${val}`;
+          case "gte": return `${stateVar} >= ${val}`;
+          case "lt": return `${stateVar} < ${val}`;
+          case "lte": return `${stateVar} <= ${val}`;
+          default: return "true";
+        }
+      }
+    }
+    case "compound": {
+      const op = cond.operator === "and" ? "&&" : "||";
+      return "(" + cond.conditions.map((c: any) => generateConditionExpr(c, stateFields)).join(` ${op} `) + ")";
+    }
+    case "not":
+      return `!(${generateConditionExpr(cond.condition, stateFields)})`;
+    default:
+      return "true";
   }
 }
 

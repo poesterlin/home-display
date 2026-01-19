@@ -8,12 +8,14 @@
   import ProceduralIconRenderer from "./ProceduralIconRenderer.svelte";
   import ContainerRenderer from "./ContainerRenderer.svelte";
   import ImageRenderer from "./ImageRenderer.svelte";
+  import ConditionalAreaRenderer from "./ConditionalAreaRenderer.svelte";
 
   interface Props {
     component: Component;
+    parentOffset?: { x: number; y: number };
   }
 
-  let { component }: Props = $props();
+  let { component, parentOffset = { x: 0, y: 0 } }: Props = $props();
 </script>
 
 {#if component.type === "text"}
@@ -32,6 +34,8 @@
   <ContainerRenderer {component} />
 {:else if component.type === "image"}
   <ImageRenderer {component} />
+{:else if component.type === "conditional_area"}
+  <ConditionalAreaRenderer {component} {parentOffset} />
 {:else}
   <div class="unknown-component">
     Unknown: {component.type}

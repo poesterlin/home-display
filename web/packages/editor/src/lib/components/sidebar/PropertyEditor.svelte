@@ -5,6 +5,9 @@
   import EntityPicker from "./EntityPicker.svelte";
   import IconSearcher from "./IconSearcher.svelte";
   import ActionEditor from "./ActionEditor.svelte";
+  import ConditionEditor from "./ConditionEditor.svelte";
+  import { conditionalEditorStore } from "$lib/stores/conditional-editor.svelte";
+  import { describeCondition } from "$lib/utils/condition-utils";
   import type { ActionBinding } from "@esphome-designer/schema";
 
   // Get selected component
@@ -13,6 +16,24 @@
       ? projectStore.getComponent(selectionStore.firstSelectedId)
       : null,
   );
+
+  const activeVariantId = $derived(
+    selectedComponent?.type === "conditional_area"
+      ? conditionalEditorStore.getActiveVariant(selectedComponent.id, selectedComponent.variants[0]?.id)
+      : null
+  );
+
+  const activeVariant = $derived(
+    selectedComponent?.type === "conditional_area" && activeVariantId
+      ? selectedComponent.variants.find(v => v.id === activeVariantId)
+      : null
+  );
+
+  function updateVariant(updates: any) {
+    if (!selectedComponent || !activeVariantId) return;
+    projectStore.updateVariant(selectedComponent.id, activeVariantId, updates);
+  }
+
 
   function updateProperty(key: string, value: unknown) {
     if (!selectedComponent) return;
@@ -312,6 +333,89 @@
       </div>
     {/if}
 
+    {#if selectedComponent.type === "conditional_area"}
+      <div class="property-section">
+        <label class="section-label">Variants</label>
+        <div class="variant-tabs-row">
+          {#each selectedComponent.variants as variant}
+            <button
+              class="variant-pill"
+              class:active={variant.id === activeVariantId}
+              onclick={() => conditionalEditorStore.setActiveVariant(selectedComponent.id, variant.id)}
+              title={describeCondition(variant.condition)}
+            >
+              {variant.name}
+            </button>
+          {/each}
+          <button
+            class="variant-pill add-pill"
+            onclick={() => projectStore.addVariant(selectedComponent.id)}
+            title="Add variant"
+          >+</button>
+        </div>
+      </div>
+
+      {#if activeVariant}
+        <div class="property-section">
+          <div class="variant-header">
+            <input
+              class="variant-name-input"
+              type="text"
+              value={activeVariant.name}
+              oninput={(e) => updateVariant({ name: e.currentTarget.value })}
+            />
+            <button
+              class="delete-variant-btn"
+              onclick={() => projectStore.deleteVariant(selectedComponent.id, activeVariant.id)}
+              disabled={selectedComponent.variants.length <= 1}
+              title="Delete variant"
+            >×</button>
+          </div>
+
+          <div class="field-group">
+            <label class="group-label">Condition</label>
+            <ConditionEditor
+              condition={activeVariant.condition}
+              onUpdate={(condition) => updateVariant({ condition })}
+            />
+          </div>
+
+          {#if selectedComponent.evaluationMode === "priority"}
+            <div class="field">
+              <span class="field-label">Priority</span>
+              <input
+                type="number"
+                value={activeVariant.priority ?? 0}
+                oninput={(e) => updateVariant({ priority: parseInt(e.currentTarget.value) || 0 })}
+              />
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="property-section">
+        <label class="section-label">Settings</label>
+        <div class="field">
+          <span class="field-label">Mode</span>
+          <select
+            value={selectedComponent.evaluationMode ?? "first_match"}
+            onchange={(e) => updateProperty("evaluationMode", e.currentTarget.value)}
+          >
+            <option value="first_match">First Match</option>
+            <option value="priority">By Priority</option>
+          </select>
+        </div>
+        <div class="field">
+           <span class="field-label">Clip</span>
+           <input
+             type="checkbox"
+             checked={selectedComponent.clipContent !== false}
+             onchange={(e) => updateProperty("clipContent", e.currentTarget.checked)}
+           />
+        </div>
+      </div>
+    {/if}
+
     <!-- Entity Binding -->
     <div class="property-section">
       <label class="section-label">Entity Binding</label>
@@ -421,5 +525,100 @@
 
   .no-selection p {
     font-size: 13px;
+  }
+
+  .variant-tabs-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .variant-pill {
+    padding: 4px 8px;
+    font-size: 10px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .variant-pill:hover {
+    border-color: var(--color-accent-secondary);
+  }
+
+  .variant-pill.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+  }
+
+  .variant-pill.add-pill {
+    background: transparent;
+    border-style: dashed;
+    color: var(--color-text-muted);
+  }
+
+  .variant-pill.add-pill:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  .variant-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .variant-name-input {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+  }
+
+  .variant-name-input:focus {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+
+  .delete-variant-btn {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+
+  .delete-variant-btn:hover:not(:disabled) {
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  .delete-variant-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .field-group {
+    margin-top: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .group-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
   }
 </style>

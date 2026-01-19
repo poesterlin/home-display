@@ -12,6 +12,7 @@
     { type: "slider", label: "Slider", icon: "S", description: "Adjust numeric value" },
     { type: "gauge", label: "Gauge", icon: "G", description: "Visual meter display" },
     { type: "icon", label: "Icon", icon: "I", description: "MDI icon display" },
+    { type: "conditional_area", label: "Cond Area", icon: "?", description: "Dynamic content by condition" },
   ];
 
   function handleDragStart(e: DragEvent, type: string) {

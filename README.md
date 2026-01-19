@@ -54,8 +54,8 @@ home-display/
 - [x] Automated `sensors.yaml` generation for HA entity tracking.
 
 ### Phase 4: Conditional Rendering (Planned)
-- [ ] Visibility conditions based on state.
-- [ ] Dynamic component properties (e.g., color changes).
+- [x] Visibility conditions based on state.
+<!-- - [ ] Dynamic component properties (e.g., color changes). -->
 
 ### Phase 5: Advanced Features (Planned)
 - [ ] Interactive Notification System (Service-based).

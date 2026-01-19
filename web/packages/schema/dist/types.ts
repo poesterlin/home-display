@@ -13,7 +13,8 @@ export type Component =
   | IconComponent
   | ProceduralIconComponent
   | ContainerComponent
-  | ImageComponent;
+  | ImageComponent
+  | ConditionalAreaComponent;
 export type TextComponent = BaseComponent & {
   type: "text";
   text?: string;
@@ -83,6 +84,28 @@ export type ImageComponent = BaseComponent & {
   dither?: "NONE" | "FLOYDSTEINBERG";
   byte_order?: "big_endian" | "little_endian";
 };
+export type ConditionalAreaComponent = BaseComponent & {
+  type: "conditional_area";
+  /**
+   * @minItems 1
+   */
+  variants: [ConditionalVariant, ...ConditionalVariant[]];
+  /**
+   * ID of variant to show when no conditions match
+   */
+  defaultVariantId?: string;
+  /**
+   * How to select variant when multiple conditions are true
+   */
+  evaluationMode?: "first_match" | "priority";
+  /**
+   * Whether to clip child components to area bounds
+   */
+  clipContent?: boolean;
+};
+export type ComparisonOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "not_contains" | "matches";
+export type LogicalOperator = "and" | "or";
+export type Condition = EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
 
 export interface Project {
   /**
@@ -202,6 +225,86 @@ export interface NavigationAction {
    * Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL.
    */
   targetId?: string;
+}
+/**
+ * A single variant/state within a conditional area
+ */
+export interface ConditionalVariant {
+  id: string;
+  /**
+   * Human-readable name for the editor UI
+   */
+  name: string;
+  /**
+   * When null/undefined, this is the default/fallback variant
+   */
+  condition?: EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
+  /**
+   * Higher priority variants are evaluated first
+   */
+  priority?: number;
+  /**
+   * Components rendered when this variant is active
+   */
+  components: Component[];
+  transition?: {
+    type?: "none" | "fade" | "slide";
+    /**
+     * milliseconds
+     */
+    duration?: number;
+  };
+}
+/**
+ * Condition based on a Home Assistant entity state
+ */
+export interface EntityCondition {
+  type: "entity";
+  entityId: string;
+  /**
+   * Optional attribute to check instead of state
+   */
+  attribute?: string | null;
+  operator: ComparisonOperator;
+  value: string | number | boolean;
+}
+/**
+ * Condition based on internal state variable
+ */
+export interface StateCondition {
+  type: "state";
+  variable: string;
+  operator: ComparisonOperator;
+  value: string | number | boolean;
+}
+/**
+ * Condition based on time of day
+ */
+export interface TimeCondition {
+  type: "time";
+  /**
+   * HH:MM format
+   */
+  after?: string;
+  before?: string;
+}
+/**
+ * Combines multiple conditions with AND/OR
+ */
+export interface CompoundCondition {
+  type: "compound";
+  operator: LogicalOperator;
+  /**
+   * @minItems 2
+   */
+  conditions: [Condition, Condition, ...Condition[]];
+}
+/**
+ * Negates a condition
+ */
+export interface NotCondition {
+  type: "not";
+  condition: Condition;
 }
 export interface DetailView {
   /**
