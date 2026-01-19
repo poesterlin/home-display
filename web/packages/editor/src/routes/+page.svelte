@@ -1,5 +1,6 @@
 <script lang="ts">
   import { projectStore } from "$lib/stores/project.svelte";
+  import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
   import { onMount } from "svelte";
   import type { DisplayConfig } from "@esphome-designer/schema";
   import { fade, fly, scale } from 'svelte/transition';
@@ -16,12 +17,45 @@
 
   let projects = $state<{ id: string; name: string; updatedAt: string }[]>([]);
   let showModal = $state(false);
-  
+
   // New Project Form State
   let newProjectName = $state("");
   let displayWidth = $state(240);
   let displayHeight = $state(320);
   let displayPlatform = $state<DisplayConfig["platform"]>("ili9xxx");
+
+  // HomeAssistant Import State
+  let haFileInput: HTMLInputElement;
+  let haImportError = $state<string | null>(null);
+  let haImportSuccess = $state(false);
+
+  async function handleHAFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    haImportError = null;
+    haImportSuccess = false;
+
+    try {
+      const text = await file.text();
+      const success = homeAssistantStore.importFromJson(text);
+      if (success) {
+        haImportSuccess = true;
+        setTimeout(() => haImportSuccess = false, 3000);
+      } else {
+        haImportError = "Invalid HomeAssistant dump format";
+      }
+    } catch {
+      haImportError = "Failed to read file";
+    }
+
+    input.value = "";
+  }
+
+  function clearHADump() {
+    homeAssistantStore.clear();
+  }
 
   onMount(() => {
     projects = projectStore.listProjects();
@@ -134,6 +168,105 @@
         </div>
       </div>
     {/if}
+
+    <section class="ha-settings" in:fade={{ delay: 300, duration: 800 }}>
+      <div class="section-header">
+        <h2>Home Assistant</h2>
+        {#if homeAssistantStore.isLoaded}
+          <span class="status status-connected">
+            <svg width="8" height="8" viewBox="0 0 24 24" class="icon">
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            Connected
+          </span>
+        {:else}
+          <span class="status status-disconnected">Not configured</span>
+        {/if}
+      </div>
+
+      <div class="ha-card">
+        {#if homeAssistantStore.isLoaded}
+          <div class="ha-info">
+            <div class="ha-stats">
+              <div class="stat">
+                <span class="stat-value">{homeAssistantStore.entities.length}</span>
+                <span class="stat-label">Entities</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{homeAssistantStore.devices.length}</span>
+                <span class="stat-label">Devices</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{homeAssistantStore.domains.length}</span>
+                <span class="stat-label">Domains</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{homeAssistantStore.areas.length}</span>
+                <span class="stat-label">Areas</span>
+              </div>
+            </div>
+            {#if homeAssistantStore.generatedAt}
+              <p class="ha-meta">
+                Last updated: {new Date(homeAssistantStore.generatedAt).toLocaleString()}
+              </p>
+            {/if}
+          </div>
+          <div class="ha-actions">
+            <button class="btn-outline" onclick={() => haFileInput.click()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+                <path d={mdiIcons.mdiRefresh} />
+              </svg>
+              Update
+            </button>
+            <button class="btn-outline danger" onclick={clearHADump}>
+              <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+                <path d={mdiIcons.mdiClose} />
+              </svg>
+              Remove
+            </button>
+          </div>
+        {:else}
+          <div class="ha-empty">
+            <svg width="32" height="32" viewBox="0 0 24 24" class="icon ha-icon">
+              <path d={mdiIcons.mdiHomeAssistant} />
+            </svg>
+            <p>Import your Home Assistant entity dump to enable entity binding and autocomplete.</p>
+            <button class="primary" onclick={() => haFileInput.click()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+                <path d={mdiIcons.mdiUpload} />
+              </svg>
+              Import JSON Dump
+            </button>
+          </div>
+        {/if}
+
+        {#if haImportError}
+          <div class="ha-message error" transition:fade={{ duration: 200 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+              <path d={mdiIcons.mdiAlertCircle} />
+            </svg>
+            {haImportError}
+          </div>
+        {/if}
+
+        {#if haImportSuccess}
+          <div class="ha-message success" transition:fade={{ duration: 200 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+              <path d={mdiIcons.mdiCheckCircle} />
+            </svg>
+            Successfully imported Home Assistant data
+          </div>
+        {/if}
+      </div>
+
+      <input
+        type="file"
+        accept=".json"
+        bind:this={haFileInput}
+        onchange={handleHAFileSelect}
+        style="display: none"
+      />
+    </section>
 
     <section class="project-list" in:fade={{ delay: 400, duration: 800 }}>
       <div class="section-header">
@@ -575,5 +708,156 @@
   .icon {
     fill: currentColor;
     stroke: none;
+  }
+
+  /* Home Assistant Section */
+  .ha-settings {
+    margin-bottom: 4rem;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .status-connected {
+    color: #4ade80;
+  }
+
+  .status-disconnected {
+    color: var(--color-text-muted);
+  }
+
+  .ha-card {
+    background: #161616;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.25rem;
+    padding: 1.75rem;
+  }
+
+  .ha-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .ha-stats {
+    display: flex;
+    gap: 2rem;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .ha-meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 1rem 0 0 0;
+  }
+
+  .ha-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .btn-outline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-outline:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+
+  .btn-outline.danger:hover {
+    background: rgba(255, 82, 82, 0.1);
+    border-color: rgba(255, 82, 82, 0.3);
+    color: #ff5252;
+  }
+
+  .ha-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    gap: 1rem;
+  }
+
+  .ha-icon {
+    color: var(--color-accent);
+    opacity: 0.6;
+  }
+
+  .ha-empty p {
+    color: var(--color-text-muted);
+    max-width: 400px;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .ha-empty button {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ha-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .ha-message.error {
+    background: rgba(255, 82, 82, 0.1);
+    border: 1px solid rgba(255, 82, 82, 0.2);
+    color: #ff5252;
+  }
+
+  .ha-message.success {
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    color: #4ade80;
   }
 </style>

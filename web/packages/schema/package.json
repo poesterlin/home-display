@@ -16,6 +16,10 @@
     "./schema": {
       "import": "./components.json",
       "require": "./components.json"
+    },
+    "./homeassistant": {
+      "types": "./homeassistant-dump.ts",
+      "import": "./homeassistant-dump.ts"
     }
   },
   "scripts": {

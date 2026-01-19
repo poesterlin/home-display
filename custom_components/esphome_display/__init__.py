@@ -218,6 +218,7 @@ class MetadataExporter:
             "entities": self._gather_entities(),
             "services": self._gather_services(),
             "devices": await self._gather_devices(),
+            "areas": self._gather_areas(),
         }
 
     def _build_area_lookup(self) -> None:
@@ -298,6 +299,12 @@ class MetadataExporter:
             # Enhanced metadata: area (from lookup)
             if area := self._area_lookup.get(entity_id):
                 entity_data["area"] = area
+
+            # Enhanced metadata: device_id (for linking to devices)
+            if self._entity_registry:
+                entity_entry = self._entity_registry.async_get(entity_id)
+                if entity_entry and entity_entry.device_id:
+                    entity_data["device_id"] = entity_entry.device_id
 
             # Enhanced metadata: suggested actions (domain-based)
             if domain in DOMAIN_ACTIONS:
@@ -429,7 +436,35 @@ class MetadataExporter:
             return {"select": {"options": list(validator.container)}}
         return None
 
-    async def _gather_devices(self) -> list[dict[str, str]]:
+    def _gather_areas(self) -> list[dict[str, Any]]:
+        """Gather area metadata."""
+        areas = []
+
+        if not self._area_registry:
+            return areas
+
+        for area in self._area_registry.async_list_areas():
+            area_data: dict[str, Any] = {
+                "id": area.id,
+                "name": area.name,
+            }
+
+            if area.icon:
+                area_data["icon"] = area.icon
+
+            # Count entities and devices in this area
+            entity_count = sum(
+                1 for entity_id, area_name in self._area_lookup.items()
+                if area_name == area.name
+            )
+            if entity_count:
+                area_data["entity_count"] = entity_count
+
+            areas.append(area_data)
+
+        return areas
+
+    async def _gather_devices(self) -> list[dict[str, Any]]:
         """Gather device metadata."""
         devices = []
         device_registry = dr.async_get(self.hass)
@@ -438,13 +473,36 @@ class MetadataExporter:
             if device.disabled:
                 continue
 
-            device_data = {
+            device_data: dict[str, Any] = {
+                "id": device.id,
                 "name": device.name or device.id,
                 "friendly_name": device.name_by_user or device.name or device.id,
             }
 
             if device.area_id:
                 device_data["area_id"] = device.area_id
+                # Also resolve the area name
+                if self._area_registry:
+                    area = self._area_registry.async_get_area(device.area_id)
+                    if area:
+                        device_data["area_name"] = area.name
+
+            if device.manufacturer:
+                device_data["manufacturer"] = device.manufacturer
+            if device.model:
+                device_data["model"] = device.model
+            if device.sw_version:
+                device_data["sw_version"] = device.sw_version
+
+            # Get entity IDs belonging to this device
+            if self._entity_registry:
+                entity_ids = [
+                    entry.entity_id
+                    for entry in self._entity_registry.entities.values()
+                    if entry.device_id == device.id and not entry.disabled
+                ]
+                if entity_ids:
+                    device_data["entity_ids"] = entity_ids
 
             devices.append(device_data)
 

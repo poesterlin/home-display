@@ -297,7 +297,7 @@ export interface CompoundCondition {
   /**
    * @minItems 2
    */
-  conditions: [Condition, Condition, ...Condition[]];
+  conditions: Condition[];
 }
 /**
  * Negates a condition

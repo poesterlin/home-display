@@ -6,13 +6,27 @@ export interface HomeAssistantDump {
   generated_at: Date | string;
   entities: Entity[];
   devices: Device[];
+  areas: Area[];
   services: Services;
 }
 
+export interface Area {
+  id: string;
+  name: string;
+  icon?: string;
+  entity_count?: number;
+}
+
 export interface Device {
+  id: string;
   name: string;
   friendly_name: string;
   area_id?: string;
+  area_name?: string;
+  manufacturer?: string;
+  model?: string;
+  sw_version?: string;
+  entity_ids?: string[];
 }
 
 export interface Entity {
@@ -25,6 +39,7 @@ export interface Entity {
   last_updated: Date | string;
   device_class?: string;
   area?: string;
+  device_id?: string;
   unit?: string;
   numeric_state?: number;
   state_class?: "measurement" | "total_increasing";
