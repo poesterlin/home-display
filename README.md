@@ -31,7 +31,7 @@ home-display/
 ## 🛠️ Tech Stack
 
 - **Frontend**: Svelte 5 (Runes), TypeScript, Tailwind CSS, Bun.
-- **Backend/Codegen**: Node.js/Bun, JSON Schema, `json-schema-to-typescript`.
+- **Backend/Codegen**: Bun, JSON Schema, `json-schema-to-typescript`.
 - **Firmware**: ESPHome, C++20.
 - **Integration**: Python (Home Assistant Custom Component).
 
@@ -53,8 +53,11 @@ home-display/
 - [x] Home Assistant service call integration.
 - [x] Automated `sensors.yaml` generation for HA entity tracking.
 
-### Phase 4: Advanced Features (Planned)
-- [ ] Live preview on real devices via ESPHome API.
+### Phase 4: Conditional Rendering (Planned)
+- [ ] Visibility conditions based on state.
+- [ ] Dynamic component properties (e.g., color changes).
+
+### Phase 5: Advanced Features (Planned)
 - [ ] Interactive Notification System (Service-based).
 - [ ] Asset management (Fonts, Icons, Sprites).
 
@@ -63,7 +66,7 @@ home-display/
 ### Web Editor
 1. Navigate to `web/`.
 2. Install dependencies: `bun install`.
-3. Start the dev server: `bun run dev --filter @esphome-designer/editor`.
+3. Start the dev server: `bun run dev`.
 
 ### ESPHome Firmware
 1. Ensure you have ESPHome installed.
@@ -71,8 +74,7 @@ home-display/
 3. Compile the display config: `esphome compile my-display.yaml`.
 
 ### Home Assistant Component
-1. Copy `custom_components/esphome_display` to your Home Assistant `config/custom_components/` directory.
-2. Add `esphome_display:` to your `configuration.yaml`.
+Copy `custom_components/esphome_display` to your Home Assistant `config/custom_components/` directory.
 
 ## 📖 Documentation
 

@@ -268,8 +268,22 @@ class MetadataExporter:
                 "entity_id": entity_id,
                 "domain": domain,
                 "name": state.attributes.get("friendly_name", entity_id),
+                "state": state.state,
                 "attributes": safe_attributes,
+                "last_changed": state.last_changed.isoformat()
+                if state.last_changed
+                else None,
+                "last_updated": state.last_updated.isoformat()
+                if state.last_updated
+                else None,
             }
+
+            # Attempt to add numeric value for conditional rendering
+            try:
+                if state.state not in ("unknown", "unavailable"):
+                    entity_data["numeric_state"] = float(state.state)
+            except (ValueError, TypeError):
+                pass
 
             # Add optional metadata if present
             if device_class := state.attributes.get("device_class"):
@@ -292,6 +306,16 @@ class MetadataExporter:
             # Enhanced metadata: state options (domain-based)
             if domain in DOMAIN_STATE_OPTIONS:
                 entity_data["state_options"] = DOMAIN_STATE_OPTIONS[domain]
+
+            # Dynamic state options from attributes (overrides domain defaults)
+            if options := state.attributes.get("options"):
+                entity_data["state_options"] = options
+            elif hvac_modes := state.attributes.get("hvac_modes"):
+                entity_data["state_options"] = hvac_modes
+            elif preset_modes := state.attributes.get("preset_modes"):
+                # Preset modes might be secondary, but useful if primary state options aren't clear
+                if "state_options" not in entity_data:
+                    entity_data["state_options"] = preset_modes
 
             # Sensor-specific metadata
             if domain == "sensor":
