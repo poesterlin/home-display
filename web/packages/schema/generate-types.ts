@@ -73,7 +73,8 @@ export type ComponentType =
   | "container"
   | "image"
   | "todo_list"
-  | "conditional_area";
+  | "conditional_area"
+  | "tab_container";
 
 export function isTextComponent(c: Component): c is TextComponent {
   return c.type === "text";

@@ -6,6 +6,8 @@ import { SvelteMap } from "svelte/reactivity";
 class ConditionalEditorStore {
   // Map of componentId -> activeVariantId
   activeVariants = new SvelteMap<string, string>();
+  // Map of componentId -> activeTabId
+  activeTabs = new SvelteMap<string, string>();
 
   setActiveVariant(componentId: string, variantId: string) {
     this.activeVariants.set(componentId, variantId);
@@ -13,6 +15,14 @@ class ConditionalEditorStore {
 
   getActiveVariant(componentId: string, defaultVariantId?: string): string {
     return this.activeVariants.get(componentId) ?? defaultVariantId ?? "";
+  }
+
+  setActiveTab(componentId: string, tabId: string) {
+    this.activeTabs.set(componentId, tabId);
+  }
+
+  getActiveTab(componentId: string, defaultTabId?: string): string {
+    return this.activeTabs.get(componentId) ?? defaultTabId ?? "";
   }
 }
 

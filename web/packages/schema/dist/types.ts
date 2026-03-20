@@ -15,7 +15,8 @@ export type Component =
   | ContainerComponent
   | ImageComponent
   | TodoListComponent
-  | ConditionalAreaComponent;
+  | ConditionalAreaComponent
+  | TabContainerComponent;
 export type TextComponent = BaseComponent & {
   type: "text";
   text?: string;
@@ -126,6 +127,18 @@ export type ConditionalAreaComponent = BaseComponent & {
 export type ComparisonOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "not_contains" | "matches";
 export type LogicalOperator = "and" | "or";
 export type Condition = EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
+export type TabContainerComponent = BaseComponent & {
+  type: "tab_container";
+  tabs: TabItem[];
+  /**
+   * ID of tab shown when first rendered
+   */
+  defaultTabId?: string;
+  /**
+   * Whether to clip child components to tab content bounds
+   */
+  clipContent?: boolean;
+};
 
 export interface Project {
   /**
@@ -353,6 +366,20 @@ export interface CompoundCondition {
 export interface NotCondition {
   type: "not";
   condition: Condition;
+}
+/**
+ * A single tab inside a tab container
+ */
+export interface TabItem {
+  id: string;
+  /**
+   * Tab label shown in the editor
+   */
+  name: string;
+  /**
+   * Components rendered when this tab is active
+   */
+  components: Component[];
 }
 export interface DetailView {
   /**

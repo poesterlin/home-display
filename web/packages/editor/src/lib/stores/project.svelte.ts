@@ -256,6 +256,18 @@ function createProjectStore() {
       }
     },
 
+    addComponentToTab(componentId: string, tabId: string, component: Component) {
+      const parent = this.getComponent(componentId);
+      if (parent?.type === "tab_container") {
+        const tab = parent.tabs.find((t) => t.id === tabId);
+        if (tab) {
+          tab.components.push(component);
+          scheduleSave();
+          return component;
+        }
+      }
+    },
+
     updateComponent(id: string, updates: Partial<Component>) {
       if (!project) return;
 
@@ -269,6 +281,12 @@ function createProjectStore() {
           if (comp.type === "conditional_area") {
             for (const variant of comp.variants) {
               if (updateInComponents(variant.components)) {
+                return true;
+              }
+            }
+          } else if (comp.type === "tab_container") {
+            for (const tab of comp.tabs) {
+              if (updateInComponents(tab.components)) {
                 return true;
               }
             }
@@ -302,6 +320,15 @@ function createProjectStore() {
                 return;
               }
             }
+          } else if (comp.type === "tab_container") {
+            for (const tab of comp.tabs) {
+              const cIdx = tab.components.findIndex((c) => c.id === id);
+              if (cIdx !== -1) {
+                tab.components.splice(cIdx, 1);
+                scheduleSave();
+                return;
+              }
+            }
           }
         }
       }
@@ -322,6 +349,15 @@ function createProjectStore() {
                 return;
               }
             }
+          } else if (comp.type === "tab_container") {
+            for (const tab of comp.tabs) {
+              const cIdx = tab.components.findIndex((c) => c.id === id);
+              if (cIdx !== -1) {
+                tab.components.splice(cIdx, 1);
+                scheduleSave();
+                return;
+              }
+            }
           }
         }
       }
@@ -334,6 +370,11 @@ function createProjectStore() {
           if (c.type === "conditional_area") {
             for (const v of c.variants) {
               const found = findInComponents(v.components);
+              if (found) return found;
+            }
+          } else if (c.type === "tab_container") {
+            for (const t of c.tabs) {
+              const found = findInComponents(t.components);
               if (found) return found;
             }
           }
@@ -360,12 +401,23 @@ function createProjectStore() {
       let x = component.position.x;
       let y = component.position.y;
 
-      const findParent = (components: Component[], targetId: string): Component | null => {
+      const findParent = (
+        components: Component[],
+        targetId: string,
+      ): { parent: Component; offsetY: number } | null => {
         for (const c of components) {
           if (c.type === "conditional_area") {
             for (const v of c.variants) {
-              if (v.components.some(child => child.id === targetId)) return c;
+              if (v.components.some(child => child.id === targetId)) return { parent: c, offsetY: 0 };
               const found = findParent(v.components, targetId);
+              if (found) return found;
+            }
+          } else if (c.type === "tab_container") {
+            for (const t of c.tabs) {
+              if (t.components.some((child) => child.id === targetId)) {
+                return { parent: c, offsetY: 22 };
+              }
+              const found = findParent(t.components, targetId);
               if (found) return found;
             }
           }
@@ -373,24 +425,24 @@ function createProjectStore() {
         return null;
       };
 
-      let parent: Component | null = null;
+      let parentInfo: { parent: Component; offsetY: number } | null = null;
       if (project) {
         for (const page of project.dashboardPages) {
-          parent = findParent(page.components, id);
-          if (parent) break;
+          parentInfo = findParent(page.components, id);
+          if (parentInfo) break;
         }
-        if (!parent) {
+        if (!parentInfo) {
           for (const view of project.detailViews) {
-            parent = findParent(view.components, id);
-            if (parent) break;
+            parentInfo = findParent(view.components, id);
+            if (parentInfo) break;
           }
         }
       }
 
-      if (parent) {
-        const parentPos = this.getComponentAbsolutePosition(parent.id);
+      if (parentInfo) {
+        const parentPos = this.getComponentAbsolutePosition(parentInfo.parent.id);
         x += parentPos.x;
-        y += parentPos.y;
+        y += parentPos.y + parentInfo.offsetY;
       }
 
       return { x, y };
@@ -433,6 +485,42 @@ function createProjectStore() {
       }
     },
 
+    addTab(componentId: string) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "tab_container") {
+        const newTab = {
+          id: `tab-${Date.now()}`,
+          name: `Tab ${component.tabs.length + 1}`,
+          components: [],
+        };
+        component.tabs.push(newTab);
+        scheduleSave();
+        return newTab;
+      }
+    },
+
+    updateTab(componentId: string, tabId: string, updates: any) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "tab_container") {
+        const tab = component.tabs.find((t) => t.id === tabId);
+        if (tab) {
+          Object.assign(tab, updates);
+          scheduleSave();
+        }
+      }
+    },
+
+    deleteTab(componentId: string, tabId: string) {
+      const component = this.getComponent(componentId);
+      if (component?.type === "tab_container" && component.tabs.length > 1) {
+        const idx = component.tabs.findIndex((t) => t.id === tabId);
+        if (idx !== -1) {
+          component.tabs.splice(idx, 1);
+          scheduleSave();
+        }
+      }
+    },
+
     moveComponent(id: string, dx: number, dy: number) {
       if (!project) return;
       const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
@@ -457,7 +545,6 @@ function createProjectStore() {
       const display = {
         width: config?.display?.width ?? 240,
         height: config?.display?.height ?? 320,
-        platform: config?.display?.platform ?? "ili9xxx"
       } as DisplayConfig;
 
       const newProject: Project = {

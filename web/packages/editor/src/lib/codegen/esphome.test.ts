@@ -629,3 +629,32 @@ describe("ESPHome YAML Generator - To-Do List", () => {
     expect(yaml).toContain("attribute: all_items");
   });
 });
+
+describe("ESPHome YAML Generator - Page Indicators", () => {
+  test("renders bottom page indicators on dashboard pages", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [],
+      },
+      {
+        id: "page-2",
+        name: "Stats",
+        components: [],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain("id: page_indicator_0");
+    expect(yaml).toContain("id: page_indicator_1");
+    expect(yaml).toContain("align: BOTTOM_MID");
+    expect(yaml).toContain("y: -10");
+    expect(yaml).toContain("width: 6");
+    expect(yaml).toContain("height: 6");
+    expect(yaml).toContain("bg_color: 0x00FFFF");
+    expect(yaml).toContain("bg_color: 0x808080");
+  });
+});

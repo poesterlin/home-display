@@ -30,9 +30,26 @@
       : null
   );
 
+  const activeTabId = $derived(
+    selectedComponent?.type === "tab_container"
+      ? conditionalEditorStore.getActiveTab(selectedComponent.id, selectedComponent.defaultTabId ?? selectedComponent.tabs[0]?.id)
+      : null
+  );
+
+  const activeTab = $derived(
+    selectedComponent?.type === "tab_container" && activeTabId
+      ? selectedComponent.tabs.find((t) => t.id === activeTabId)
+      : null
+  );
+
   function updateVariant(updates: any) {
     if (!selectedComponent || !activeVariantId) return;
     projectStore.updateVariant(selectedComponent.id, activeVariantId, updates);
+  }
+
+  function updateTab(updates: any) {
+    if (!selectedComponent || !activeTabId) return;
+    projectStore.updateTab(selectedComponent.id, activeTabId, updates);
   }
 
 
@@ -598,6 +615,73 @@
              checked={selectedComponent.clipContent !== false}
              onchange={(e) => updateProperty("clipContent", e.currentTarget.checked)}
            />
+        </div>
+      </div>
+    {/if}
+
+    {#if selectedComponent.type === "tab_container"}
+      <div class="property-section">
+        <label class="section-label">Tabs</label>
+        <div class="variant-tabs-row">
+          {#each selectedComponent.tabs as tab}
+            <button
+              class="variant-pill"
+              class:active={tab.id === activeTabId}
+              onclick={() => conditionalEditorStore.setActiveTab(selectedComponent.id, tab.id)}
+              title={tab.name}
+            >
+              {tab.name}
+            </button>
+          {/each}
+          <button
+            class="variant-pill add-pill"
+            onclick={() => projectStore.addTab(selectedComponent.id)}
+            title="Add tab"
+          >+</button>
+        </div>
+      </div>
+
+      {#if activeTab}
+        <div class="property-section">
+          <div class="variant-header">
+            <input
+              class="variant-name-input"
+              type="text"
+              value={activeTab.name}
+              oninput={(e) => updateTab({ name: e.currentTarget.value })}
+            />
+            <button
+              class="delete-variant-btn"
+              onclick={() => projectStore.deleteTab(selectedComponent.id, activeTab.id)}
+              disabled={selectedComponent.tabs.length <= 1}
+              title="Delete tab"
+            >x</button>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Default</span>
+            <input
+              type="checkbox"
+              checked={selectedComponent.defaultTabId === activeTab.id || (!selectedComponent.defaultTabId && selectedComponent.tabs[0]?.id === activeTab.id)}
+              onchange={(e) =>
+                updateProperty(
+                  "defaultTabId",
+                  e.currentTarget.checked ? activeTab.id : undefined,
+                )}
+            />
+          </div>
+        </div>
+      {/if}
+
+      <div class="property-section">
+        <label class="section-label">Settings</label>
+        <div class="field">
+          <span class="field-label">Clip</span>
+          <input
+            type="checkbox"
+            checked={selectedComponent.clipContent !== false}
+            onchange={(e) => updateProperty("clipContent", e.currentTarget.checked)}
+          />
         </div>
       </div>
     {/if}

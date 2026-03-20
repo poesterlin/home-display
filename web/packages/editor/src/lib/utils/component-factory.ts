@@ -98,6 +98,21 @@ export function createComponent(type: string, x: number, y: number): Component {
         clipContent: true,
       } as Component;
 
+    case "tab_container":
+      return {
+        ...base,
+        type: "tab_container",
+        size: { width: 150, height: 100 },
+        tabs: [
+          {
+            id: `tab-${Date.now()}`,
+            name: "Tab 1",
+            components: [],
+          }
+        ],
+        clipContent: true,
+      } as Component;
+
     default:
       return {
         ...base,

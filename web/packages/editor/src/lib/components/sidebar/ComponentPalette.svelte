@@ -14,6 +14,7 @@
     { type: "icon", label: "Icon", icon: "I", description: "MDI icon display" },
     { type: "todo_list", label: "To-Do List", icon: "[]", description: "PSV to-do list preview" },
     { type: "conditional_area", label: "Cond Area", icon: "?", description: "Dynamic content by condition" },
+    { type: "tab_container", label: "Tabs", icon: "T+", description: "Named tabs with child content" },
   ];
 
   function handleDragStart(e: DragEvent, type: string) {

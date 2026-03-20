@@ -17,6 +17,7 @@ import type {
   ContainerComponent,
   TodoListComponent,
   ConditionalAreaComponent,
+  TabContainerComponent,
   ConditionalVariant,
   Condition,
   EntityCondition,
@@ -181,6 +182,17 @@ interface ConditionalAreaInfo {
   }[];
 }
 
+interface TabContainerInfo {
+  containerId: string;
+  componentId: string;
+  defaultTabId?: string;
+  tabs: {
+    tabId: string;
+    objId: string;
+    isDefault: boolean;
+  }[];
+}
+
 // Extracts all entity IDs referenced in a condition (recursively)
 function extractConditionEntities(condition: Condition): string[] {
   const entities: string[] = [];
@@ -291,6 +303,7 @@ function extractBindingsAndActions(project: Project) {
   const scriptActions: Map<string, ScriptAction> = new Map();
   const toggleButtons: ToggleButton[] = [];
   const conditionalAreas: ConditionalAreaInfo[] = [];
+  const tabContainers: TabContainerInfo[] = [];
   const conditionEntityIds: Set<string> = new Set();
 
   const processComponent = (comp: Component) => {
@@ -438,6 +451,34 @@ function extractBindingsAndActions(project: Project) {
       
       conditionalAreas.push(areaInfo);
     }
+
+    if (comp.type === "tab_container") {
+      const containerId = wId;
+      const containerInfo: TabContainerInfo = {
+        containerId,
+        componentId: comp.id,
+        defaultTabId: comp.defaultTabId,
+        tabs: [],
+      };
+
+      for (let ti = 0; ti < comp.tabs.length; ti++) {
+        const tab = comp.tabs[ti];
+        const tabObjId = `${containerId}_t${ti}`;
+        const isDefault = tab.id === comp.defaultTabId || (!comp.defaultTabId && ti === 0);
+
+        containerInfo.tabs.push({
+          tabId: tab.id,
+          objId: tabObjId,
+          isDefault,
+        });
+
+        for (const child of tab.components) {
+          processComponent(child);
+        }
+      }
+
+      tabContainers.push(containerInfo);
+    }
   };
 
   for (const page of project.dashboardPages || []) {
@@ -452,6 +493,7 @@ function extractBindingsAndActions(project: Project) {
     scriptActions: [...scriptActions.values()], 
     toggleButtons,
     conditionalAreas,
+    tabContainers,
     conditionEntityIds: [...conditionEntityIds],
   };
 }
@@ -503,6 +545,8 @@ function generateWidgetLines(comp: Component, level: number, ctx?: PageContext):
       return generateTodoListWidget(comp as TodoListComponent, level);
     case "conditional_area":
       return generateConditionalAreaWidget(comp as ConditionalAreaComponent, level, ctx);
+    case "tab_container":
+      return generateTabContainerWidget(comp as TabContainerComponent, level, ctx);
     default:
       return [];
   }
@@ -952,6 +996,141 @@ function generateConditionalAreaWidget(
   return lines;
 }
 
+function generateTabContainerWidget(
+  comp: TabContainerComponent,
+  level: number,
+  ctx?: PageContext,
+): string[] {
+  const lines: string[] = [];
+  const i = ind(level);
+  const containerId = widgetId(comp.id);
+  const tabsHeaderHeight = 22;
+  const width = comp.size?.width ?? 150;
+  const height = comp.size?.height ?? 100;
+
+  lines.push(`${i}- obj:`);
+  lines.push(`${i}    id: ${containerId}`);
+  lines.push(`${i}    x: ${comp.position.x}`);
+  lines.push(`${i}    y: ${comp.position.y}`);
+  lines.push(`${i}    width: ${width}`);
+  lines.push(`${i}    height: ${height}`);
+  lines.push(`${i}    bg_color: 0x1E2630`);
+  lines.push(`${i}    bg_opa: 45%`);
+  lines.push(`${i}    border_color: 0x3D4B5A`);
+  lines.push(`${i}    border_width: 1`);
+  lines.push(`${i}    radius: 4`);
+  lines.push(`${i}    pad_all: 0`);
+  lines.push(...generateBaseStyleLines(comp, i));
+  lines.push(`${i}    widgets:`);
+
+  lines.push(`${i}      - obj:`);
+  lines.push(`${i}          width: 100%`);
+  lines.push(`${i}          height: ${tabsHeaderHeight}`);
+  lines.push(`${i}          bg_color: 0x151C24`);
+  lines.push(`${i}          bg_opa: 80%`);
+  lines.push(`${i}          border_width: 0`);
+  lines.push(`${i}          pad_all: 2`);
+  lines.push(`${i}          layout:`);
+  lines.push(`${i}            type: flex`);
+  lines.push(`${i}            flex_flow: ROW`);
+  lines.push(`${i}            flex_align_main: START`);
+  lines.push(`${i}            flex_align_cross: CENTER`);
+  lines.push(`${i}          widgets:`);
+
+  for (let ti = 0; ti < comp.tabs.length; ti++) {
+    const tab = comp.tabs[ti];
+    const isDefault = tab.id === comp.defaultTabId || (!comp.defaultTabId && ti === 0);
+    lines.push(`${i}            - button:`);
+    lines.push(`${i}                width: SIZE_CONTENT`);
+    lines.push(`${i}                height: 18`);
+    lines.push(`${i}                bg_color: ${isDefault ? "0x4A9EFF" : "0x44505C"}`);
+    lines.push(`${i}                bg_opa: 100%`);
+    lines.push(`${i}                border_width: 0`);
+    lines.push(`${i}                radius: 3`);
+    lines.push(`${i}                pad_left: 8`);
+    lines.push(`${i}                pad_right: 8`);
+    lines.push(`${i}                widgets:`);
+    lines.push(`${i}                  - label:`);
+    lines.push(`${i}                      text: "${tab.name}"`);
+    lines.push(`${i}                      text_color: 0xFFFFFF`);
+    lines.push(`${i}                      text_font: montserrat_12`);
+  }
+
+  lines.push(`${i}      - obj:`);
+  lines.push(`${i}          y: ${tabsHeaderHeight}`);
+  lines.push(`${i}          width: 100%`);
+  lines.push(`${i}          height: ${Math.max(0, height - tabsHeaderHeight)}`);
+  lines.push(`${i}          bg_opa: 0`);
+  lines.push(`${i}          border_width: 0`);
+  if (comp.clipContent !== false) {
+    lines.push(`${i}          clip_corner: true`);
+  }
+  lines.push(`${i}          widgets:`);
+
+  for (let ti = 0; ti < comp.tabs.length; ti++) {
+    const tab = comp.tabs[ti];
+    const tabObjId = `${containerId}_t${ti}`;
+    const isDefault = tab.id === comp.defaultTabId || (!comp.defaultTabId && ti === 0);
+
+    lines.push(`${i}            - obj:`);
+    lines.push(`${i}                id: ${tabObjId}`);
+    lines.push(`${i}                width: 100%`);
+    lines.push(`${i}                height: 100%`);
+    lines.push(`${i}                bg_opa: 0`);
+    lines.push(`${i}                border_width: 0`);
+    if (!isDefault) {
+      lines.push(`${i}                hidden: true`);
+    }
+
+    if (tab.components.length > 0) {
+      lines.push(`${i}                widgets:`);
+      for (const child of tab.components) {
+        lines.push(...generateWidgetLines(child, level + 8, ctx));
+      }
+    }
+  }
+
+  return lines;
+}
+
+function generatePageIndicatorWidgets(
+  pageIndex: number,
+  pageCount: number,
+  level: number,
+  theme: Theme,
+): string[] {
+  const lines: string[] = [];
+  const i = ind(level);
+  const activeColor = colorToHex(theme.colors.accent);
+  const inactiveColor = colorToHex(theme.colors.foregroundMuted ?? { r: 128, g: 128, b: 128 });
+
+  lines.push(`${i}- obj:`);
+  lines.push(`${i}    id: page_indicator_${pageIndex}`);
+  lines.push(`${i}    align: BOTTOM_MID`);
+  lines.push(`${i}    y: -10`);
+  lines.push(`${i}    bg_opa: 0`);
+  lines.push(`${i}    border_width: 0`);
+  lines.push(`${i}    pad_all: 0`);
+  lines.push(`${i}    pad_column: 8`);
+  lines.push(`${i}    layout:`);
+  lines.push(`${i}      type: flex`);
+  lines.push(`${i}      flex_flow: ROW`);
+  lines.push(`${i}      flex_align_main: CENTER`);
+  lines.push(`${i}      flex_align_cross: CENTER`);
+  lines.push(`${i}    widgets:`);
+
+  for (let dot = 0; dot < pageCount; dot++) {
+    lines.push(`${i}      - obj:`);
+    lines.push(`${i}          width: 6`);
+    lines.push(`${i}          height: 6`);
+    lines.push(`${i}          radius: 3`);
+    lines.push(`${i}          border_width: 0`);
+    lines.push(`${i}          bg_color: ${dot === pageIndex ? activeColor : inactiveColor}`);
+  }
+
+  return lines;
+}
+
 // --- Sensor update action generation ---
 
 function generateSensorUpdateLines(binding: SensorBinding): string[] {
@@ -1129,7 +1308,7 @@ function generateSensorUpdateLines(binding: SensorBinding): string[] {
 
 export function generateESPHomeYAML(project: Project): string {
   const lines: string[] = [];
-  const { sensorBindings, scriptActions, toggleButtons, conditionalAreas, conditionEntityIds } =
+  const { sensorBindings, scriptActions, toggleButtons, conditionalAreas, tabContainers, conditionEntityIds } =
     extractBindingsAndActions(project);
   const hasDetailViews = (project.detailViews?.length ?? 0) > 0;
 
@@ -1684,13 +1863,23 @@ export function generateESPHomeYAML(project: Project): string {
     const pageBgColor = page.backgroundColor ?? theme.colors.background;
     lines.push(`      bg_color: ${colorToHex(pageBgColor)}`);
 
+    const pageWidgets: string[] = [];
     if (page.components.length > 0) {
       lines.push(`      widgets:`);
       const ctx: PageContext = { pageIndex: i, hasDetailViews };
       for (const comp of page.components) {
-        lines.push(...generateWidgetLines(comp, 4, ctx));
+        pageWidgets.push(...generateWidgetLines(comp, 4, ctx));
       }
     }
+
+    if (project.dashboardPages.length > 1) {
+      if (pageWidgets.length === 0) {
+        lines.push(`      widgets:`);
+      }
+      pageWidgets.push(...generatePageIndicatorWidgets(i, project.dashboardPages.length, 4, theme));
+    }
+
+    lines.push(...pageWidgets);
   }
 
   // Detail views as pages (skipped in normal navigation)

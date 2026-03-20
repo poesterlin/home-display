@@ -132,6 +132,6 @@ display:
 lvgl:
   id: my_lvgl
   disp_bg_color: 0x000000
-  buffer_size: 10%
+  buffer_size: 100%
   touchscreens:
     - touch_gt911

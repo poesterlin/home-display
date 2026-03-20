@@ -242,6 +242,49 @@
         }
       ]
     },
+    "TabItem": {
+      "type": "object",
+      "description": "A single tab inside a tab container",
+      "properties": {
+        "id": { "type": "string" },
+        "name": {
+          "type": "string",
+          "description": "Tab label shown in the editor"
+        },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Component" },
+          "description": "Components rendered when this tab is active"
+        }
+      },
+      "required": ["id", "name", "components"],
+      "additionalProperties": false
+    },
+    "TabContainerComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "tab_container" },
+            "tabs": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/TabItem" }
+            },
+            "defaultTabId": {
+              "type": "string",
+              "description": "ID of tab shown when first rendered"
+            },
+            "clipContent": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to clip child components to tab content bounds"
+            }
+          },
+          "required": ["type", "tabs"]
+        }
+      ]
+    },
     "OnTapAction": {
       "oneOf": [
         { "$ref": "#/definitions/ServiceAction" },
@@ -472,7 +515,8 @@
         { "$ref": "#/definitions/ContainerComponent" },
         { "$ref": "#/definitions/ImageComponent" },
         { "$ref": "#/definitions/TodoListComponent" },
-        { "$ref": "#/definitions/ConditionalAreaComponent" }
+        { "$ref": "#/definitions/ConditionalAreaComponent" },
+        { "$ref": "#/definitions/TabContainerComponent" }
       ]
     },
     "Page": {
