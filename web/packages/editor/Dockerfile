@@ -30,7 +30,9 @@ RUN bun run build
 FROM oven/bun:${BUN_VERSION}
 
 RUN apt-get update && apt-get install -y \
-    docker.io && \
+    docker.io \
+    python3 \
+    python3-venv && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -39,6 +41,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/bunfig.toml ./bunfig.toml
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /opt/esphome-venv /opt/esphome-venv
 
 ENV NODE_ENV=production
 ENV CONCURRENT_JOBS=2
