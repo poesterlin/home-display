@@ -1705,6 +1705,24 @@ export function generateESPHomeYAML(project: Project): string {
   // OTA
   lines.push(`ota:`);
   lines.push(`  - platform: esphome`);
+  lines.push(`  - platform: http_request`);
+  lines.push(``);
+
+  // HTTP client for OTA update checks/downloads
+  lines.push(`http_request:`);
+  lines.push(``);
+
+  // Managed OTA updates from published firmware URL
+  lines.push(`update:`);
+  lines.push(`  - platform: http_request`);
+  lines.push(`    name: Firmware`);
+  lines.push(`    source: !secret firmware_update_url`);
+  lines.push(``);
+
+  // Time source used by update component scheduling/status
+  lines.push(`time:`);
+  lines.push(`  - platform: sntp`);
+  lines.push(`    id: sntp_time`);
   lines.push(``);
 
   // Custom fonts + Icon fonts

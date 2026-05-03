@@ -265,6 +265,10 @@ describe("ESPHome YAML Generator - Performance Defaults", () => {
     expect(yaml).toContain("power_save_mode: none");
     expect(yaml).toContain("level: WARN");
     expect(yaml).toContain("baud_rate: 0");
+    expect(yaml).toContain("- platform: http_request");
+    expect(yaml).toContain("http_request:");
+    expect(yaml).toContain("source: !secret firmware_update_url");
+    expect(yaml).toContain("- platform: sntp");
     expect(yaml).toContain("LV_SCR_LOAD_ANIM_NONE, 0");
     expect(yaml).toContain("shadow_width: 0");
     expect(yaml).toContain("shadow_opa: TRANSP");
@@ -273,10 +277,6 @@ describe("ESPHome YAML Generator - Performance Defaults", () => {
     expect(yaml).not.toContain("bluetooth_proxy:");
     expect(yaml).not.toContain("esp32_improv:");
     expect(yaml).toContain("captive_portal:");
-    expect(yaml).not.toContain("http_request:");
-    expect(yaml).not.toContain("- platform: http_request");
-    expect(yaml).not.toContain("source: !secret firmware_update_url");
-    expect(yaml).not.toContain("- platform: sntp");
   });
 });
 
