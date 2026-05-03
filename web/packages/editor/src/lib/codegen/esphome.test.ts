@@ -773,8 +773,9 @@ describe("ESPHome YAML Generator - Auto Layout List", () => {
     expect(yaml).toContain("id: w_status_row_item_1");
     expect(yaml).toContain("id: w_status_row_item_2");
     expect(yaml).toContain("entity_id: binary_sensor.motion");
-    expect(yaml).toContain("lv_obj_add_flag(id(w_status_row_item_1), LV_OBJ_FLAG_HIDDEN);");
-    expect(yaml).toContain("lv_obj_clear_flag(id(w_status_row_item_1), LV_OBJ_FLAG_HIDDEN);");
+    expect(yaml).toContain("auto set_visible = [](lv_obj_t *obj, bool visible)");
+    expect(yaml).toContain("set_visible(id(w_status_row_item_1), false);");
+    expect(yaml).toContain("set_visible(id(w_status_row_item_1), true);");
   });
 
   test("vertical list emits column flow and condition entity extraction", () => {
@@ -821,5 +822,31 @@ describe("ESPHome YAML Generator - Auto Layout List", () => {
     expect(yaml).toContain("flex_flow: COLUMN");
     expect(yaml).toContain("entity_id: sensor.temperature");
     expect(yaml).toContain("script.execute: update_conditional_areas");
+  });
+});
+
+describe("ESPHome YAML Generator - Container Performance Defaults", () => {
+  test("container widgets default to scrollbar OFF", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [
+          {
+            id: "container-1",
+            type: "container",
+            position: { x: 10, y: 10 },
+            size: { width: 200, height: 120 },
+            children: [],
+          } as any,
+        ],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain('scrollbar_mode: "OFF"');
+    expect(yaml).not.toContain("scrollbar_mode: auto");
   });
 });

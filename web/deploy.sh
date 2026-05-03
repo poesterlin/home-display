@@ -1,4 +1,4 @@
-!/bin/bash
+#!/usr/bin/env bash
 
 # Get the current branch name
 BRANCH=$(git rev-parse --abbrev-ref HEAD)

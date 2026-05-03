@@ -1042,7 +1042,7 @@ function generateObjWidget(
   if (comp.backgroundColor) {
     lines.push(`${i}    bg_color: ${colorToHex(comp.backgroundColor)}`);
   }
-  lines.push(`${i}    scrollbar_mode: auto`);
+  lines.push(`${i}    scrollbar_mode: "OFF"`);
   lines.push(`${i}    layout:`);
   lines.push(`${i}      type: flex`);
   lines.push(`${i}      flex_flow: COLUMN`);
@@ -1680,10 +1680,7 @@ export function generateESPHomeYAML(project: Project): string {
   lines.push(`wifi:`);
   lines.push(`  ap:`);
   lines.push(`    ssid: "\${device_name}"`);
-  lines.push(``);
-
-  // Captive portal for WiFi setup
-  lines.push(`captive_portal:`);
+  lines.push(`  power_save_mode: none`);
   lines.push(``);
 
   // Logger
@@ -1700,22 +1697,6 @@ export function generateESPHomeYAML(project: Project): string {
   // OTA
   lines.push(`ota:`);
   lines.push(`  - platform: esphome`);
-  lines.push(`  - platform: http_request`);
-  lines.push(``);
-  // HTTP request component (required by http_request OTA)
-  lines.push(`http_request:`);
-  lines.push(``);
-  // Update entity — exposed to Home Assistant with "Install" button
-  lines.push(`update:`);
-  lines.push(`  - platform: http_request`);
-  lines.push(`    name: Firmware`);
-  lines.push(`    source: !secret firmware_update_url`);
-  lines.push(``);
-
-  // Time
-  lines.push(`time:`);
-  lines.push(`  - platform: sntp`);
-  lines.push(`    id: sntp_time`);
   lines.push(``);
 
   // Custom fonts + Icon fonts
@@ -1926,6 +1907,15 @@ export function generateESPHomeYAML(project: Project): string {
       lines.push(`  - id: update_conditional_areas`);
       lines.push(`    then:`);
       lines.push(`      - lambda: |-`);
+      lines.push(`          auto set_visible = [](lv_obj_t *obj, bool visible) {`);
+      lines.push(`            const bool hidden = lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);`);
+      lines.push(`            if (visible) {`);
+      lines.push(`              if (hidden) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);`);
+      lines.push(`            } else {`);
+      lines.push(`              if (!hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);`);
+      lines.push(`            }`);
+      lines.push(`          };`);
+      lines.push(``);
       
       // Generate C++ code to evaluate conditions and show/hide variants
       for (const area of conditionalAreas) {
@@ -1945,9 +1935,9 @@ export function generateESPHomeYAML(project: Project): string {
             // Show this variant, hide others
             for (const v of area.variants) {
               if (v.objId === variant.objId) {
-                lines.push(`            lv_obj_clear_flag(id(${v.objId}), LV_OBJ_FLAG_HIDDEN);`);
+                lines.push(`            set_visible(id(${v.objId}), true);`);
               } else {
-                lines.push(`            lv_obj_add_flag(id(${v.objId}), LV_OBJ_FLAG_HIDDEN);`);
+                lines.push(`            set_visible(id(${v.objId}), false);`);
               }
             }
           }
@@ -1961,9 +1951,9 @@ export function generateESPHomeYAML(project: Project): string {
           }
           for (const v of area.variants) {
             if (v.objId === defaultVariant.objId) {
-              lines.push(`            lv_obj_clear_flag(id(${v.objId}), LV_OBJ_FLAG_HIDDEN);`);
+              lines.push(`            set_visible(id(${v.objId}), true);`);
             } else {
-              lines.push(`            lv_obj_add_flag(id(${v.objId}), LV_OBJ_FLAG_HIDDEN);`);
+              lines.push(`            set_visible(id(${v.objId}), false);`);
             }
           }
           if (!firstCondition) {
@@ -1980,12 +1970,12 @@ export function generateESPHomeYAML(project: Project): string {
           if (item.condition) {
             const condExpr = generateConditionExpression(item.condition);
             lines.push(`          if ${condExpr} {`);
-            lines.push(`            lv_obj_clear_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`            set_visible(id(${item.containerId}), true);`);
             lines.push(`          } else {`);
-            lines.push(`            lv_obj_add_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`            set_visible(id(${item.containerId}), false);`);
             lines.push(`          }`);
           } else {
-            lines.push(`          lv_obj_clear_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`          set_visible(id(${item.containerId}), true);`);
           }
         }
       }

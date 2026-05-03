@@ -1,4 +1,5 @@
-FROM oven/bun:1 AS builder
+ARG BUN_VERSION=1.3.11
+FROM oven/bun:${BUN_VERSION} AS builder
 
 RUN apt-get update && apt-get install -y \
     docker.io \
@@ -26,7 +27,7 @@ RUN bun install --frozen-lockfile
 RUN bun run build
 
 # Production image
-FROM oven/bun:1
+FROM oven/bun:${BUN_VERSION}
 
 RUN apt-get update && apt-get install -y \
     docker.io && \
