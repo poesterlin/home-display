@@ -95,7 +95,7 @@
     >
       <option value="none">None</option>
       <option value="navigation">Navigation</option>
-      <option value="service">Service Call</option>
+      <option value="service">Home Assistant Action</option>
     </select>
   </div>
 
@@ -131,12 +131,12 @@
 
   {#if actionType === "service"}
     <div class="field">
-      <span class="field-label">Service</span>
+      <span class="field-label">Action</span>
       <select
         value={serviceName}
         onchange={(e) => handleServiceChange(e.currentTarget.value)}
       >
-        <option value="">Select Service</option>
+        <option value="">Select Action</option>
         {#each [...groupedServices.entries()] as [domain, services]}
           <optgroup label={DOMAIN_LABELS[domain] ?? domain}>
             {#each services as { service, preset }}
@@ -145,14 +145,14 @@
           </optgroup>
         {/each}
         <optgroup label="Custom">
-          <option value="__custom__">Enter Custom Service...</option>
+          <option value="__custom__">Enter Custom Action...</option>
         </optgroup>
       </select>
     </div>
 
     {#if serviceName === "__custom__" || (serviceName && !SERVICE_PRESETS[serviceName])}
       <div class="field">
-        <span class="field-label">Service ID</span>
+        <span class="field-label">Action ID</span>
         <input
           type="text"
           placeholder="domain.service_name"

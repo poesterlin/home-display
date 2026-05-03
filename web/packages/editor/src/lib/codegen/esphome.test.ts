@@ -379,9 +379,10 @@ describe("ESPHome YAML Generator - Slider", () => {
     expect(yaml).toContain("on_change:");
     expect(yaml).not.toContain("on_value:");
 
-    // Should have inline service call
-    expect(yaml).toContain("homeassistant.service:");
-    expect(yaml).toContain("service: light.turn_on");
+    // Should have inline Home Assistant action call
+    expect(yaml).toContain("homeassistant.action:");
+    expect(yaml).toContain("action: light.turn_on");
+    expect(yaml).toContain('logger.log: "Calling HA action: light.turn_on (light.living_room)"');
     expect(yaml).toContain("entity_id: light.living_room");
 
     // Should pass slider value with rounding
@@ -464,7 +465,7 @@ describe("ESPHome YAML Generator - Slider", () => {
 
     // Should NOT have on_change (read-only slider)
     expect(yaml).not.toContain("on_change:");
-    expect(yaml).not.toContain("homeassistant.service:");
+    expect(yaml).not.toContain("homeassistant.action:");
   });
 
   test("slider with styling properties", () => {

@@ -983,8 +983,12 @@ function generateSliderWidget(
     // on_change fires only on user interaction (not programmatic updates),
     // avoiding feedback loops when the slider also has a valueBinding
     lines.push(`${i}    on_change:`);
-    lines.push(`${i}      - homeassistant.service:`);
-    lines.push(`${i}          service: ${service}`);
+    const actionLog = targetEntityId
+      ? `Calling HA action: ${service} (${targetEntityId})`
+      : `Calling HA action: ${service}`;
+    lines.push(`${i}      - logger.log: "${actionLog}"`);
+    lines.push(`${i}      - homeassistant.action:`);
+    lines.push(`${i}          action: ${service}`);
     if (targetEntityId) {
       lines.push(`${i}          data:`);
       lines.push(`${i}            entity_id: ${targetEntityId}`);
@@ -1998,8 +2002,12 @@ export function generateESPHomeYAML(project: Project): string {
         lines.push(`          value: "true"`);
         lines.push(`      - lvgl.widget.show: ${toggleBtn.spinnerId}`);
       }
-      lines.push(`      - homeassistant.service:`);
-      lines.push(`          service: ${action.service}`);
+      const actionLog = action.targetEntityId
+        ? `Calling HA action: ${action.service} (${action.targetEntityId})`
+        : `Calling HA action: ${action.service}`;
+      lines.push(`      - logger.log: "${actionLog}"`);
+      lines.push(`      - homeassistant.action:`);
+      lines.push(`          action: ${action.service}`);
       if (action.targetEntityId) {
         lines.push(`          data:`);
         lines.push(`            entity_id: ${action.targetEntityId}`);
