@@ -189,7 +189,26 @@ interface TabContainerInfo {
   tabs: {
     tabId: string;
     objId: string;
+    buttonId: string;
     isDefault: boolean;
+  }[];
+}
+
+interface AutoLayoutListInfo {
+  listId: string;
+  componentId: string;
+  direction: "horizontal" | "vertical";
+  gap: number;
+  padding: number;
+  crossAxisAlign: "start" | "center" | "end" | "stretch";
+  mainAxisJustify: "start" | "center" | "end" | "space_between";
+  itemSizeMode: "content" | "fixed";
+  itemWidth?: number;
+  itemHeight?: number;
+  items: {
+    itemId: string;
+    containerId: string;
+    condition?: Condition;
   }[];
 }
 
@@ -304,6 +323,7 @@ function extractBindingsAndActions(project: Project) {
   const toggleButtons: ToggleButton[] = [];
   const conditionalAreas: ConditionalAreaInfo[] = [];
   const tabContainers: TabContainerInfo[] = [];
+  const autoLayoutLists: AutoLayoutListInfo[] = [];
   const conditionEntityIds: Set<string> = new Set();
 
   const processComponent = (comp: Component) => {
@@ -469,6 +489,7 @@ function extractBindingsAndActions(project: Project) {
         containerInfo.tabs.push({
           tabId: tab.id,
           objId: tabObjId,
+          buttonId: `${containerId}_btn_t${ti}`,
           isDefault,
         });
 
@@ -479,7 +500,47 @@ function extractBindingsAndActions(project: Project) {
 
       tabContainers.push(containerInfo);
     }
+
+    if ((comp as any).type === "auto_layout_list") {
+      const autoLayoutComp = comp as any;
+      const listInfo: AutoLayoutListInfo = {
+        listId: wId,
+        componentId: autoLayoutComp.id,
+        direction: autoLayoutComp.direction ?? "horizontal",
+        gap: Math.max(0, autoLayoutComp.gap ?? 6),
+        padding: Math.max(0, autoLayoutComp.padding ?? 0),
+        crossAxisAlign: autoLayoutComp.crossAxisAlign ?? "center",
+        mainAxisJustify: autoLayoutComp.mainAxisJustify ?? "start",
+        itemSizeMode: autoLayoutComp.itemSizeMode ?? "content",
+        itemWidth: autoLayoutComp.itemWidth,
+        itemHeight: autoLayoutComp.itemHeight,
+        items: [],
+      };
+
+      for (let li = 0; li < autoLayoutComp.items.length; li++) {
+        const item = autoLayoutComp.items[li];
+        const containerId = `${wId}_item_${li}`;
+        listInfo.items.push({
+          itemId: item.id,
+          containerId,
+          condition: item.condition,
+        });
+
+        if (item.condition) {
+          for (const entityId of extractConditionEntities(item.condition)) {
+            conditionEntityIds.add(entityId);
+          }
+        }
+      }
+
+      autoLayoutLists.push(listInfo);
+    }
   };
+
+  // Process page header components (shared across all dashboard pages)
+  if (project.pageHeader) {
+    for (const comp of project.pageHeader.components) processComponent(comp);
+  }
 
   for (const page of project.dashboardPages || []) {
     for (const comp of page.components) processComponent(comp);
@@ -494,6 +555,7 @@ function extractBindingsAndActions(project: Project) {
     toggleButtons,
     conditionalAreas,
     tabContainers,
+    autoLayoutLists,
     conditionEntityIds: [...conditionEntityIds],
   };
 }
@@ -530,6 +592,10 @@ interface PageContext {
 }
 
 function generateWidgetLines(comp: Component, level: number, ctx?: PageContext): string[] {
+  if ((comp as any).type === "auto_layout_list") {
+    return generateAutoLayoutListWidget(comp as any, level);
+  }
+
   switch (comp.type) {
     case "text":
       return generateLabelWidget(comp as TextComponent, level);
@@ -550,6 +616,82 @@ function generateWidgetLines(comp: Component, level: number, ctx?: PageContext):
     default:
       return [];
   }
+}
+
+function generateAutoLayoutListWidget(comp: any, level: number): string[] {
+  const lines: string[] = [];
+  const i = ind(level);
+  const listId = widgetId(comp.id);
+  const width = comp.size?.width ?? 140;
+  const height = comp.size?.height ?? 32;
+  const direction = comp.direction ?? "horizontal";
+  const gap = Math.max(0, comp.gap ?? 6);
+  const padding = Math.max(0, comp.padding ?? 0);
+  const crossAxisAlign = comp.crossAxisAlign ?? "center";
+  const mainAxisJustify = comp.mainAxisJustify ?? "start";
+  const itemSizeMode = comp.itemSizeMode ?? "content";
+  const itemWidth = Math.max(1, comp.itemWidth ?? 24);
+  const itemHeight = Math.max(1, comp.itemHeight ?? 24);
+
+  lines.push(`${i}- obj:`);
+  lines.push(`${i}    id: ${listId}`);
+  lines.push(`${i}    x: ${comp.position.x}`);
+  lines.push(`${i}    y: ${comp.position.y}`);
+  lines.push(`${i}    width: ${width}`);
+  lines.push(`${i}    height: ${height}`);
+  lines.push(`${i}    bg_opa: 0`);
+  lines.push(`${i}    border_width: 0`);
+  lines.push(`${i}    pad_all: ${padding}`);
+  lines.push(`${i}    layout:`);
+  lines.push(`${i}      type: flex`);
+  lines.push(`${i}      flex_flow: ${direction === "horizontal" ? "ROW" : "COLUMN"}`);
+  lines.push(`${i}      pad_row: ${gap}`);
+  lines.push(`${i}      pad_column: ${gap}`);
+  lines.push(`${i}      flex_align_main: ${autoLayoutMainToLvgl(mainAxisJustify)}`);
+  lines.push(`${i}      flex_align_cross: ${autoLayoutCrossToLvgl(crossAxisAlign)}`);
+  lines.push(`${i}    widgets:`);
+
+  for (let index = 0; index < comp.items.length; index++) {
+    const item = comp.items[index];
+    const itemId = `${listId}_item_${index}`;
+    const iconCodepoint = item.icon ? getMdiCodepoint(item.icon) : undefined;
+    const iconColor = item.color ? colorToHex(item.color) : "0xFFFFFF";
+
+    lines.push(`${i}      - obj:`);
+    lines.push(`${i}          id: ${itemId}`);
+    lines.push(`${i}          bg_opa: 0`);
+    lines.push(`${i}          border_width: 0`);
+    if (itemSizeMode === "fixed") {
+      lines.push(`${i}          width: ${itemWidth}`);
+      lines.push(`${i}          height: ${itemHeight}`);
+    }
+    lines.push(`${i}          widgets:`);
+    lines.push(`${i}            - label:`);
+    lines.push(`${i}                text: "${iconCodepoint ?? item.icon ?? "?"}"`);
+    lines.push(`${i}                align: CENTER`);
+    lines.push(`${i}                text_color: ${iconColor}`);
+    if (iconCodepoint) {
+      lines.push(`${i}                text_font: mdi_icons_24`);
+    } else {
+      lines.push(`${i}                text_font: montserrat_14`);
+    }
+  }
+
+  return lines;
+}
+
+function autoLayoutMainToLvgl(value: "start" | "center" | "end" | "space_between"): string {
+  if (value === "center") return "CENTER";
+  if (value === "end") return "END";
+  if (value === "space_between") return "SPACE_BETWEEN";
+  return "START";
+}
+
+function autoLayoutCrossToLvgl(value: "start" | "center" | "end" | "stretch"): string {
+  if (value === "center") return "CENTER";
+  if (value === "end") return "END";
+  if (value === "stretch") return "STRETCH";
+  return "START";
 }
 
 function todoRowWidgetId(listWidgetId: string, rowIndex: number, part: "cb" | "summary" | "due"): string {
@@ -1040,7 +1182,9 @@ function generateTabContainerWidget(
   for (let ti = 0; ti < comp.tabs.length; ti++) {
     const tab = comp.tabs[ti];
     const isDefault = tab.id === comp.defaultTabId || (!comp.defaultTabId && ti === 0);
+    const tabBtnId = `${containerId}_btn_t${ti}`;
     lines.push(`${i}            - button:`);
+    lines.push(`${i}                id: ${tabBtnId}`);
     lines.push(`${i}                width: SIZE_CONTENT`);
     lines.push(`${i}                height: 18`);
     lines.push(`${i}                bg_color: ${isDefault ? "0x4A9EFF" : "0x44505C"}`);
@@ -1049,6 +1193,8 @@ function generateTabContainerWidget(
     lines.push(`${i}                radius: 3`);
     lines.push(`${i}                pad_left: 8`);
     lines.push(`${i}                pad_right: 8`);
+    lines.push(`${i}                on_click:`);
+    lines.push(`${i}                  - script.execute: ${containerId}_show_t${ti}`);
     lines.push(`${i}                widgets:`);
     lines.push(`${i}                  - label:`);
     lines.push(`${i}                      text: "${tab.name}"`);
@@ -1098,31 +1244,37 @@ function generatePageIndicatorWidgets(
   pageCount: number,
   level: number,
   theme: Theme,
+  displayHeight: number,
 ): string[] {
   const lines: string[] = [];
   const i = ind(level);
   const activeColor = colorToHex(theme.colors.accent);
   const inactiveColor = colorToHex(theme.colors.foregroundMuted ?? { r: 128, g: 128, b: 128 });
 
+  // Calculate indicator width: (dot_size * count) + (gap * (count-1))
+  const dotSize = 6;
+  const dotGap = 8;
+  const indicatorWidth = dotSize * pageCount + dotGap * (pageCount - 1);
+
   lines.push(`${i}- obj:`);
   lines.push(`${i}    id: page_indicator_${pageIndex}`);
-  lines.push(`${i}    align: BOTTOM_MID`);
-  lines.push(`${i}    y: -10`);
+  lines.push(`${i}    align: TOP_MID`);
+  lines.push(`${i}    y: ${Math.max(0, displayHeight - 14)}`);
+  lines.push(`${i}    width: ${indicatorWidth}`);
   lines.push(`${i}    bg_opa: 0`);
   lines.push(`${i}    border_width: 0`);
   lines.push(`${i}    pad_all: 0`);
-  lines.push(`${i}    pad_column: 8`);
   lines.push(`${i}    layout:`);
   lines.push(`${i}      type: flex`);
   lines.push(`${i}      flex_flow: ROW`);
-  lines.push(`${i}      flex_align_main: CENTER`);
+  lines.push(`${i}      flex_align_main: SPACE_BETWEEN`);
   lines.push(`${i}      flex_align_cross: CENTER`);
   lines.push(`${i}    widgets:`);
 
   for (let dot = 0; dot < pageCount; dot++) {
     lines.push(`${i}      - obj:`);
-    lines.push(`${i}          width: 6`);
-    lines.push(`${i}          height: 6`);
+    lines.push(`${i}          width: ${dotSize}`);
+    lines.push(`${i}          height: ${dotSize}`);
     lines.push(`${i}          radius: 3`);
     lines.push(`${i}          border_width: 0`);
     lines.push(`${i}          bg_color: ${dot === pageIndex ? activeColor : inactiveColor}`);
@@ -1308,7 +1460,7 @@ function generateSensorUpdateLines(binding: SensorBinding): string[] {
 
 export function generateESPHomeYAML(project: Project): string {
   const lines: string[] = [];
-  const { sensorBindings, scriptActions, toggleButtons, conditionalAreas, tabContainers, conditionEntityIds } =
+  const { sensorBindings, scriptActions, toggleButtons, conditionalAreas, tabContainers, autoLayoutLists, conditionEntityIds } =
     extractBindingsAndActions(project);
   const hasDetailViews = (project.detailViews?.length ?? 0) > 0;
 
@@ -1632,7 +1784,7 @@ export function generateESPHomeYAML(project: Project): string {
   
   // Find condition entities that aren't already tracked as sensors
   const existingEntityIds = new Set(sensorBindings.map(b => b.entityId));
-  const additionalConditionEntities = conditionalAreas.length > 0 
+  const additionalConditionEntities = (conditionalAreas.length > 0 || autoLayoutLists.length > 0)
     ? conditionEntityIds.filter(id => !existingEntityIds.has(id))
     : [];
   
@@ -1662,7 +1814,7 @@ export function generateESPHomeYAML(project: Project): string {
         lines.push(...generateSensorUpdateLines(b));
       }
       // Also trigger conditional area update if this entity is used in conditions
-      if (conditionalAreas.length > 0 && conditionEntitySet.has(first.entityId)) {
+      if ((conditionalAreas.length > 0 || autoLayoutLists.length > 0) && conditionEntitySet.has(first.entityId)) {
         lines.push(`      - script.execute: update_conditional_areas`);
       }
     }
@@ -1698,7 +1850,7 @@ export function generateESPHomeYAML(project: Project): string {
         lines.push(...generateSensorUpdateLines(b));
       }
       // Also trigger conditional area update if this entity is used in conditions
-      if (conditionalAreas.length > 0 && conditionEntitySet.has(first.entityId)) {
+      if ((conditionalAreas.length > 0 || autoLayoutLists.length > 0) && conditionEntitySet.has(first.entityId)) {
         lines.push(`      - script.execute: update_conditional_areas`);
       }
     }
@@ -1742,7 +1894,7 @@ export function generateESPHomeYAML(project: Project): string {
         }
       }
       // Also trigger conditional area update if this entity is used in conditions
-      if (conditionalAreas.length > 0 && conditionEntitySet.has(first.entityId)) {
+      if ((conditionalAreas.length > 0 || autoLayoutLists.length > 0) && conditionEntitySet.has(first.entityId)) {
         lines.push(`      - script.execute: update_conditional_areas`);
       }
     }
@@ -1760,12 +1912,34 @@ export function generateESPHomeYAML(project: Project): string {
   }
 
   // --- Scripts for service call actions and conditional areas ---
-  const hasScripts = scriptActions.length > 0 || conditionalAreas.length > 0;
+  const hasScripts =
+    scriptActions.length > 0 ||
+    conditionalAreas.length > 0 ||
+    autoLayoutLists.length > 0 ||
+    tabContainers.length > 0;
   if (hasScripts) {
     lines.push(`script:`);
+
+    for (const tabContainer of tabContainers) {
+      for (let ti = 0; ti < tabContainer.tabs.length; ti++) {
+        lines.push(`  - id: ${tabContainer.containerId}_show_t${ti}`);
+        lines.push(`    then:`);
+        lines.push(`      - lambda: |-`);
+        for (let si = 0; si < tabContainer.tabs.length; si++) {
+          const tab = tabContainer.tabs[si];
+          if (si === ti) {
+            lines.push(`          lv_obj_clear_flag(id(${tab.objId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`          lv_obj_set_style_bg_color(id(${tab.buttonId}), lv_color_hex(0x4A9EFF), LV_PART_MAIN | LV_STATE_DEFAULT);`);
+          } else {
+            lines.push(`          lv_obj_add_flag(id(${tab.objId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`          lv_obj_set_style_bg_color(id(${tab.buttonId}), lv_color_hex(0x44505C), LV_PART_MAIN | LV_STATE_DEFAULT);`);
+          }
+        }
+      }
+    }
     
     // Conditional area update script
-    if (conditionalAreas.length > 0) {
+    if (conditionalAreas.length > 0 || autoLayoutLists.length > 0) {
       lines.push(`  - id: update_conditional_areas`);
       lines.push(`    then:`);
       lines.push(`      - lambda: |-`);
@@ -1816,6 +1990,22 @@ export function generateESPHomeYAML(project: Project): string {
           lines.push(`          }`);
         }
       }
+
+      for (const list of autoLayoutLists) {
+        lines.push(`          // Auto layout list: ${list.componentId}`);
+        for (const item of list.items) {
+          if (item.condition) {
+            const condExpr = generateConditionExpression(item.condition);
+            lines.push(`          if ${condExpr} {`);
+            lines.push(`            lv_obj_clear_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`          } else {`);
+            lines.push(`            lv_obj_add_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+            lines.push(`          }`);
+          } else {
+            lines.push(`          lv_obj_clear_flag(id(${item.containerId}), LV_OBJ_FLAG_HIDDEN);`);
+          }
+        }
+      }
     }
     
     // Service call action scripts
@@ -1855,6 +2045,9 @@ export function generateESPHomeYAML(project: Project): string {
   lines.push(`  pages:`);
 
   // Dashboard pages
+  const headerHeight = project.pageHeader?.height ?? 0;
+  const hasHeader = project.pageHeader && project.pageHeader.components.length > 0;
+  const displayHeight = project.display?.height ?? 480;
   for (let i = 0; i < project.dashboardPages.length; i++) {
     const page = project.dashboardPages[i];
     lines.push(`    # ${page.name}`);
@@ -1864,11 +2057,45 @@ export function generateESPHomeYAML(project: Project): string {
     lines.push(`      bg_color: ${colorToHex(pageBgColor)}`);
 
     const pageWidgets: string[] = [];
-    if (page.components.length > 0) {
+    const hasAnyWidgets = (hasHeader) || page.components.length > 0;
+    if (hasAnyWidgets) {
       lines.push(`      widgets:`);
       const ctx: PageContext = { pageIndex: i, hasDetailViews };
+
+      // Generate header widgets first (positions are relative to page origin, used as-is)
+      if (hasHeader) {
+        // Optional: header background
+        if (project.pageHeader!.backgroundColor) {
+          const bgHex = colorToHex(project.pageHeader!.backgroundColor);
+          pageWidgets.push(`${ind(4)}- obj:`);
+          pageWidgets.push(`${ind(4)}    id: page_${i}_header_bg`);
+          pageWidgets.push(`${ind(4)}    x: 0`);
+          pageWidgets.push(`${ind(4)}    y: 0`);
+          pageWidgets.push(`${ind(4)}    width: 100%`);
+          pageWidgets.push(`${ind(4)}    height: ${headerHeight}`);
+          pageWidgets.push(`${ind(4)}    bg_color: ${bgHex}`);
+          pageWidgets.push(`${ind(4)}    bg_opa: 100%`);
+          pageWidgets.push(`${ind(4)}    border_width: 0`);
+          pageWidgets.push(`${ind(4)}    pad_all: 0`);
+        }
+
+        for (const comp of project.pageHeader!.components) {
+          pageWidgets.push(...generateWidgetLines(comp, 4, ctx));
+        }
+      }
+
+      // Generate page content widgets with Y-offset if header exists
       for (const comp of page.components) {
-        pageWidgets.push(...generateWidgetLines(comp, 4, ctx));
+        if (headerHeight > 0) {
+          // Clone component with Y-offset applied
+          const offsetComp = {
+            ...comp,
+            position: { ...comp.position, y: comp.position.y + headerHeight },
+          } as Component;
+          pageWidgets.push(...generateWidgetLines(offsetComp, 4, ctx));
+        } else {
+          pageWidgets.push(...generateWidgetLines(comp, 4, ctx));
+        }
       }
     }
 
@@ -1876,7 +2103,7 @@ export function generateESPHomeYAML(project: Project): string {
       if (pageWidgets.length === 0) {
         lines.push(`      widgets:`);
       }
-      pageWidgets.push(...generatePageIndicatorWidgets(i, project.dashboardPages.length, 4, theme));
+      pageWidgets.push(...generatePageIndicatorWidgets(i, project.dashboardPages.length, 4, theme, displayHeight));
     }
 
     lines.push(...pageWidgets);
@@ -1976,6 +2203,11 @@ function extractAllIcons(project: Project): Set<string> {
   const processComponents = (components: Component[]) => {
     for (const comp of components) {
       if ("icon" in comp && comp.icon) icons.add(comp.icon as string);
+      if ((comp as any).type === "auto_layout_list") {
+        for (const item of (comp as any).items) {
+          if (item.icon) icons.add(item.icon);
+        }
+      }
       if (comp.type === "conditional_area") {
         for (const variant of (comp as any).variants) {
           processComponents(variant.components);
@@ -1983,6 +2215,9 @@ function extractAllIcons(project: Project): Set<string> {
       }
     }
   };
+  if (project.pageHeader) {
+    processComponents(project.pageHeader.components);
+  }
   for (const page of project.dashboardPages || [])
     processComponents(page.components);
   for (const view of project.detailViews || [])

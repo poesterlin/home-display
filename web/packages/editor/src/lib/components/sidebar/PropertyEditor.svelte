@@ -18,6 +18,12 @@
       : null,
   );
 
+  const selectedAutoLayoutComponent = $derived<any>(
+    selectedComponent && (selectedComponent as any).type === "auto_layout_list"
+      ? (selectedComponent as any)
+      : null,
+  );
+
   const activeVariantId = $derived(
     selectedComponent?.type === "conditional_area"
       ? conditionalEditorStore.getActiveVariant(selectedComponent.id, selectedComponent.variants[0]?.id)
@@ -41,6 +47,26 @@
       ? selectedComponent.tabs.find((t) => t.id === activeTabId)
       : null
   );
+
+  let activeAutoLayoutItemId = $state<string | null>(null);
+
+  const activeAutoLayoutItem = $derived(
+    selectedAutoLayoutComponent
+      ? (selectedAutoLayoutComponent.items.find((item: any) => item.id === activeAutoLayoutItemId) ?? selectedAutoLayoutComponent.items[0] ?? null)
+      : null,
+  );
+
+  $effect(() => {
+    if (!selectedAutoLayoutComponent) {
+      activeAutoLayoutItemId = null;
+      return;
+    }
+
+    const selectedExists = selectedAutoLayoutComponent.items.some((item: any) => item.id === activeAutoLayoutItemId);
+    if (!selectedExists) {
+      activeAutoLayoutItemId = selectedAutoLayoutComponent.items[0]?.id ?? null;
+    }
+  });
 
   function updateVariant(updates: any) {
     if (!selectedComponent || !activeVariantId) return;
@@ -80,6 +106,50 @@
       },
     });
   }
+
+  function updateAutoLayoutItem(itemId: string, patch: Record<string, unknown>) {
+    if (!selectedAutoLayoutComponent) return;
+    historyStore.record("Update auto layout item");
+    (projectStore as any).updateAutoLayoutItem(selectedAutoLayoutComponent.id, itemId, patch);
+  }
+
+  function addAutoLayoutItem() {
+    if (!selectedAutoLayoutComponent) return;
+    historyStore.record("Add auto layout item");
+    const newItem = (projectStore as any).addAutoLayoutItem(selectedAutoLayoutComponent.id);
+    if (newItem) activeAutoLayoutItemId = newItem.id;
+  }
+
+  function duplicateAutoLayoutItem(itemId: string) {
+    if (!selectedAutoLayoutComponent) return;
+    const item = selectedAutoLayoutComponent.items.find((entry: any) => entry.id === itemId);
+    if (!item) return;
+    historyStore.record("Duplicate auto layout item");
+    const duplicated = (projectStore as any).addAutoLayoutItem(selectedAutoLayoutComponent.id);
+    if (!duplicated) return;
+    (projectStore as any).updateAutoLayoutItem(selectedAutoLayoutComponent.id, duplicated.id, {
+      name: `${item.name} Copy`,
+      icon: item.icon,
+      color: item.color,
+      scale: item.scale,
+      condition: item.condition,
+    });
+    activeAutoLayoutItemId = duplicated.id;
+  }
+
+  function deleteAutoLayoutItem(itemId: string) {
+    if (!selectedAutoLayoutComponent) return;
+    if (selectedAutoLayoutComponent.items.length <= 1) return;
+    historyStore.record("Delete auto layout item");
+    (projectStore as any).deleteAutoLayoutItem(selectedAutoLayoutComponent.id, itemId);
+  }
+
+  function reorderAutoLayoutItem(itemId: string, direction: "up" | "down") {
+    if (!selectedAutoLayoutComponent) return;
+    historyStore.record(`Move auto layout item ${direction}`);
+    (projectStore as any).reorderAutoLayoutItem(selectedAutoLayoutComponent.id, itemId, direction);
+  }
+
 </script>
 
 <div class="property-editor">
@@ -536,6 +606,139 @@
       </div>
     {/if}
 
+    {#if selectedAutoLayoutComponent}
+      <div class="property-section">
+        <label class="section-label">Layout</label>
+        <div class="field">
+          <span class="field-label">Direction</span>
+          <select
+            value={selectedAutoLayoutComponent.direction ?? "horizontal"}
+            onchange={(e) => updateProperty("direction", e.currentTarget.value)}
+          >
+            <option value="horizontal">Horizontal</option>
+            <option value="vertical">Vertical</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="field-label">Gap</span>
+          <input
+            type="number"
+            min="0"
+            max="64"
+            value={selectedAutoLayoutComponent.gap ?? 6}
+            oninput={(e) => updateProperty("gap", Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)))}
+          />
+        </div>
+        <div class="field">
+          <span class="field-label">Padding</span>
+          <input
+            type="number"
+            min="0"
+            max="64"
+            value={selectedAutoLayoutComponent.padding ?? 0}
+            oninput={(e) => updateProperty("padding", Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)))}
+          />
+        </div>
+        <div class="field">
+          <span class="field-label">Cross Align</span>
+          <select
+            value={selectedAutoLayoutComponent.crossAxisAlign ?? "center"}
+            onchange={(e) => updateProperty("crossAxisAlign", e.currentTarget.value)}
+          >
+            <option value="start">Start</option>
+            <option value="center">Center</option>
+            <option value="end">End</option>
+            <option value="stretch">Stretch</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="field-label">Main Align</span>
+          <select
+            value={selectedAutoLayoutComponent.mainAxisJustify ?? "start"}
+            onchange={(e) => updateProperty("mainAxisJustify", e.currentTarget.value)}
+          >
+            <option value="start">Start</option>
+            <option value="center">Center</option>
+            <option value="end">End</option>
+            <option value="space_between">Space Between</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="property-section">
+        <label class="section-label">Items</label>
+        <div class="variant-tabs-row">
+          {#each selectedAutoLayoutComponent.items as item, index}
+            <button
+              class="variant-pill"
+              class:active={item.id === activeAutoLayoutItem?.id}
+              onclick={() => (activeAutoLayoutItemId = item.id)}
+              title={item.condition ? describeCondition(item.condition) : "Always visible"}
+            >
+              {index + 1}. {item.name}
+            </button>
+          {/each}
+          <button class="variant-pill add-pill" onclick={addAutoLayoutItem}>+</button>
+        </div>
+      </div>
+
+      {#if activeAutoLayoutItem}
+        <div class="property-section">
+          <label class="section-label">Selected Item</label>
+          <div class="field">
+            <span class="field-label">Name</span>
+            <input
+              type="text"
+              value={activeAutoLayoutItem.name}
+              oninput={(e) => updateAutoLayoutItem(activeAutoLayoutItem.id, { name: e.currentTarget.value })}
+            />
+          </div>
+          <div class="field">
+            <span class="field-label">Icon</span>
+            <IconSearcher
+              value={activeAutoLayoutItem.icon ?? ""}
+              onSelect={(icon) => updateAutoLayoutItem(activeAutoLayoutItem.id, { icon })}
+            />
+          </div>
+          <div class="field">
+            <span class="field-label">Scale</span>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              max="5"
+              value={activeAutoLayoutItem.scale ?? 1}
+              oninput={(e) => updateAutoLayoutItem(activeAutoLayoutItem.id, { scale: Math.max(0.1, Math.min(5, parseFloat(e.currentTarget.value) || 1)) })}
+            />
+          </div>
+          <ColorPicker
+            label="Color"
+            value={activeAutoLayoutItem.color}
+            onUpdate={(color) => updateAutoLayoutItem(activeAutoLayoutItem.id, { color })}
+          />
+
+          <div class="field-group">
+            <label class="group-label">Condition</label>
+            <ConditionEditor
+              condition={activeAutoLayoutItem.condition}
+              onUpdate={(condition) => updateAutoLayoutItem(activeAutoLayoutItem.id, { condition })}
+            />
+          </div>
+
+          <div class="variant-tabs-row auto-item-actions">
+            <button class="variant-pill" onclick={() => reorderAutoLayoutItem(activeAutoLayoutItem.id, "up")}>Up</button>
+            <button class="variant-pill" onclick={() => reorderAutoLayoutItem(activeAutoLayoutItem.id, "down")}>Down</button>
+            <button class="variant-pill" onclick={() => duplicateAutoLayoutItem(activeAutoLayoutItem.id)}>Duplicate</button>
+            <button
+              class="variant-pill"
+              onclick={() => deleteAutoLayoutItem(activeAutoLayoutItem.id)}
+              disabled={selectedAutoLayoutComponent.items.length <= 1}
+            >Delete</button>
+          </div>
+        </div>
+      {/if}
+    {/if}
+
     {#if selectedComponent.type === "conditional_area"}
       <div class="property-section">
         <label class="section-label">Variants</label>
@@ -720,6 +923,48 @@
       </div>
     {/if}
   {:else}
+    {#if projectStore.viewMode === "dashboard"}
+      <div class="property-section">
+        <label class="section-label">Page Header</label>
+        <div class="field">
+          <span class="field-label">Enabled</span>
+          <input
+            type="checkbox"
+            checked={!!projectStore.pageHeader}
+            onchange={(e) => {
+              if (e.currentTarget.checked) {
+                projectStore.enablePageHeader();
+              } else {
+                projectStore.disablePageHeader();
+              }
+            }}
+          />
+        </div>
+        {#if projectStore.pageHeader}
+          <div class="field">
+            <span class="field-label">Height</span>
+            <input
+              type="number"
+              min={20}
+              max={projectStore.display?.height ? Math.floor(projectStore.display.height / 2) : 160}
+              step={1}
+              value={projectStore.pageHeader.height}
+              oninput={(e) => {
+                const val = parseInt(e.currentTarget.value);
+                if (val > 0) {
+                  projectStore.updatePageHeader({ height: val });
+                }
+              }}
+            />
+          </div>
+          <ColorPicker
+            label="Background"
+            value={projectStore.pageHeader.backgroundColor}
+            onUpdate={(color) => projectStore.updatePageHeader({ backgroundColor: color })}
+          />
+        {/if}
+      </div>
+    {/if}
     <div class="no-selection">
       <p>Select a component to edit its properties</p>
     </div>
@@ -828,6 +1073,35 @@
   .variant-pill.active {
     background: var(--color-accent);
     border-color: var(--color-accent);
+    color: white;
+  }
+
+  .auto-item-actions .variant-pill {
+    background: var(--color-bg-primary);
+    border-color: var(--color-accent-secondary);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent-secondary) 30%, transparent);
+  }
+
+  .auto-item-actions {
+    margin-top: var(--spacing-md);
+  }
+
+  .auto-item-actions .variant-pill:hover {
+    background: color-mix(in srgb, var(--color-accent) 24%, var(--color-bg-primary));
+    border-color: var(--color-accent);
+    color: white;
+  }
+
+  .auto-item-actions .variant-pill:last-child {
+    border-color: var(--color-error);
+    color: color-mix(in srgb, var(--color-error) 80%, white);
+  }
+
+  .auto-item-actions .variant-pill:last-child:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-error) 24%, var(--color-bg-primary));
+    border-color: var(--color-error);
     color: white;
   }
 

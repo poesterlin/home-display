@@ -12,6 +12,7 @@
     { type: "slider", label: "Slider", icon: "S", description: "Adjust numeric value" },
     { type: "gauge", label: "Gauge", icon: "G", description: "Visual meter display" },
     { type: "icon", label: "Icon", icon: "I", description: "MDI icon display" },
+    { type: "auto_layout_list", label: "Auto List", icon: "AL", description: "Icon row/stack with conditions" },
     { type: "todo_list", label: "To-Do List", icon: "[]", description: "PSV to-do list preview" },
     { type: "conditional_area", label: "Cond Area", icon: "?", description: "Dynamic content by condition" },
     { type: "tab_container", label: "Tabs", icon: "T+", description: "Named tabs with child content" },

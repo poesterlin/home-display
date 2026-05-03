@@ -650,11 +650,145 @@ describe("ESPHome YAML Generator - Page Indicators", () => {
 
     expect(yaml).toContain("id: page_indicator_0");
     expect(yaml).toContain("id: page_indicator_1");
-    expect(yaml).toContain("align: BOTTOM_MID");
-    expect(yaml).toContain("y: -10");
+    expect(yaml).toContain("align: TOP_MID");
+    expect(yaml).toContain("y: 466");
     expect(yaml).toContain("width: 6");
     expect(yaml).toContain("height: 6");
     expect(yaml).toContain("bg_color: 0x00FFFF");
     expect(yaml).toContain("bg_color: 0x808080");
+  });
+});
+
+describe("ESPHome YAML Generator - Tab Container", () => {
+  test("tab buttons switch visible tab content", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [
+          {
+            id: "tabs-1",
+            type: "tab_container",
+            position: { x: 10, y: 10 },
+            size: { width: 200, height: 120 },
+            defaultTabId: "tab-a",
+            tabs: [
+              { id: "tab-a", name: "Tab A", components: [] },
+              { id: "tab-b", name: "Tab B", components: [] },
+            ],
+          } as any,
+        ],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain("id: w_tabs_1_btn_t0");
+    expect(yaml).toContain("id: w_tabs_1_btn_t1");
+    expect(yaml).toContain("id: w_tabs_1_t0");
+    expect(yaml).toContain("id: w_tabs_1_t1");
+    expect(yaml).toContain("id: w_tabs_1_show_t0");
+    expect(yaml).toContain("id: w_tabs_1_show_t1");
+    expect(yaml).toContain("- script.execute: w_tabs_1_show_t1");
+    expect(yaml).toContain("lv_obj_clear_flag(id(w_tabs_1_t1), LV_OBJ_FLAG_HIDDEN);");
+    expect(yaml).toContain("lv_obj_add_flag(id(w_tabs_1_t0), LV_OBJ_FLAG_HIDDEN);");
+  });
+});
+
+describe("ESPHome YAML Generator - Auto Layout List", () => {
+  test("horizontal list generates item containers and condition script", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [
+          {
+            id: "status-row",
+            type: "auto_layout_list",
+            position: { x: 10, y: 10 },
+            size: { width: 140, height: 32 },
+            direction: "horizontal",
+            gap: 6,
+            padding: 0,
+            crossAxisAlign: "center",
+            mainAxisJustify: "start",
+            itemSizeMode: "content",
+            items: [
+              { id: "i1", name: "Home", icon: "home" },
+              {
+                id: "i2",
+                name: "Motion",
+                icon: "run",
+                condition: {
+                  type: "entity",
+                  entityId: "binary_sensor.motion",
+                  operator: "eq",
+                  value: true,
+                },
+              },
+              { id: "i3", name: "Alert", icon: "alert" },
+            ],
+          } as any,
+        ],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain("id: w_status_row");
+    expect(yaml).toContain("id: w_status_row_item_0");
+    expect(yaml).toContain("id: w_status_row_item_1");
+    expect(yaml).toContain("id: w_status_row_item_2");
+    expect(yaml).toContain("entity_id: binary_sensor.motion");
+    expect(yaml).toContain("lv_obj_add_flag(id(w_status_row_item_1), LV_OBJ_FLAG_HIDDEN);");
+    expect(yaml).toContain("lv_obj_clear_flag(id(w_status_row_item_1), LV_OBJ_FLAG_HIDDEN);");
+  });
+
+  test("vertical list emits column flow and condition entity extraction", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [
+          {
+            id: "status-col",
+            type: "auto_layout_list",
+            position: { x: 20, y: 20 },
+            size: { width: 40, height: 120 },
+            direction: "vertical",
+            gap: 4,
+            padding: 2,
+            crossAxisAlign: "center",
+            mainAxisJustify: "start",
+            itemSizeMode: "fixed",
+            itemWidth: 24,
+            itemHeight: 24,
+            items: [
+              {
+                id: "v1",
+                name: "Temp",
+                icon: "thermometer",
+                condition: {
+                  type: "entity",
+                  entityId: "sensor.temperature",
+                  operator: "gt",
+                  value: 20,
+                },
+              },
+              { id: "v2", name: "Door", icon: "door" },
+            ],
+          } as any,
+        ],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain("flex_flow: COLUMN");
+    expect(yaml).toContain("entity_id: sensor.temperature");
+    expect(yaml).toContain("script.execute: update_conditional_areas");
   });
 });

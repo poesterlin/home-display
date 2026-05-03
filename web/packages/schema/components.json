@@ -285,6 +285,77 @@
         }
       ]
     },
+    "AutoLayoutDirection": {
+      "type": "string",
+      "enum": ["horizontal", "vertical"]
+    },
+    "AutoLayoutAlign": {
+      "type": "string",
+      "enum": ["start", "center", "end", "stretch"]
+    },
+    "AutoLayoutJustify": {
+      "type": "string",
+      "enum": ["start", "center", "end", "space_between"]
+    },
+    "AutoLayoutListItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "condition": { "$ref": "#/definitions/Condition" },
+        "icon": { "type": "string" },
+        "color": { "$ref": "#/definitions/Color" },
+        "scale": { "type": "number", "default": 1 }
+      },
+      "required": ["id", "name"],
+      "additionalProperties": false
+    },
+    "AutoLayoutListComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "auto_layout_list" },
+            "direction": {
+              "$ref": "#/definitions/AutoLayoutDirection",
+              "default": "horizontal"
+            },
+            "gap": {
+              "type": "number",
+              "minimum": 0,
+              "default": 6
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            },
+            "crossAxisAlign": {
+              "$ref": "#/definitions/AutoLayoutAlign",
+              "default": "center"
+            },
+            "mainAxisJustify": {
+              "$ref": "#/definitions/AutoLayoutJustify",
+              "default": "start"
+            },
+            "itemSizeMode": {
+              "type": "string",
+              "enum": ["content", "fixed"],
+              "default": "content"
+            },
+            "itemWidth": { "type": "number", "minimum": 1 },
+            "itemHeight": { "type": "number", "minimum": 1 },
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/AutoLayoutListItem" },
+              "minItems": 1
+            }
+          },
+          "required": ["type", "size", "items"]
+        }
+      ]
+    },
     "OnTapAction": {
       "oneOf": [
         { "$ref": "#/definitions/ServiceAction" },
@@ -515,6 +586,7 @@
         { "$ref": "#/definitions/ContainerComponent" },
         { "$ref": "#/definitions/ImageComponent" },
         { "$ref": "#/definitions/TodoListComponent" },
+        { "$ref": "#/definitions/AutoLayoutListComponent" },
         { "$ref": "#/definitions/ConditionalAreaComponent" },
         { "$ref": "#/definitions/TabContainerComponent" }
       ]
@@ -657,6 +729,27 @@
       },
       "additionalProperties": false
     },
+    "PageHeader": {
+      "type": "object",
+      "description": "Project-level page header shown on all dashboard pages",
+      "properties": {
+        "height": {
+          "type": "number",
+          "description": "Height of the header region in pixels"
+        },
+        "backgroundColor": {
+          "$ref": "#/definitions/Color",
+          "description": "Background color of the header region (falls back to theme background)"
+        },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Component" },
+          "description": "Components rendered in the header region (positions relative to header origin)"
+        }
+      },
+      "required": ["height", "components"],
+      "additionalProperties": false
+    },
     "DisplayConfig": {
       "type": "object",
       "properties": {
@@ -691,7 +784,8 @@
           "type": "array",
           "items": { "$ref": "#/definitions/FontDefinition" }
         },
-        "secrets": { "$ref": "#/definitions/SecretsConfig" }
+        "secrets": { "$ref": "#/definitions/SecretsConfig" },
+        "pageHeader": { "$ref": "#/definitions/PageHeader" }
       },
       "required": ["name", "display", "dashboardPages", "detailViews"],
       "additionalProperties": false

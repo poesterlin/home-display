@@ -5,6 +5,7 @@ import type {
   Component,
   DisplayConfig,
   Theme,
+  PageHeader,
 } from "@esphome-designer/schema";
 import { RETRO_THEME } from "../themes/retro";
 import { assert, toUpperSnakeCase } from "$lib/utils";
@@ -97,6 +98,29 @@ function createProjectStore() {
     get detailViews() { return project?.detailViews ?? []; },
     get fonts() { return project?.fonts ?? []; },
     get secrets() { return project?.secrets; },
+    get pageHeader() { return project?.pageHeader; },
+    get headerComponents() { return project?.pageHeader?.components ?? []; },
+
+    isHeaderComponent(id: string): boolean {
+      if (!project?.pageHeader) return false;
+      const findInComponents = (components: Component[]): boolean => {
+        for (const c of components) {
+          if (c.id === id) return true;
+          if (c.type === "conditional_area") {
+            for (const v of c.variants) {
+              if (findInComponents(v.components)) return true;
+            }
+          } else if (c.type === "tab_container") {
+            for (const t of c.tabs) {
+              if (findInComponents(t.components)) return true;
+            }
+          }
+        }
+        return false;
+      };
+      return findInComponents(project.pageHeader.components);
+    },
+
     get serverProjectId() { return serverProjectId; },
     get firmwareToken() { return firmwareToken; },
     get saving() { return saving; },
@@ -232,6 +256,37 @@ function createProjectStore() {
       }
     },
 
+    // Page Header management
+    enablePageHeader(height: number = 40) {
+      if (!project) return;
+      const defaultTimeComponent: Component = {
+        id: `text-header-${Date.now()}`,
+        type: "text",
+        text: "12:00",
+        fontSize: "large",
+        align: "center",
+        position: { x: 0, y: 4 },
+        size: { width: project.display.width, height: height - 8 },
+      } as Component;
+      project.pageHeader = {
+        height,
+        components: [defaultTimeComponent],
+      };
+      scheduleSave();
+    },
+
+    disablePageHeader() {
+      if (!project) return;
+      delete project.pageHeader;
+      scheduleSave();
+    },
+
+    updatePageHeader(updates: Partial<PageHeader>) {
+      if (!project?.pageHeader) return;
+      Object.assign(project.pageHeader, updates);
+      scheduleSave();
+    },
+
     // Component management
     addComponent(component: Component) {
       if (!project) return;
@@ -240,6 +295,13 @@ function createProjectStore() {
       } else if (currentDetailView) {
         currentDetailView.components.push(component);
       }
+      scheduleSave();
+      return component;
+    },
+
+    addHeaderComponent(component: Component) {
+      if (!project?.pageHeader) return;
+      project.pageHeader.components.push(component);
       scheduleSave();
       return component;
     },
@@ -298,11 +360,46 @@ function createProjectStore() {
       const components = viewMode === "dashboard" ? currentDashboardPage?.components : currentDetailView?.components;
       if (components && updateInComponents(components)) {
         scheduleSave();
+        return;
+      }
+      // Also search header components
+      if (project.pageHeader && updateInComponents(project.pageHeader.components)) {
+        scheduleSave();
       }
     },
 
     deleteComponent(id: string) {
       if (!project) return;
+      // Search in page header
+      if (project.pageHeader) {
+        const idx = project.pageHeader.components.findIndex((c) => c.id === id);
+        if (idx !== -1) {
+          project.pageHeader.components.splice(idx, 1);
+          scheduleSave();
+          return;
+        }
+        for (const comp of project.pageHeader.components) {
+          if (comp.type === "conditional_area") {
+            for (const variant of comp.variants) {
+              const cIdx = variant.components.findIndex(c => c.id === id);
+              if (cIdx !== -1) {
+                variant.components.splice(cIdx, 1);
+                scheduleSave();
+                return;
+              }
+            }
+          } else if (comp.type === "tab_container") {
+            for (const tab of comp.tabs) {
+              const cIdx = tab.components.findIndex((c) => c.id === id);
+              if (cIdx !== -1) {
+                tab.components.splice(cIdx, 1);
+                scheduleSave();
+                return;
+              }
+            }
+          }
+        }
+      }
       for (const page of project.dashboardPages) {
         const idx = page.components.findIndex((c) => c.id === id);
         if (idx !== -1) {
@@ -383,6 +480,11 @@ function createProjectStore() {
       };
 
       if (!project) return undefined;
+      // Search in page header
+      if (project.pageHeader) {
+        const found = findInComponents(project.pageHeader.components);
+        if (found) return found;
+      }
       for (const page of project.dashboardPages) {
         const found = findInComponents(page.components);
         if (found) return found;
@@ -427,9 +529,15 @@ function createProjectStore() {
 
       let parentInfo: { parent: Component; offsetY: number } | null = null;
       if (project) {
-        for (const page of project.dashboardPages) {
-          parentInfo = findParent(page.components, id);
-          if (parentInfo) break;
+        // Search in page header
+        if (project.pageHeader) {
+          parentInfo = findParent(project.pageHeader.components, id);
+        }
+        if (!parentInfo) {
+          for (const page of project.dashboardPages) {
+            parentInfo = findParent(page.components, id);
+            if (parentInfo) break;
+          }
         }
         if (!parentInfo) {
           for (const view of project.detailViews) {
@@ -519,6 +627,64 @@ function createProjectStore() {
           scheduleSave();
         }
       }
+    },
+
+    addAutoLayoutItem(componentId: string) {
+      const component = this.getComponent(componentId) as any;
+      if (component?.type !== "auto_layout_list") return;
+
+      const newItem = {
+        id: `auto-layout-item-${Date.now()}`,
+        name: `Item ${component.items.length + 1}`,
+        icon: "home",
+        scale: 1,
+      };
+
+      component.items.push(newItem);
+      scheduleSave();
+      return newItem;
+    },
+
+    updateAutoLayoutItem(componentId: string, itemId: string, patch: Record<string, unknown>) {
+      const component = this.getComponent(componentId) as any;
+      if (component?.type !== "auto_layout_list") return;
+
+      const index = component.items.findIndex((item: any) => item.id === itemId);
+      if (index === -1) return;
+
+      component.items[index] = {
+        ...component.items[index],
+        ...patch,
+      };
+      scheduleSave();
+      return component.items[index];
+    },
+
+    deleteAutoLayoutItem(componentId: string, itemId: string) {
+      const component = this.getComponent(componentId) as any;
+      if (component?.type !== "auto_layout_list") return;
+      if (component.items.length <= 1) return;
+
+      const index = component.items.findIndex((item: any) => item.id === itemId);
+      if (index === -1) return;
+
+      component.items.splice(index, 1);
+      scheduleSave();
+    },
+
+    reorderAutoLayoutItem(componentId: string, itemId: string, direction: "up" | "down") {
+      const component = this.getComponent(componentId) as any;
+      if (component?.type !== "auto_layout_list") return;
+
+      const index = component.items.findIndex((item: any) => item.id === itemId);
+      if (index === -1) return;
+
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= component.items.length) return;
+
+      const [item] = component.items.splice(index, 1);
+      component.items.splice(targetIndex, 0, item);
+      scheduleSave();
     },
 
     moveComponent(id: string, dx: number, dy: number) {

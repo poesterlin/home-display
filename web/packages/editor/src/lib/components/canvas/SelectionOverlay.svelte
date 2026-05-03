@@ -3,6 +3,13 @@
   import { selectionStore } from "$lib/stores/selection.svelte";
   import { historyStore } from "$lib/stores/history.svelte";
 
+  interface Props {
+    region?: "header" | "content";
+    regionOffset?: number;
+  }
+
+  let { region = "content", regionOffset = 0 }: Props = $props();
+
   // Resize handles
   type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
@@ -83,7 +90,7 @@
     window.removeEventListener("mouseup", handleResizeEnd);
   }
 
-  // Get bounding box for selection
+  // Get bounding box for selection (filtered by region)
   function getSelectionBounds() {
     const bounds: Array<{
       id: string;
@@ -95,16 +102,21 @@
 
     for (const id of selectionStore.selectedIds) {
       const component = projectStore.getComponent(id);
-      if (component) {
-        const pos = projectStore.getComponentAbsolutePosition(id);
-        bounds.push({
-          id,
-          x: pos.x,
-          y: pos.y,
-          width: component.size?.width ?? 50,
-          height: component.size?.height ?? 20,
-        });
-      }
+      if (!component) continue;
+
+      // Filter: only show components that belong to this region
+      const isInHeader = projectStore.isHeaderComponent(id);
+      if (region === "header" && !isInHeader) continue;
+      if (region === "content" && isInHeader) continue;
+
+      const pos = projectStore.getComponentAbsolutePosition(id);
+      bounds.push({
+        id,
+        x: pos.x,
+        y: pos.y,
+        width: component.size?.width ?? 50,
+        height: component.size?.height ?? 20,
+      });
     }
 
     return bounds;

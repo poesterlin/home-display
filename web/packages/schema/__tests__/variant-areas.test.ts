@@ -211,7 +211,7 @@ describe("Condition types", () => {
       ],
     };
 
-    expect(condition.conditions[0].type).toBe("compound");
+    expect(condition.conditions[0]?.type).toBe("compound");
   });
 });
 
@@ -327,10 +327,10 @@ describe("ConditionalAreaComponent", () => {
       ],
     };
 
-    expect(area.variants[0].components.length).toBe(3);
-    expect(area.variants[0].components[0].type).toBe("text");
-    expect(area.variants[0].components[1].type).toBe("button");
-    expect(area.variants[0].components[2].type).toBe("gauge");
+    expect(area.variants[0]?.components.length).toBe(3);
+    expect(area.variants[0]?.components[0]?.type).toBe("text");
+    expect(area.variants[0]?.components[1]?.type).toBe("button");
+    expect(area.variants[0]?.components[2]?.type).toBe("gauge");
   });
 });
 
@@ -347,6 +347,63 @@ describe("Component union includes ConditionalAreaComponent", () => {
     ];
 
     expect(components.length).toBe(2);
-    expect(components[1].type).toBe("conditional_area");
+    expect(components[1]?.type).toBe("conditional_area");
+  });
+});
+
+describe("AutoLayoutListComponent", () => {
+  test("supports horizontal list with per-item condition", () => {
+    const list: any = {
+      id: "auto-list-1",
+      type: "auto_layout_list",
+      position: { x: 10, y: 10 },
+      size: { width: 140, height: 32 },
+      direction: "horizontal",
+      gap: 6,
+      padding: 0,
+      crossAxisAlign: "center",
+      mainAxisJustify: "start",
+      items: [
+        {
+          id: "item-1",
+          name: "Home",
+          icon: "home",
+        },
+        {
+          id: "item-2",
+          name: "Motion",
+          icon: "run",
+          condition: {
+            type: "entity",
+            entityId: "binary_sensor.motion",
+            operator: "eq",
+            value: true,
+          },
+        },
+      ],
+    };
+
+    expect(list.type).toBe("auto_layout_list");
+    expect(list.items.length).toBe(2);
+    expect(list.items[1]?.condition?.type).toBe("entity");
+  });
+
+  test("supports vertical fixed-size list", () => {
+    const list: any = {
+      id: "auto-list-2",
+      type: "auto_layout_list",
+      position: { x: 0, y: 0 },
+      size: { width: 40, height: 120 },
+      direction: "vertical",
+      itemSizeMode: "fixed",
+      itemWidth: 24,
+      itemHeight: 24,
+      items: [
+        { id: "i1", name: "One", icon: "numeric-1" },
+      ],
+    };
+
+    expect(list.direction).toBe("vertical");
+    expect(list.itemSizeMode).toBe("fixed");
   });
 });

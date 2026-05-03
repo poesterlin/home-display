@@ -10,6 +10,7 @@
   import { createComponent } from "$lib/utils/component-factory";
 
   let canvasEl: HTMLDivElement | undefined = $state();
+  let headerEl: HTMLDivElement | undefined = $state();
 
   const canvasHeight = $derived(
     projectStore.project &&
@@ -19,8 +20,22 @@
       : (projectStore.display?.height ?? 320),
   );
 
+  const hasHeader = $derived(
+    projectStore.viewMode === "dashboard" && !!projectStore.pageHeader,
+  );
+
+  const headerHeight = $derived(
+    hasHeader ? projectStore.pageHeader!.height : 0,
+  );
+
+  const contentHeight = $derived(
+    projectStore.viewMode === "detail"
+      ? canvasHeight
+      : (projectStore.display?.height ?? 320) - headerHeight,
+  );
+
   function handleCanvasClick(e: MouseEvent) {
-    if (e.target === canvasEl) {
+    if (e.target === canvasEl || e.target === headerEl) {
       selectionStore.clear();
     }
   }
@@ -38,6 +53,22 @@
 
     const newComponent = createComponent(componentType, x, y);
     projectStore.addComponent(newComponent);
+    selectionStore.select(newComponent.id);
+  }
+
+  function handleHeaderDrop(e: DragEvent) {
+    e.preventDefault();
+    const componentType = e.dataTransfer?.getData("component-type");
+    if (!componentType || !headerEl) return;
+
+    const rect = headerEl.getBoundingClientRect();
+    const x = Math.round(e.clientX - rect.left);
+    const y = Math.round(e.clientY - rect.top);
+
+    historyStore.record(`Add ${componentType} to header`);
+
+    const newComponent = createComponent(componentType, x, y);
+    projectStore.addHeaderComponent(newComponent);
     selectionStore.select(newComponent.id);
   }
 
@@ -94,6 +125,31 @@
       onBack={() => projectStore.setViewMode("dashboard")}
     />
   {/if}
+
+  {#if hasHeader}
+    <!-- Page header region -->
+    <div
+      bind:this={headerEl}
+      class="header-region"
+      role="application"
+      tabindex="-1"
+      aria-label="Page header region"
+      onclick={handleCanvasClick}
+      ondrop={handleHeaderDrop}
+      ondragover={handleDragOver}
+      style:height="{headerHeight}px"
+      style:background-color={projectStore.pageHeader?.backgroundColor
+        ? `rgb(${projectStore.pageHeader.backgroundColor.r}, ${projectStore.pageHeader.backgroundColor.g}, ${projectStore.pageHeader.backgroundColor.b})`
+        : undefined}
+    >
+      {#each projectStore.headerComponents as component (component.id)}
+        <ComponentRenderer {component} />
+      {/each}
+      <SelectionOverlay region="header" regionOffset={0} />
+    </div>
+    <div class="header-divider"></div>
+  {/if}
+
   <div
     bind:this={canvasEl}
     class="canvas"
@@ -103,9 +159,7 @@
     onclick={handleCanvasClick}
     ondrop={handleDrop}
     ondragover={handleDragOver}
-    style:height="{projectStore.viewMode === 'detail'
-      ? canvasHeight
-      : (projectStore.display?.height ?? 320)}px"
+    style:height="{contentHeight}px"
   >
     {#if projectStore.activeComponents}
       {#each projectStore.activeComponents as component (component.id)}
@@ -113,7 +167,7 @@
       {/each}
     {/if}
 
-    <SelectionOverlay />
+    <SelectionOverlay region="content" regionOffset={headerHeight} />
 
     {#if projectStore.viewMode === "dashboard"}
       <PageIndicator
@@ -143,13 +197,25 @@
     background: #1a1a1a;
   }
 
+  .header-region {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  .header-divider {
+    width: 100%;
+    height: 1px;
+    background: var(--color-border);
+    opacity: 0.5;
+  }
+
   .canvas {
     width: 100%;
-    height: 100%;
     position: relative;
-    overflow: visible;
-    cursor: crosshair;
     overflow: hidden;
+    cursor: crosshair;
   }
 
   .canvas:focus {

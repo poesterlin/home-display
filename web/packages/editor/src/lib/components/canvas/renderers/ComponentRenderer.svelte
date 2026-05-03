@@ -11,6 +11,7 @@
   import ConditionalAreaRenderer from "./ConditionalAreaRenderer.svelte";
   import TabContainerRenderer from "./TabContainerRenderer.svelte";
   import TodoListRenderer from "./TodoListRenderer.svelte";
+  import AutoLayoutListRenderer from "./AutoLayoutListRenderer.svelte";
 
   interface Props {
     component: Component;
@@ -22,6 +23,8 @@
 
 {#if component.type === "text"}
   <TextRenderer {component} />
+{:else if (component as any).type === "auto_layout_list"}
+  <AutoLayoutListRenderer {component} />
 {:else if component.type === "button"}
   <ButtonRenderer {component} />
 {:else if component.type === "slider"}

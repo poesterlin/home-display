@@ -15,6 +15,7 @@ export type Component =
   | ContainerComponent
   | ImageComponent
   | TodoListComponent
+  | AutoLayoutListComponent
   | ConditionalAreaComponent
   | TabContainerComponent;
 export type TextComponent = BaseComponent & {
@@ -108,6 +109,24 @@ export type TodoListComponent = BaseComponent & {
   maxItems?: number;
   rowHeight?: number;
 };
+export type AutoLayoutListComponent = BaseComponent & {
+  type: "auto_layout_list";
+  direction?: "horizontal" | "vertical";
+  gap?: number;
+  padding?: number;
+  crossAxisAlign?: "start" | "center" | "end" | "stretch";
+  mainAxisJustify?: "start" | "center" | "end" | "space_between";
+  itemSizeMode?: "content" | "fixed";
+  itemWidth?: number;
+  itemHeight?: number;
+  /**
+   * @minItems 1
+   */
+  items: [AutoLayoutListItem, ...AutoLayoutListItem[]];
+};
+export type Condition = EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
+export type ComparisonOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "not_contains" | "matches";
+export type LogicalOperator = "and" | "or";
 export type ConditionalAreaComponent = BaseComponent & {
   type: "conditional_area";
   variants: ConditionalVariant[];
@@ -124,9 +143,6 @@ export type ConditionalAreaComponent = BaseComponent & {
    */
   clipContent?: boolean;
 };
-export type ComparisonOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "not_contains" | "matches";
-export type LogicalOperator = "and" | "or";
-export type Condition = EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
 export type TabContainerComponent = BaseComponent & {
   type: "tab_container";
   tabs: TabItem[];
@@ -154,6 +170,7 @@ export interface Project {
   detailViews: DetailView[];
   fonts?: FontDefinition[];
   secrets?: SecretsConfig;
+  pageHeader?: PageHeader;
 }
 export interface Theme {
   id: string;
@@ -290,34 +307,13 @@ export interface Color2 {
   g: number;
   b: number;
 }
-/**
- * A single variant/state within a conditional area
- */
-export interface ConditionalVariant {
+export interface AutoLayoutListItem {
   id: string;
-  /**
-   * Human-readable name for the editor UI
-   */
   name: string;
-  /**
-   * When null/undefined, this is the default/fallback variant
-   */
-  condition?: EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
-  /**
-   * Higher priority variants are evaluated first
-   */
-  priority?: number;
-  /**
-   * Components rendered when this variant is active
-   */
-  components: Component[];
-  transition?: {
-    type?: "none" | "fade" | "slide";
-    /**
-     * milliseconds
-     */
-    duration?: number;
-  };
+  condition?: Condition;
+  icon?: string;
+  color?: Color;
+  scale?: number;
 }
 /**
  * Condition based on a Home Assistant entity state
@@ -368,6 +364,35 @@ export interface NotCondition {
   condition: Condition;
 }
 /**
+ * A single variant/state within a conditional area
+ */
+export interface ConditionalVariant {
+  id: string;
+  /**
+   * Human-readable name for the editor UI
+   */
+  name: string;
+  /**
+   * When null/undefined, this is the default/fallback variant
+   */
+  condition?: EntityCondition | StateCondition | TimeCondition | CompoundCondition | NotCondition;
+  /**
+   * Higher priority variants are evaluated first
+   */
+  priority?: number;
+  /**
+   * Components rendered when this variant is active
+   */
+  components: Component[];
+  transition?: {
+    type?: "none" | "fade" | "slide";
+    /**
+     * milliseconds
+     */
+    duration?: number;
+  };
+}
+/**
  * A single tab inside a tab container
  */
 export interface TabItem {
@@ -410,4 +435,26 @@ export interface SecretsConfig {
    * Firmware update URL for OTA via HTTP (auto-populated from server)
    */
   firmwareUpdateUrl?: string;
+}
+/**
+ * Project-level page header shown on all dashboard pages
+ */
+export interface PageHeader {
+  /**
+   * Height of the header region in pixels
+   */
+  height: number;
+  backgroundColor?: Color3;
+  /**
+   * Components rendered in the header region (positions relative to header origin)
+   */
+  components: Component[];
+}
+/**
+ * Background color of the header region (falls back to theme background)
+ */
+export interface Color3 {
+  r: number;
+  g: number;
+  b: number;
 }

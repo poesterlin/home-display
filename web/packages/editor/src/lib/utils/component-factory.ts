@@ -81,6 +81,33 @@ export function createComponent(type: string, x: number, y: number): Component {
         rowHeight: 30,
       } as Component;
 
+    case "auto_layout_list":
+      return {
+        ...base,
+        type: "auto_layout_list",
+        size: { width: 140, height: 32 },
+        direction: "horizontal",
+        gap: 6,
+        padding: 0,
+        crossAxisAlign: "center",
+        mainAxisJustify: "start",
+        itemSizeMode: "content",
+        items: [
+          {
+            id: `auto-layout-item-${Date.now()}`,
+            name: "Item 1",
+            icon: "home",
+            scale: 1,
+          },
+          {
+            id: `auto-layout-item-${Date.now()}-2`,
+            name: "Item 2",
+            icon: "flash",
+            scale: 1,
+          },
+        ],
+      } as Component;
+
     case "conditional_area":
       return {
         ...base,
