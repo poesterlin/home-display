@@ -1683,6 +1683,10 @@ export function generateESPHomeYAML(project: Project): string {
   lines.push(`  power_save_mode: none`);
   lines.push(``);
 
+  // Allow provisioning WiFi credentials through fallback AP
+  lines.push(`captive_portal:`);
+  lines.push(``);
+
   // Logger
   lines.push(`logger:`);
   lines.push(`  level: WARN`);

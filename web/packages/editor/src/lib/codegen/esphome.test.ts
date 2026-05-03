@@ -272,7 +272,7 @@ describe("ESPHome YAML Generator - Performance Defaults", () => {
     expect(yaml).not.toContain("esp32_ble_tracker:");
     expect(yaml).not.toContain("bluetooth_proxy:");
     expect(yaml).not.toContain("esp32_improv:");
-    expect(yaml).not.toContain("captive_portal:");
+    expect(yaml).toContain("captive_portal:");
     expect(yaml).not.toContain("http_request:");
     expect(yaml).not.toContain("- platform: http_request");
     expect(yaml).not.toContain("source: !secret firmware_update_url");
