@@ -1,7 +1,12 @@
+# syntax=docker/dockerfile:1.7
 ARG BUN_VERSION=1.3.13
 FROM oven/bun:${BUN_VERSION} AS builder
 
-RUN apt-get update && apt-get install -y \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     docker.io \
     python3-pip \
     python3-venv && \
@@ -17,11 +22,16 @@ WORKDIR /app
 # Copy monorepo files
 COPY bun.lock package.json bunfig.toml ./
 
-# Copy packages
-COPY packages ./packages
+# Copy workspace manifests first (better dependency caching)
+COPY packages/editor/package.json ./packages/editor/package.json
+COPY packages/schema/package.json ./packages/schema/package.json
 
 # Install dependencies
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile
+
+# Copy packages
+COPY packages ./packages
 
 # Build all packages
 RUN bun run build
@@ -29,7 +39,11 @@ RUN bun run build
 # Production image
 FROM oven/bun:${BUN_VERSION}
 
-RUN apt-get update && apt-get install -y \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     docker.io \
     python3 \
     python3-venv && \
