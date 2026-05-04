@@ -186,6 +186,7 @@ export interface Project {
   fonts?: FontDefinition[];
   secrets?: SecretsConfig;
   pageHeader?: PageHeader;
+  notificationOverlay?: NotificationOverlayConfig;
 }
 export interface Theme {
   id: string;
@@ -472,4 +473,13 @@ export interface Color3 {
   r: number;
   g: number;
   b: number;
+}
+/**
+ * Global high-priority Home Assistant notification overlay settings
+ */
+export interface NotificationOverlayConfig {
+  enabled?: boolean;
+  titleEntityId?: string;
+  bodyEntityId?: string;
+  severityEntityId?: string;
 }

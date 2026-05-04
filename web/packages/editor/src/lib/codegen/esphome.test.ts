@@ -316,7 +316,7 @@ describe("ESPHome YAML Generator - Detail Views", () => {
     // Detail view should be a skipped page
     expect(yaml).toContain("id: detail_settings");
     expect(yaml).toContain("skip: true");
-    expect(yaml).not.toContain("top_layer:");
+    expect(yaml).toContain("top_layer:");
 
     // Should have back button that returns to the stored page
     expect(yaml).toContain("detail_view_active");
@@ -377,9 +377,8 @@ describe("ESPHome YAML Generator - Slider", () => {
 
     const yaml = generateESPHomeYAML(project);
 
-    // Should use on_change (user-only), NOT on_value (which fires on programmatic updates too)
+    // Should use on_change (user-only). on_value may still exist in other sections.
     expect(yaml).toContain("on_change:");
-    expect(yaml).not.toContain("on_value:");
 
     // Should have inline Home Assistant action call
     expect(yaml).toContain("homeassistant.action:");
@@ -851,5 +850,54 @@ describe("ESPHome YAML Generator - Container Performance Defaults", () => {
 
     expect(yaml).toContain('scrollbar_mode: "OFF"');
     expect(yaml).not.toContain("scrollbar_mode: auto");
+  });
+});
+
+describe("ESPHome YAML Generator - Notification Overlay", () => {
+  test("generates top layer notification overlay and HA bindings by default", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [],
+      },
+    ];
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).toContain("top_layer:");
+    expect(yaml).toContain("id: notification_overlay");
+    expect(yaml).toContain("id: notification_card");
+    expect(yaml).toContain("id: notification_title");
+    expect(yaml).toContain("id: notification_body");
+    expect(yaml).toContain("id: notification_severity");
+
+    expect(yaml).toContain("entity_id: input_text.notification_title");
+    expect(yaml).toContain("entity_id: input_text.notification_body");
+    expect(yaml).toContain("entity_id: input_select.notification_severity");
+    expect(yaml).toContain("id: update_notification_overlay");
+    expect(yaml).toContain("script.execute: update_notification_overlay");
+  });
+
+  test("does not generate overlay when notificationOverlay is disabled", () => {
+    const project = createMinimalProject();
+    project.dashboardPages = [
+      {
+        id: "page-1",
+        name: "Home",
+        components: [],
+      },
+    ];
+    project.notificationOverlay = {
+      enabled: false,
+    };
+
+    const yaml = generateESPHomeYAML(project);
+
+    expect(yaml).not.toContain("top_layer:");
+    expect(yaml).not.toContain("id: notification_overlay");
+    expect(yaml).not.toContain("id: update_notification_overlay");
+    expect(yaml).not.toContain("entity_id: input_text.notification_title");
   });
 });

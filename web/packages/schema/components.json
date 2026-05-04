@@ -779,6 +779,29 @@
       "required": ["height", "components"],
       "additionalProperties": false
     },
+    "NotificationOverlayConfig": {
+      "type": "object",
+      "description": "Global high-priority Home Assistant notification overlay settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "titleEntityId": {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[a-z0-9_]+$"
+        },
+        "bodyEntityId": {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[a-z0-9_]+$"
+        },
+        "severityEntityId": {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[a-z0-9_]+$"
+        }
+      },
+      "additionalProperties": false
+    },
     "DisplayConfig": {
       "type": "object",
       "properties": {
@@ -814,7 +837,8 @@
           "items": { "$ref": "#/definitions/FontDefinition" }
         },
         "secrets": { "$ref": "#/definitions/SecretsConfig" },
-        "pageHeader": { "$ref": "#/definitions/PageHeader" }
+        "pageHeader": { "$ref": "#/definitions/PageHeader" },
+        "notificationOverlay": { "$ref": "#/definitions/NotificationOverlayConfig" }
       },
       "required": ["name", "display", "dashboardPages", "detailViews"],
       "additionalProperties": false

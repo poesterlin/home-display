@@ -148,7 +148,14 @@ interface SensorBinding {
   attribute?: string | null;
   widgetId: string;
   sensorType: "numeric" | "text" | "binary";
-  widgetType: "label" | "arc" | "slider" | "button" | "todo_list" | "light_state";
+  widgetType:
+    | "label"
+    | "arc"
+    | "slider"
+    | "button"
+    | "todo_list"
+    | "light_state"
+    | "notification_overlay";
   unit?: string;
   maxItems?: number;
   listWidth?: number;
@@ -156,6 +163,46 @@ interface SensorBinding {
   lightOffText?: string;
   lightOnColor?: string;
   lightOffColor?: string;
+}
+
+interface NotificationOverlayRuntimeConfig {
+  enabled: boolean;
+  titleEntityId: string;
+  bodyEntityId: string;
+  severityEntityId: string;
+}
+
+const DEFAULT_NOTIFICATION_OVERLAY_ENTITY_IDS = {
+  titleEntityId: "input_text.notification_title",
+  bodyEntityId: "input_text.notification_body",
+  severityEntityId: "input_select.notification_severity",
+};
+
+const NOTIFICATION_OVERLAY_IDS = {
+  overlay: "notification_overlay",
+  card: "notification_card",
+  severity: "notification_severity",
+  title: "notification_title",
+  body: "notification_body",
+};
+
+function resolveNotificationOverlayConfig(
+  project: Project,
+): NotificationOverlayRuntimeConfig | null {
+  if (project.notificationOverlay?.enabled === false) return null;
+
+  return {
+    enabled: true,
+    titleEntityId:
+      project.notificationOverlay?.titleEntityId ??
+      DEFAULT_NOTIFICATION_OVERLAY_ENTITY_IDS.titleEntityId,
+    bodyEntityId:
+      project.notificationOverlay?.bodyEntityId ??
+      DEFAULT_NOTIFICATION_OVERLAY_ENTITY_IDS.bodyEntityId,
+    severityEntityId:
+      project.notificationOverlay?.severityEntityId ??
+      DEFAULT_NOTIFICATION_OVERLAY_ENTITY_IDS.severityEntityId,
+  };
 }
 
 interface ScriptAction {
@@ -1581,6 +1628,10 @@ function generateSensorUpdateLines(binding: SensorBinding): string[] {
 
       break;
     }
+    case "notification_overlay": {
+      lines.push(`      - script.execute: update_notification_overlay`);
+      break;
+    }
   }
   return lines;
 }
@@ -1589,8 +1640,34 @@ function generateSensorUpdateLines(binding: SensorBinding): string[] {
 
 export function generateESPHomeYAML(project: Project, firmwareVersion?: string): string {
   const lines: string[] = [];
-  const { sensorBindings, scriptActions, toggleButtons, conditionalAreas, tabContainers, autoLayoutLists, conditionEntityIds } =
+  const { sensorBindings: extractedSensorBindings, scriptActions, toggleButtons, conditionalAreas, tabContainers, autoLayoutLists, conditionEntityIds } =
     extractBindingsAndActions(project);
+  const sensorBindings = [...extractedSensorBindings];
+  const notificationOverlay = resolveNotificationOverlayConfig(project);
+  const hasNotificationOverlay = notificationOverlay !== null;
+
+  if (notificationOverlay) {
+    sensorBindings.push(
+      {
+        entityId: notificationOverlay.titleEntityId,
+        widgetId: NOTIFICATION_OVERLAY_IDS.title,
+        sensorType: "text",
+        widgetType: "notification_overlay",
+      },
+      {
+        entityId: notificationOverlay.bodyEntityId,
+        widgetId: NOTIFICATION_OVERLAY_IDS.body,
+        sensorType: "text",
+        widgetType: "notification_overlay",
+      },
+      {
+        entityId: notificationOverlay.severityEntityId,
+        widgetId: NOTIFICATION_OVERLAY_IDS.severity,
+        sensorType: "text",
+        widgetType: "notification_overlay",
+      },
+    );
+  }
   const hasDetailViews = (project.detailViews?.length ?? 0) > 0;
 
   // Header
@@ -2038,7 +2115,8 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
     scriptActions.length > 0 ||
     conditionalAreas.length > 0 ||
     autoLayoutLists.length > 0 ||
-    tabContainers.length > 0;
+    tabContainers.length > 0 ||
+    hasNotificationOverlay;
   if (hasScripts) {
     lines.push(`script:`);
 
@@ -2138,6 +2216,96 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
         }
       }
     }
+
+    if (hasNotificationOverlay) {
+      lines.push(`  - id: update_notification_overlay`);
+      lines.push(`    then:`);
+      lines.push(`      - lambda: |-`);
+      lines.push(
+        `          auto normalize = [](std::string value) -> std::string {`,
+      );
+      lines.push(`            const char *ws = " \t\r\n";`);
+      lines.push(`            size_t start = value.find_first_not_of(ws);`);
+      lines.push(`            if (start == std::string::npos) return "";`);
+      lines.push(`            size_t end = value.find_last_not_of(ws);`);
+      lines.push(`            value = value.substr(start, end - start + 1);`);
+      lines.push(`            std::string lower = value;`);
+      lines.push(`            for (char &ch : lower) {`);
+      lines.push(`              if (ch >= 'A' && ch <= 'Z') ch = char(ch - 'A' + 'a');`);
+      lines.push(`            }`);
+      lines.push(`            if (lower == "unknown" || lower == "unavailable" || lower == "none" || lower == "null") {`);
+      lines.push(`              return "";`);
+      lines.push(`            }`);
+      lines.push(`            return value;`);
+      lines.push(`          };`);
+      lines.push(``);
+      lines.push(
+        `          std::string title = normalize(id(${sensorId(notificationOverlay!.titleEntityId)}).state);`,
+      );
+      lines.push(
+        `          std::string body = normalize(id(${sensorId(notificationOverlay!.bodyEntityId)}).state);`,
+      );
+      lines.push(
+        `          std::string severity = normalize(id(${sensorId(notificationOverlay!.severityEntityId)}).state);`,
+      );
+      lines.push(``);
+      lines.push(`          if (title.empty() && body.empty()) {`);
+      lines.push(
+        `            lv_obj_add_flag(id(${NOTIFICATION_OVERLAY_IDS.overlay}), LV_OBJ_FLAG_HIDDEN);`,
+      );
+      lines.push(`            return;`);
+      lines.push(`          }`);
+      lines.push(``);
+      lines.push(`          if (title.empty()) title = "Notification";`);
+      lines.push(`          std::string severity_lower = severity;`);
+      lines.push(`          for (char &ch : severity_lower) {`);
+      lines.push(`            if (ch >= 'A' && ch <= 'Z') ch = char(ch - 'A' + 'a');`);
+      lines.push(`          }`);
+      lines.push(``);
+      lines.push(`          uint32_t severity_color = 0x4A9EFF;`);
+      lines.push(`          std::string severity_label = "INFO";`);
+      lines.push(`          if (severity_lower == "success" || severity_lower == "ok" || severity_lower == "good" || severity_lower == "resolved") {`);
+      lines.push(`            severity_color = 0x4CAF50;`);
+      lines.push(`            severity_label = "SUCCESS";`);
+      lines.push(`          } else if (severity_lower == "warn" || severity_lower == "warning" || severity_lower == "caution") {`);
+      lines.push(`            severity_color = 0xFF9800;`);
+      lines.push(`            severity_label = "WARNING";`);
+      lines.push(`          } else if (severity_lower == "critical" || severity_lower == "error" || severity_lower == "danger" || severity_lower == "alarm") {`);
+      lines.push(`            severity_color = 0xF44336;`);
+      lines.push(`            severity_label = "ERROR";`);
+      lines.push(`          }`);
+      lines.push(``);
+      lines.push(
+        `          lv_label_set_text(id(${NOTIFICATION_OVERLAY_IDS.severity}), severity_label.c_str());`,
+      );
+      lines.push(
+        `          lv_label_set_text(id(${NOTIFICATION_OVERLAY_IDS.title}), title.c_str());`,
+      );
+      lines.push(
+        `          lv_label_set_text(id(${NOTIFICATION_OVERLAY_IDS.body}), body.c_str());`,
+      );
+      lines.push(``);
+      lines.push(
+        `          lv_obj_set_style_border_color(id(${NOTIFICATION_OVERLAY_IDS.card}), lv_color_hex(severity_color), LV_PART_MAIN | LV_STATE_DEFAULT);`,
+      );
+      lines.push(
+        `          lv_obj_set_style_text_color(id(${NOTIFICATION_OVERLAY_IDS.severity}), lv_color_hex(severity_color), LV_PART_MAIN | LV_STATE_DEFAULT);`,
+      );
+      lines.push(``);
+      lines.push(`          if (body.empty()) {`);
+      lines.push(
+        `            lv_obj_add_flag(id(${NOTIFICATION_OVERLAY_IDS.body}), LV_OBJ_FLAG_HIDDEN);`,
+      );
+      lines.push(`          } else {`);
+      lines.push(
+        `            lv_obj_clear_flag(id(${NOTIFICATION_OVERLAY_IDS.body}), LV_OBJ_FLAG_HIDDEN);`,
+      );
+      lines.push(`          }`);
+      lines.push(``);
+      lines.push(
+        `          lv_obj_clear_flag(id(${NOTIFICATION_OVERLAY_IDS.overlay}), LV_OBJ_FLAG_HIDDEN);`,
+      );
+    }
     
     // Service call action scripts
     for (const action of scriptActions) {
@@ -2183,6 +2351,65 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
   // Add theme based on project theme
   const theme = project.theme ?? RETRO_THEME;
   lines.push(...generateLvglTheme(theme));
+
+  if (hasNotificationOverlay) {
+    const overlayWidth = Math.max(180, project.display.width - 24);
+    lines.push(`  top_layer:`);
+    lines.push(`    widgets:`);
+    lines.push(`      - obj:`);
+    lines.push(`          id: ${NOTIFICATION_OVERLAY_IDS.overlay}`);
+    lines.push(`          width: 100%`);
+    lines.push(`          height: 100%`);
+    lines.push(`          bg_opa: 0`);
+    lines.push(`          border_width: 0`);
+    lines.push(`          hidden: true`);
+    lines.push(`          widgets:`);
+    lines.push(`            - obj:`);
+    lines.push(`                width: 100%`);
+    lines.push(`                height: 82`);
+    lines.push(`                align: TOP_MID`);
+    lines.push(`                bg_color: 0x000000`);
+    lines.push(`                bg_opa: 40%`);
+    lines.push(`                border_width: 0`);
+    lines.push(`            - obj:`);
+    lines.push(`                id: ${NOTIFICATION_OVERLAY_IDS.card}`);
+    lines.push(`                align: TOP_MID`);
+    lines.push(`                y: 8`);
+    lines.push(`                width: ${overlayWidth}`);
+    lines.push(`                height: 66`);
+    lines.push(`                bg_color: 0x11161D`);
+    lines.push(`                bg_opa: 95%`);
+    lines.push(`                border_color: 0x4A9EFF`);
+    lines.push(`                border_width: 2`);
+    lines.push(`                radius: 10`);
+    lines.push(`                pad_all: 8`);
+    lines.push(`                widgets:`);
+    lines.push(`                  - label:`);
+    lines.push(`                      id: ${NOTIFICATION_OVERLAY_IDS.severity}`);
+    lines.push(`                      x: 0`);
+    lines.push(`                      y: 0`);
+    lines.push(`                      text: "INFO"`);
+    lines.push(`                      text_font: montserrat_12`);
+    lines.push(`                      text_color: 0x4A9EFF`);
+    lines.push(`                  - label:`);
+    lines.push(`                      id: ${NOTIFICATION_OVERLAY_IDS.title}`);
+    lines.push(`                      x: 0`);
+    lines.push(`                      y: 16`);
+    lines.push(`                      width: ${overlayWidth - 16}`);
+    lines.push(`                      text: "Notification"`);
+    lines.push(`                      text_font: montserrat_18`);
+    lines.push(`                      text_color: 0xFFFFFF`);
+    lines.push(`                      long_mode: DOT`);
+    lines.push(`                  - label:`);
+    lines.push(`                      id: ${NOTIFICATION_OVERLAY_IDS.body}`);
+    lines.push(`                      x: 0`);
+    lines.push(`                      y: 38`);
+    lines.push(`                      width: ${overlayWidth - 16}`);
+    lines.push(`                      text: ""`);
+    lines.push(`                      text_font: montserrat_14`);
+    lines.push(`                      text_color: 0xD5DEE8`);
+    lines.push(`                      long_mode: WRAP`);
+  }
   
   lines.push(`  pages:`);
 

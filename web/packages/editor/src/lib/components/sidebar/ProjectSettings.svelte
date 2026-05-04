@@ -12,9 +12,24 @@
   let { onClose }: Props = $props();
 
   const themes = [RETRO_THEME, MODERN_THEME];
+  const defaultNotificationOverlay = {
+    titleEntityId: "input_text.notification_title",
+    bodyEntityId: "input_text.notification_body",
+    severityEntityId: "input_select.notification_severity",
+  };
   
   let projectName = $state(projectStore.project?.name ?? "");
   let selectedThemeId = $state(projectStore.theme.id);
+  let notificationOverlayEnabled = $state(projectStore.project?.notificationOverlay?.enabled !== false);
+  let notificationTitleEntityId = $state(
+    projectStore.project?.notificationOverlay?.titleEntityId ?? defaultNotificationOverlay.titleEntityId
+  );
+  let notificationBodyEntityId = $state(
+    projectStore.project?.notificationOverlay?.bodyEntityId ?? defaultNotificationOverlay.bodyEntityId
+  );
+  let notificationSeverityEntityId = $state(
+    projectStore.project?.notificationOverlay?.severityEntityId ?? defaultNotificationOverlay.severityEntityId
+  );
   
   let newFontId = $state("");
   let newFontFile = $state("");
@@ -22,10 +37,26 @@
 
   function handleSave() {
     const theme = themes.find(t => t.id === selectedThemeId) ?? RETRO_THEME;
+
+    const notificationOverlay = notificationOverlayEnabled
+      ? {
+          enabled: true,
+          titleEntityId: notificationTitleEntityId.trim() || defaultNotificationOverlay.titleEntityId,
+          bodyEntityId: notificationBodyEntityId.trim() || defaultNotificationOverlay.bodyEntityId,
+          severityEntityId: notificationSeverityEntityId.trim() || defaultNotificationOverlay.severityEntityId,
+        }
+      : {
+          enabled: false,
+          titleEntityId: notificationTitleEntityId.trim() || defaultNotificationOverlay.titleEntityId,
+          bodyEntityId: notificationBodyEntityId.trim() || defaultNotificationOverlay.bodyEntityId,
+          severityEntityId: notificationSeverityEntityId.trim() || defaultNotificationOverlay.severityEntityId,
+        };
+
     projectStore.updateProject({
       name: projectName,
       display: { width: 480, height: 480 },
       theme,
+      notificationOverlay,
     });
     onClose();
   }
@@ -81,7 +112,7 @@
     <section>
       <h3>Theme</h3>
       <div class="theme-grid">
-        {#each themes as theme}
+        {#each themes as theme (theme.id)}
           <button 
             class="theme-card" 
             class:active={selectedThemeId === theme.id}
@@ -99,7 +130,7 @@
     <section>
       <h3>Fonts</h3>
       <div class="font-list">
-        {#each projectStore.fonts as font}
+        {#each projectStore.fonts as font (font.id)}
           <div class="font-item">
             <div class="font-info">
               <span class="font-id">{font.id}</span>
@@ -114,6 +145,55 @@
         <input placeholder="File (e.g. Arial.ttf)" bind:value={newFontFile} />
         <input type="number" bind:value={newFontSize} style="width: 60px" />
         <button class="secondary" onclick={addFont}>Add Font</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>Notification Overlay</h3>
+      <p class="section-hint">
+        Configure the top-priority Home Assistant notification overlay entities used by generated firmware.
+      </p>
+
+      <label class="checkbox-row" for="notification-overlay-enabled">
+        <input
+          id="notification-overlay-enabled"
+          type="checkbox"
+          bind:checked={notificationOverlayEnabled}
+        />
+        Enable global notification overlay
+      </label>
+
+      <div class="field">
+        <label for="notification-title-entity">Title Entity</label>
+        <input
+          id="notification-title-entity"
+          type="text"
+          bind:value={notificationTitleEntityId}
+          placeholder="input_text.notification_title"
+          disabled={!notificationOverlayEnabled}
+        />
+      </div>
+
+      <div class="field">
+        <label for="notification-body-entity">Body Entity</label>
+        <input
+          id="notification-body-entity"
+          type="text"
+          bind:value={notificationBodyEntityId}
+          placeholder="input_text.notification_body"
+          disabled={!notificationOverlayEnabled}
+        />
+      </div>
+
+      <div class="field">
+        <label for="notification-severity-entity">Severity Entity</label>
+        <input
+          id="notification-severity-entity"
+          type="text"
+          bind:value={notificationSeverityEntityId}
+          placeholder="input_select.notification_severity"
+          disabled={!notificationOverlayEnabled}
+        />
       </div>
     </section>
 
@@ -181,7 +261,7 @@
 
   label { font-size: 0.9rem; color: var(--color-text-secondary); }
   
-  input, select {
+  input {
     padding: var(--spacing-sm);
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
@@ -254,6 +334,18 @@
   }
 
   .add-font input { flex: 1; font-size: 0.8rem; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text-primary);
+  }
+
+  .checkbox-row input[type="checkbox"] {
+    margin-right: 0;
+  }
 
   .section-hint {
     font-size: 0.85rem;
