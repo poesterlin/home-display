@@ -11,6 +11,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.esphome.rule=Host(`esphome.oesterlin.dev`)"
       - "traefik.http.services.esphome.loadbalancer.server.port=3000"
+    volumes:
+      - esphome_builds:/tmp/esphome-builds
+
+volumes:
+  esphome_builds:
 
 networks:
   traefik_web:
