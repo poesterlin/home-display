@@ -16,6 +16,7 @@ import type {
   GaugeComponent,
   ContainerComponent,
   TodoListComponent,
+  LightStateComponent,
   ConditionalAreaComponent,
   TabContainerComponent,
   ConditionalVariant,
@@ -147,10 +148,14 @@ interface SensorBinding {
   attribute?: string | null;
   widgetId: string;
   sensorType: "numeric" | "text" | "binary";
-  widgetType: "label" | "arc" | "slider" | "button" | "todo_list";
+  widgetType: "label" | "arc" | "slider" | "button" | "todo_list" | "light_state";
   unit?: string;
   maxItems?: number;
   listWidth?: number;
+  lightOnText?: string;
+  lightOffText?: string;
+  lightOnColor?: string;
+  lightOffColor?: string;
 }
 
 interface ScriptAction {
@@ -369,6 +374,20 @@ function extractBindingsAndActions(project: Project) {
         widgetType: "todo_list",
         maxItems: Math.max(1, Math.min(10, comp.maxItems ?? 4)),
         listWidth: comp.size?.width ?? 220,
+      });
+    }
+
+    if (comp.type === "light_state" && comp.stateBinding) {
+      sensorBindings.push({
+        entityId: comp.stateBinding.entityId,
+        attribute: comp.stateBinding.attribute,
+        widgetId: wId,
+        sensorType: "binary",
+        widgetType: "light_state",
+        lightOnText: comp.onText?.trim() || "ON",
+        lightOffText: comp.offText?.trim() || "OFF",
+        lightOnColor: colorToHex(comp.onColor ?? { r: 255, g: 199, b: 64 }),
+        lightOffColor: colorToHex(comp.offColor ?? { r: 92, g: 102, b: 117 }),
       });
     }
 
@@ -612,6 +631,8 @@ function generateWidgetLines(comp: Component, level: number, ctx?: PageContext):
       return generateObjWidget(comp as ContainerComponent, level, ctx);
     case "todo_list":
       return generateTodoListWidget(comp as TodoListComponent, level);
+    case "light_state":
+      return generateLightStateWidget(comp as LightStateComponent, level);
     case "conditional_area":
       return generateConditionalAreaWidget(comp as ConditionalAreaComponent, level, ctx);
     case "tab_container":
@@ -701,6 +722,14 @@ function todoRowWidgetId(listWidgetId: string, rowIndex: number, part: "cb" | "s
   return `${listWidgetId}_r${rowIndex}_${part}`;
 }
 
+function lightStateWidgetId(widgetId: string, part: "pill" | "state"): string {
+  return `${widgetId}_${part}`;
+}
+
+function escapeCppString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function generateTodoListWidget(comp: TodoListComponent, level: number): string[] {
   const lines: string[] = [];
   const i = ind(level);
@@ -777,6 +806,72 @@ function generateTodoListWidget(comp: TodoListComponent, level: number): string[
     lines.push(`${i}                text_color: 0xFFC857`);
     lines.push(`${i}                hidden: true`);
   }
+
+  return lines;
+}
+
+function generateLightStateWidget(comp: LightStateComponent, level: number): string[] {
+  const lines: string[] = [];
+  const i = ind(level);
+  const wId = widgetId(comp.id);
+  const width = comp.size?.width ?? 120;
+  const height = comp.size?.height ?? 44;
+  const offText = comp.offText?.trim() || "OFF";
+  const offColor = colorToHex(comp.offColor ?? { r: 92, g: 102, b: 117 });
+  const showIcon = comp.showIcon !== false;
+  const label = (comp.label ?? "Light").replace(/"/g, '\\"');
+  const pillId = lightStateWidgetId(wId, "pill");
+  const stateId = lightStateWidgetId(wId, "state");
+
+  lines.push(`${i}- obj:`);
+  lines.push(`${i}    id: ${wId}`);
+  lines.push(`${i}    x: ${comp.position.x}`);
+  lines.push(`${i}    y: ${comp.position.y}`);
+  lines.push(`${i}    width: ${width}`);
+  lines.push(`${i}    height: ${height}`);
+  lines.push(`${i}    bg_color: 0x1B212C`);
+  lines.push(`${i}    bg_opa: 100%`);
+  lines.push(`${i}    border_color: 0x354253`);
+  lines.push(`${i}    border_width: 1`);
+  lines.push(`${i}    radius: 8`);
+  lines.push(`${i}    pad_all: 6`);
+  lines.push(...generateBaseStyleLines(comp, i));
+  lines.push(`${i}    widgets:`);
+
+  if (showIcon) {
+    lines.push(`${i}      - label:`);
+    lines.push(`${i}          x: 2`);
+    lines.push(`${i}          align: LEFT_MID`);
+    lines.push(`${i}          text: "*"`);
+    lines.push(`${i}          text_font: montserrat_14`);
+    lines.push(`${i}          text_color: 0xFFC740`);
+  }
+
+  lines.push(`${i}      - label:`);
+  lines.push(`${i}          x: ${showIcon ? 18 : 4}`);
+  lines.push(`${i}          align: LEFT_MID`);
+  lines.push(`${i}          text: "${label}"`);
+  lines.push(`${i}          text_font: montserrat_14`);
+  lines.push(`${i}          text_color: 0xF2F4F8`);
+
+  lines.push(`${i}      - obj:`);
+  lines.push(`${i}          id: ${pillId}`);
+  lines.push(`${i}          align: RIGHT_MID`);
+  lines.push(`${i}          x: -2`);
+  lines.push(`${i}          width: 42`);
+  lines.push(`${i}          height: 22`);
+  lines.push(`${i}          bg_color: ${offColor}`);
+  lines.push(`${i}          bg_opa: 100%`);
+  lines.push(`${i}          border_width: 0`);
+  lines.push(`${i}          radius: 11`);
+  lines.push(`${i}          pad_all: 0`);
+  lines.push(`${i}          widgets:`);
+  lines.push(`${i}            - label:`);
+  lines.push(`${i}                id: ${stateId}`);
+  lines.push(`${i}                align: CENTER`);
+  lines.push(`${i}                text: "${offText.replace(/"/g, '\\"')}"`);
+  lines.push(`${i}                text_font: montserrat_12`);
+  lines.push(`${i}                text_color: 0x0D1117`);
 
   return lines;
 }
@@ -1334,6 +1429,24 @@ function generateSensorUpdateLines(binding: SensorBinding): string[] {
       lines.push(`          state:`);
       lines.push(`            checked: !lambda return x;`);
       break;
+    case "light_state": {
+      const onText = escapeCppString(binding.lightOnText ?? "ON");
+      const offText = escapeCppString(binding.lightOffText ?? "OFF");
+      const onColor = binding.lightOnColor ?? "0xFFC740";
+      const offColor = binding.lightOffColor ?? "0x5C6675";
+      const pillId = lightStateWidgetId(binding.widgetId, "pill");
+      const stateId = lightStateWidgetId(binding.widgetId, "state");
+
+      lines.push(`      - lambda: |-`);
+      lines.push(`          const bool light_on = x;`);
+      lines.push(`          lv_label_set_text(id(${stateId}), light_on ? "${onText}" : "${offText}");`);
+      lines.push(`          lv_obj_set_style_bg_color(`);
+      lines.push(`            id(${pillId}),`);
+      lines.push(`            lv_color_hex(light_on ? ${onColor} : ${offColor}),`);
+      lines.push(`            LV_PART_MAIN | LV_STATE_DEFAULT`);
+      lines.push(`          );`);
+      break;
+    }
     case "todo_list": {
       const maxItems = Math.max(1, Math.min(10, binding.maxItems ?? 4));
       const dueNormalHex = "0xFFC857";

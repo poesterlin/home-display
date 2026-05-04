@@ -15,6 +15,7 @@ export type Component =
   | ContainerComponent
   | ImageComponent
   | TodoListComponent
+  | LightStateComponent
   | AutoLayoutListComponent
   | ConditionalAreaComponent
   | TabContainerComponent;
@@ -108,6 +109,20 @@ export type TodoListComponent = BaseComponent & {
   itemsBinding?: EntityBinding;
   maxItems?: number;
   rowHeight?: number;
+};
+export type LightStateComponent = BaseComponent & {
+  type: "light_state";
+  label?: string;
+  stateBinding?: EntityBinding;
+  targetDevice?: {
+    deviceId: string;
+    deviceName?: string;
+  };
+  onText?: string;
+  offText?: string;
+  showIcon?: boolean;
+  onColor?: Color;
+  offColor?: Color;
 };
 export type AutoLayoutListComponent = BaseComponent & {
   type: "auto_layout_list";

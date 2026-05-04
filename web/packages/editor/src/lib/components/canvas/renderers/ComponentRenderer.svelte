@@ -12,6 +12,7 @@
   import TabContainerRenderer from "./TabContainerRenderer.svelte";
   import TodoListRenderer from "./TodoListRenderer.svelte";
   import AutoLayoutListRenderer from "./AutoLayoutListRenderer.svelte";
+  import LightStateRenderer from "./LightStateRenderer.svelte";
 
   interface Props {
     component: Component;
@@ -41,6 +42,8 @@
   <ImageRenderer {component} />
 {:else if component.type === "todo_list"}
   <TodoListRenderer {component} />
+{:else if component.type === "light_state"}
+  <LightStateRenderer {component} />
 {:else if component.type === "conditional_area"}
   <ConditionalAreaRenderer {component} {parentOffset} />
 {:else if component.type === "tab_container"}

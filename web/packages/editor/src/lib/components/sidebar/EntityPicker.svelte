@@ -32,7 +32,7 @@
     if (component.type === "text") {
       return component.textBinding;
     }
-    if (component.type === "procedural_icon") {
+    if (component.type === "procedural_icon" || component.type === "light_state") {
       return component.stateBinding;
     }
     if (component.type === "todo_list") {

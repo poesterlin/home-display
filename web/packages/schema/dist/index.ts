@@ -17,6 +17,7 @@ export type ComponentType =
   | "container"
   | "image"
   | "todo_list"
+  | "light_state"
   | "auto_layout_list"
   | "conditional_area"
   | "tab_container";

@@ -14,6 +14,7 @@
     { type: "icon", label: "Icon", icon: "I", description: "MDI icon display" },
     { type: "auto_layout_list", label: "Auto List", icon: "AL", description: "Icon row/stack with conditions" },
     { type: "todo_list", label: "To-Do List", icon: "[]", description: "PSV to-do list preview" },
+    { type: "light_state", label: "Light State", icon: "LB", description: "Show light on/off state" },
     { type: "conditional_area", label: "Cond Area", icon: "?", description: "Dynamic content by condition" },
     { type: "tab_container", label: "Tabs", icon: "T+", description: "Named tabs with child content" },
   ];

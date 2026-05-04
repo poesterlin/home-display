@@ -81,6 +81,17 @@ export function createComponent(type: string, x: number, y: number): Component {
         rowHeight: 30,
       } as Component;
 
+    case "light_state":
+      return {
+        ...base,
+        type: "light_state",
+        label: "Light",
+        onText: "ON",
+        offText: "OFF",
+        showIcon: true,
+        size: { width: 120, height: 44 },
+      } as Component;
+
     case "auto_layout_list":
       return {
         ...base,

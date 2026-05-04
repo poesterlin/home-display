@@ -8,6 +8,7 @@
   import ConditionEditor from "./ConditionEditor.svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import { conditionalEditorStore } from "$lib/stores/conditional-editor.svelte";
+  import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
   import { describeCondition } from "$lib/utils/condition-utils";
   import type { ActionBinding } from "@esphome-designer/schema";
 
@@ -148,6 +149,17 @@
     if (!selectedAutoLayoutComponent) return;
     historyStore.record(`Move auto layout item ${direction}`);
     (projectStore as any).reorderAutoLayoutItem(selectedAutoLayoutComponent.id, itemId, direction);
+  }
+
+  function pickLightEntityForDevice(deviceId: string): string | undefined {
+    const entities = homeAssistantStore.getEntitiesByDevice(deviceId);
+    const preferred = entities.find((entity) => entity.domain === "light");
+    if (preferred) return preferred.entity_id;
+
+    const fallback = entities.find((entity) =>
+      ["switch", "binary_sensor", "input_boolean", "fan"].includes(entity.domain),
+    );
+    return fallback?.entity_id;
   }
 
 </script>
@@ -603,6 +615,92 @@
               )}
           />
         </div>
+      </div>
+    {/if}
+
+    {#if selectedComponent.type === "light_state"}
+      <div class="property-section">
+        <label class="section-label">Light State</label>
+        <div class="field">
+          <span class="field-label">Label</span>
+          <input
+            type="text"
+            value={selectedComponent.label ?? ""}
+            oninput={(e) => updateProperty("label", e.currentTarget.value)}
+          />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <span class="field-label">On Text</span>
+            <input
+              type="text"
+              value={selectedComponent.onText ?? "ON"}
+              oninput={(e) => updateProperty("onText", e.currentTarget.value)}
+            />
+          </div>
+          <div class="field">
+            <span class="field-label">Off Text</span>
+            <input
+              type="text"
+              value={selectedComponent.offText ?? "OFF"}
+              oninput={(e) => updateProperty("offText", e.currentTarget.value)}
+            />
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Show Icon</span>
+          <input
+            type="checkbox"
+            checked={selectedComponent.showIcon !== false}
+            onchange={(e) => updateProperty("showIcon", e.currentTarget.checked)}
+          />
+        </div>
+      </div>
+
+      <div class="property-section">
+        <label class="section-label">Target</label>
+        <div class="field-group">
+          <label class="group-label">Entity Target</label>
+          <EntityPicker
+            component={selectedComponent}
+            onUpdate={(binding) => {
+              updateProperty("stateBinding", binding);
+              if (binding) updateProperty("targetDevice", undefined);
+            }}
+          />
+        </div>
+        <div class="field-group">
+          <label class="group-label">Device Target</label>
+          <EntityPicker
+            component={selectedComponent}
+            deviceOnly={true}
+            onDeviceSelect={(device) => {
+              updateProperty("targetDevice", device);
+              if (!device) {
+                updateProperty("stateBinding", undefined);
+                return;
+              }
+              const autoEntityId = pickLightEntityForDevice(device.deviceId);
+              if (autoEntityId) {
+                updateProperty("stateBinding", { entityId: autoEntityId });
+              }
+            }}
+          />
+        </div>
+      </div>
+
+      <div class="property-section">
+        <label class="section-label">Styling</label>
+        <ColorPicker
+          label="On Color"
+          value={selectedComponent.onColor}
+          onUpdate={(color) => updateProperty("onColor", color)}
+        />
+        <ColorPicker
+          label="Off Color"
+          value={selectedComponent.offColor}
+          onUpdate={(color) => updateProperty("offColor", color)}
+        />
       </div>
     {/if}
 

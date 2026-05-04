@@ -575,6 +575,34 @@
         }
       ]
     },
+    "LightStateComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "light_state" },
+            "label": { "type": "string" },
+            "stateBinding": { "$ref": "#/definitions/EntityBinding" },
+            "targetDevice": {
+              "type": "object",
+              "properties": {
+                "deviceId": { "type": "string" },
+                "deviceName": { "type": "string" }
+              },
+              "required": ["deviceId"],
+              "additionalProperties": false
+            },
+            "onText": { "type": "string", "default": "ON" },
+            "offText": { "type": "string", "default": "OFF" },
+            "showIcon": { "type": "boolean", "default": true },
+            "onColor": { "$ref": "#/definitions/Color" },
+            "offColor": { "$ref": "#/definitions/Color" }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
     "Component": {
       "oneOf": [
         { "$ref": "#/definitions/TextComponent" },
@@ -586,6 +614,7 @@
         { "$ref": "#/definitions/ContainerComponent" },
         { "$ref": "#/definitions/ImageComponent" },
         { "$ref": "#/definitions/TodoListComponent" },
+        { "$ref": "#/definitions/LightStateComponent" },
         { "$ref": "#/definitions/AutoLayoutListComponent" },
         { "$ref": "#/definitions/ConditionalAreaComponent" },
         { "$ref": "#/definitions/TabContainerComponent" }
