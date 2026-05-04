@@ -1807,10 +1807,10 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
   lines.push(`    pclk_inverted: true`);
   lines.push(`    hsync_pulse_width: 8`);
   lines.push(`    hsync_front_porch: 10`);
-  lines.push(`    hsync_back_porch: 20`);
+  lines.push(`    hsync_back_porch: 50`);
   lines.push(`    vsync_pulse_width: 8`);
   lines.push(`    vsync_front_porch: 10`);
-  lines.push(`    vsync_back_porch: 10`);
+  lines.push(`    vsync_back_porch: 20`);
   lines.push(`    update_interval: never`);
   lines.push(`    auto_clear_enabled: false`);
   lines.push(`    init_sequence:`);

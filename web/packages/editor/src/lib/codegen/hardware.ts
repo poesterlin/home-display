@@ -82,10 +82,10 @@ display:
     pclk_inverted: true
     hsync_pulse_width: 8
     hsync_front_porch: 10
-    hsync_back_porch: 20
+    hsync_back_porch: 50
     vsync_pulse_width: 8
     vsync_front_porch: 10
-    vsync_back_porch: 10
+    vsync_back_porch: 20
     update_interval: never
     auto_clear_enabled: false
     init_sequence:
