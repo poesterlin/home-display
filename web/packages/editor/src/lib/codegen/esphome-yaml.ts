@@ -1,0 +1,165 @@
+import type { Project, LightStateComponent } from "@esphome-designer/schema";
+import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents } from "./utils";
+
+function generateBindings(project: Project): string {
+  const lines: string[] = [];
+  const allComponents = collectAllComponents([
+    ...project.dashboardPages.flatMap(p => p.components),
+    ...project.detailViews.flatMap(v => v.components),
+  ]);
+  for (const c of allComponents) {
+    if (c.type !== 'light_state') continue;
+    const lc = c as LightStateComponent;
+    const entityId = lc.stateBinding?.entityId;
+    if (!entityId) continue;
+    const stateVar = stateVarFromEntity(entityId);
+    lines.push(`          bind_ha_bool("${entityId}", &g_ui_app.state().${stateVar});`);
+  }
+  return lines.join('\n');
+}
+
+export function generateESPHomeYAML(project: Project, _firmwareVersion?: string): string {
+  const deviceName = sanitizeDeviceName(project.name);
+  const friendlyName = project.name;
+  const bindings = generateBindings(project);
+
+  return `substitutions:
+  device_name: ${deviceName}
+  friendly_name: "${friendlyName}"
+
+packages:
+  base: !include base.yaml
+  fonts: !include fonts.yaml
+  hardware: !include hardware.yaml
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          g_theme.header.font = id(font_medium);
+          g_theme.label.font = id(font_small);
+          g_theme.primary.font = id(font_medium);
+          g_theme.accent.font = id(font_small);
+          g_theme.neutral.font = id(font_small);
+          g_theme.success.font = id(font_small);
+          g_ui_app.on_action = [](const std::string& entity_id, const std::string& service) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr || !api->is_connected()) return;
+
+            esphome::api::HomeAssistantServiceCallAction<> call(api, false);
+            call.set_service(service);
+            call.init_data(1);
+            call.add_data("entity_id", entity_id);
+            call.play();
+          };
+          UiRedraw::set_display_updater([]() { id(main_display).update(); });
+          UiRedraw::request_full();
+          id(main_display).update();
+
+          auto bind_ha_bool = [](const std::string& entity_id, Observable<bool>* target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(),
+                [target](esphome::StringRef state) {
+                  bool on = (state.size() == 2 && state.c_str()[0] == 'o'
+                             && state.c_str()[1] == 'n');
+                  target->set(on);
+                  UiRedraw::trigger_display_update();
+                });
+          };
+${bindings ? bindings + '\n' : ''}  includes:
+    - includes/ui_types.h
+    - includes/ui_state.h
+    - includes/ui_invalidation.h
+    - includes/ui_redraw.h
+    - includes/ui_widgets.h
+    - includes/ui_chrome.h
+    - includes/ui_screen_base.h
+    - includes/ui_screens.h
+    - includes/ui_app.h
+    - includes/ui_touch.h
+    - includes/ui_renderer.h
+    - includes/ui_tab_container.h
+    - includes/ui_scrollable_detail.h
+
+globals:
+  - id: touch_last_x
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: touch_last_y
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+touchscreen:
+  platform: gt911
+  id: touch_gt911
+  i2c_id: touch_i2c
+  display: main_display
+  update_interval: 16ms
+  on_touch:
+    - lambda: |-
+        id(touch_last_x) = touch.x;
+        id(touch_last_y) = touch.y;
+        BasicTouchHandler::handle_raw_touch(touch.x, touch.y, true);
+        if (UiInvalidation::needs_redraw()) {
+          id(main_display).update();
+        }
+  on_update:
+    - lambda: |-
+        for (auto &t : touches) {
+          id(touch_last_x) = t.x;
+          id(touch_last_y) = t.y;
+          BasicTouchHandler::handle_raw_touch(t.x, t.y, true);
+        }
+        if (UiInvalidation::needs_redraw()) {
+          id(main_display).update();
+        }
+  on_release:
+    - lambda: |-
+        BasicTouchHandler::handle_raw_touch(id(touch_last_x), id(touch_last_y), false);
+        if (UiInvalidation::needs_redraw()) {
+          id(main_display).update();
+        }
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          if (now - g_ui_app.last_interaction_time > 20000) {
+            auto screen_id = g_ui_app.screens().current_id();
+            if (screen_id == UiScreenId::Home
+                && g_ui_app.state().home_page_index != 0) {
+              g_ui_app.state().home_page_index = 0;
+              UiInvalidation::request_full();
+            } else if (screen_id != UiScreenId::Home) {
+              g_ui_app.screens().navigate_to(UiScreenId::Home);
+            } else {
+              UiInvalidation::request_partial();
+            }
+          } else {
+            UiInvalidation::request_partial();
+          }
+          id(main_display).update();
+
+# Dummy: forces ESPHome to compile api::HomeAssistantServiceCallAction
+# so the generic C++ lambda in on_boot can use it for dynamic service calls.
+script:
+  - id: _ha_flag
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: none
+
+binary_sensor:
+  - platform: homeassistant
+    entity_id: sun.sun
+    id: _ha_state_flag
+    internal: true
+`;
+}

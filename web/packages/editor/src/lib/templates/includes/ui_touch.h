@@ -39,6 +39,7 @@ class BasicTouchHandler {
         .dx = x - start_x,
         .dy = y - start_y,
     };
+    g_ui_app.touch_activity();
     g_ui_app.on_touch_event(event);
   }
 };

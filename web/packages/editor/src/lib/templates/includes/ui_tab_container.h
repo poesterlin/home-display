@@ -40,8 +40,10 @@ class TabContainerWidget : public Widget {
   bool handle_touch(const TouchEvent &event, uint32_t now) override {
     if (event.type == TouchType::Tap) {
       int tab_idx = hit_test_tab(event.x, event.y);
-      if (tab_idx >= 0 && tab_idx != active_tab_) {
-        switch_to_tab(tab_idx);
+      if (tab_idx >= 0) {
+        if (tab_idx != active_tab_) {
+          switch_to_tab(tab_idx);
+        }
         return true;
       }
     }
