@@ -92,12 +92,6 @@ i2c:
     number: GPIO45
     ignore_strapping_warning: true
 
-touchscreen:
-  platform: gt911
-  id: touch_gt911
-  i2c_id: touch_i2c
-  display: main_display
-
 spi:
   id: lcd_spi
   clk_pin: GPIO48
@@ -128,7 +122,7 @@ display:
       width: 480
       height: 480
     spi_mode: MODE3
-    data_rate: 2MHz
+    data_rate: 10MHz
     color_order: RGB
     invert_colors: false
     cs_pin: 39
@@ -136,28 +130,24 @@ display:
     hsync_pin: 16
     vsync_pin: 17
     pclk_pin: 21
-    pclk_frequency: 14MHz
+    pclk_frequency: 12MHz
     pclk_inverted: false
     hsync_pulse_width: 8
     hsync_front_porch: 10
-    hsync_back_porch: 50
+    hsync_back_porch: 20
     vsync_pulse_width: 8
     vsync_front_porch: 10
-    vsync_back_porch: 20
-    update_interval: never
+    vsync_back_porch: 10
+    update_interval: 16ms
     auto_clear_enabled: false
     init_sequence:
-      # PAGE0
       - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
       - [0xC0, 0x3B, 0x00]
       - [0xC1, 0x0D, 0x02]
       - [0xC2, 0x31, 0x05]
       - [0xCD, 0x00]
-      # Positive Voltage Gamma
       - [0xB0, 0x00, 0x11, 0x18, 0x0E, 0x11, 0x06, 0x07, 0x08, 0x07, 0x22, 0x04, 0x12, 0x0F, 0xAA, 0x31, 0x18]
-      # Negative Voltage Gamma
       - [0xB1, 0x00, 0x11, 0x19, 0x0E, 0x12, 0x07, 0x08, 0x08, 0x08, 0x22, 0x04, 0x11, 0x11, 0xA9, 0x32, 0x18]
-      # PAGE1
       - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x11]
       - [0xB0, 0x60]
       - [0xB1, 0x32]
@@ -180,20 +170,27 @@ display:
       - [0xEB, 0x02, 0x00, 0xE4, 0xE4, 0x88, 0x00, 0x40]
       - [0xEC, 0x3C, 0x00]
       - [0xED, 0xAB, 0x89, 0x76, 0x54, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x20, 0x45, 0x67, 0x98, 0xBA]
-      # VAP & VAN
       - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x13]
       - [0xE5, 0xE4]
-      # PAGE0
       - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x00]
-      - [0x3A, 0x60]  # RGB666
+      - [0x3A, 0x60]
       - delay 10ms
-      - [0x11]  # Sleep Out
+      - [0x11]
       - delay 120ms
-      - [0x29]  # Display On
+      - [0x29]
     data_pins:
       red: [11, 12, 13, 14, 0]
       green: [8, 20, 3, 46, 9, 10]
       blue: [4, 5, 6, 7, 15]
+    lambda: |-
+      render_basic_ui(it);
+
+switch:
+  - platform: gpio
+    name: Relay 2
+    pin:
+      number: GPIO2
+      inverted: true
 
 # Setup instructions displayed on first boot
 lvgl:

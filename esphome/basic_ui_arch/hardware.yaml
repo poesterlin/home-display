@@ -1,13 +1,5 @@
-/**
- * LVGL Hardware Package Generator
- *
- * Returns the hardware YAML for the Guition ESP32-S3-4848S040
- * (4.0" 480x480 ST7701S RGB + GT911 Touch).
- */
-
-export function generateHardwareYAML(): string {
-  return `# LVGL Hardware Configuration
-# Guition ESP32-S3-4848S040 (4.0" 480x480 ST7701S RGB + GT911 Touch)
+# Hardware configuration for Guition ESP32-S3-4848S040
+# 4.0" 480x480 ST7701S RGB display + GT911 touch (no LVGL)
 
 i2c:
   id: touch_i2c
@@ -63,7 +55,7 @@ display:
     vsync_pulse_width: 8
     vsync_front_porch: 10
     vsync_back_porch: 10
-    update_interval: 16ms
+    update_interval: never
     auto_clear_enabled: false
     init_sequence:
       - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10]
@@ -116,12 +108,3 @@ switch:
     pin:
       number: GPIO2
       inverted: true
-
-lvgl:
-  id: my_lvgl
-  disp_bg_color: 0x000000
-  buffer_size: 100%
-  touchscreens:
-    - touch_gt911
-`;
-}

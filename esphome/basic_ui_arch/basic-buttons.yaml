@@ -1,0 +1,67 @@
+substitutions:
+  device_name: status-basic
+  friendly_name: "Status Display Basic Architecture"
+
+packages:
+  base: !include base.yaml
+  fonts: !include ../packages/fonts.yaml
+  hardware: !include hardware.yaml
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          g_theme.header.font = id(font_medium);
+          g_theme.label.font = id(font_small);
+          g_theme.primary.font = id(font_medium);
+          g_theme.accent.font = id(font_small);
+          g_theme.neutral.font = id(font_small);
+          g_theme.success.font = id(font_small);
+          UiRedraw::request_full();
+          id(main_display).update();
+  includes:
+    - includes/ui_types.h
+    - includes/ui_state.h
+    - includes/ui_invalidation.h
+    - includes/ui_redraw.h
+    - includes/ui_widgets.h
+    - includes/ui_screens.h
+    - includes/ui_app.h
+    - includes/ui_touch.h
+    - includes/ui_renderer.h
+
+globals:
+  - id: touch_last_x
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: touch_last_y
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+touchscreen:
+  platform: gt911
+  id: touch_gt911
+  i2c_id: touch_i2c
+  display: main_display
+  update_interval: 16ms
+  on_touch:
+    - lambda: |-
+        id(touch_last_x) = touch.x;
+        id(touch_last_y) = touch.y;
+        BasicTouchHandler::handle_raw_touch(touch.x, touch.y, true);
+  on_update:
+    - lambda: |-
+        for (auto &t : touches) {
+          id(touch_last_x) = t.x;
+          id(touch_last_y) = t.y;
+          BasicTouchHandler::handle_raw_touch(t.x, t.y, true);
+        }
+  on_release:
+    - lambda: |-
+        BasicTouchHandler::handle_raw_touch(id(touch_last_x), id(touch_last_y), false);
+        if (UiInvalidation::needs_redraw()) {
+          id(main_display).update();
+        }
