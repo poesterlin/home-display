@@ -147,19 +147,6 @@ class LabelWidget : public Widget {
   std::function<void(display::Display&, int, int, esphome::font::Font*, Color, TextAlign)> printer_;
 };
 
-struct EntityAction {
-  const char *entity_id;
-  const char *service;
-};
-
-inline std::function<void()> make_service_callback(const EntityAction &action) {
-  return [action]() {
-    (void)action;
-    // Override with ESPHome service call, e.g.:
-    // esphome::api::call_service(action.service, ..., {{"entity_id", action.entity_id}});
-  };
-}
-
 class ButtonWidget : public Widget {
  public:
   using Callback = std::function<void()>;
@@ -167,22 +154,37 @@ class ButtonWidget : public Widget {
   ButtonWidget(UiRect rect, const char *label, Callback callback, const Theme::ButtonStyle &style)
       : rect_(rect), label_(label), callback_(callback), style_(&style) {}
 
-  ButtonWidget(UiRect rect, const char *label, const EntityAction &action, const Theme::ButtonStyle &style)
-      : rect_(rect), label_(label), callback_(make_service_callback(action)), style_(&style) {}
-
   void update(uint32_t now) override {
     if (loading_timeout_ms_ > 0 && loading_ && (now - loading_start_ms_ > loading_timeout_ms_)) {
       loading_ = false;
+      UiInvalidation::request_partial(); // Request redraw when loading ends
     }
   }
 
   bool handle_touch(const TouchEvent &event, uint32_t now) override {
     if (event.type != TouchType::Tap) return false;
     if (loading_) return false;
+    
+    // Safety: Don't trigger if API is not connected to avoid crashes
+    if (esphome::api::global_api_server == nullptr || !esphome::api::global_api_server->is_connected()) {
+      return false;
+    }
+
     if (!hit_test(event.x, event.y)) return false;
     loading_ = true;
     loading_start_ms_ = now;
+    UiInvalidation::request_partial(); // Request redraw when loading starts
     if (callback_) callback_();
+
+    // Schedule a delayed reset to end the loading state and trigger redraw
+    char name_buf[24];
+    snprintf(name_buf, sizeof(name_buf), "btn_%p", this);
+    esphome::App.scheduler.set_timeout(nullptr, name_buf, loading_timeout_ms_,
+        [this]() {
+          loading_ = false;
+          UiInvalidation::request_partial();
+          UiRedraw::trigger_display_update();
+        });
     return true;
   }
 
@@ -218,102 +220,4 @@ class ButtonWidget : public Widget {
   bool loading_ = false;
   uint32_t loading_start_ms_ = 0;
   uint32_t loading_timeout_ms_ = 350;
-};
-
-class VBox : public Widget {
- public:
-  VBox(UiRect rect) : rect_(rect) {}
-  VBox(int x, int y, int w, int h) : rect_{x, y, w, h} {}
-
-  void add_child(std::unique_ptr<Widget> child) {
-    children_.push_back(std::move(child));
-  }
-
-  template<typename T, typename... Args>
-  T* emplace_child(Args&&... args) {
-    auto child = std::make_unique<T>(std::forward<Args>(args)...);
-    T* ptr = child.get();
-    children_.push_back(std::move(child));
-    return ptr;
-  }
-
-  void layout() override {
-    int y_offset = rect_.y;
-    for (auto &child : children_) {
-      child->layout();
-      y_offset += spacing_;
-    }
-    cached_child_count_ = children_.size();
-  }
-
-  void update(uint32_t now) override {
-    for (auto &child : children_) child->update(now);
-  }
-
-  bool handle_touch(const TouchEvent &event, uint32_t now) override {
-    for (auto &child : children_) {
-      if (child->handle_touch(event, now)) return true;
-    }
-    return false;
-  }
-
-  void draw(display::Display &it, const UiState &state) override {
-    for (auto &child : children_) child->draw(it, state);
-  }
-
-  void set_spacing(int s) { spacing_ = s; }
-
- private:
-  UiRect rect_;
-  int spacing_ = 4;
-  size_t cached_child_count_ = 0;
-  std::vector<std::unique_ptr<Widget>> children_;
-};
-
-class HBox : public Widget {
- public:
-  HBox(UiRect rect) : rect_(rect) {}
-  HBox(int x, int y, int w, int h) : rect_{x, y, w, h} {}
-
-  void add_child(std::unique_ptr<Widget> child) {
-    children_.push_back(std::move(child));
-  }
-
-  template<typename T, typename... Args>
-  T* emplace_child(Args&&... args) {
-    auto child = std::make_unique<T>(std::forward<Args>(args)...);
-    T* ptr = child.get();
-    children_.push_back(std::move(child));
-    return ptr;
-  }
-
-  void layout() override {
-    int x_offset = rect_.x;
-    for (auto &child : children_) {
-      child->layout();
-      x_offset += spacing_;
-    }
-  }
-
-  void update(uint32_t now) override {
-    for (auto &child : children_) child->update(now);
-  }
-
-  bool handle_touch(const TouchEvent &event, uint32_t now) override {
-    for (auto &child : children_) {
-      if (child->handle_touch(event, now)) return true;
-    }
-    return false;
-  }
-
-  void draw(display::Display &it, const UiState &state) override {
-    for (auto &child : children_) child->draw(it, state);
-  }
-
-  void set_spacing(int s) { spacing_ = s; }
-
- private:
-  UiRect rect_;
-  int spacing_ = 4;
-  std::vector<std::unique_ptr<Widget>> children_;
 };

@@ -13,7 +13,9 @@ class UiApp {
   void init() {
     if (initialized_) return;
     initialized_ = true;
-    setup_ui_screens(screens_, state_);
+    setup_ui_screens(screens_, state_, [this](const std::string& e, const std::string& a) {
+      if (this->on_action) this->on_action(e, a);
+    });
     UiRedraw::request_full();
   }
 
@@ -40,6 +42,12 @@ class UiApp {
 
   ScreenController& screens() { return screens_; }
   UiState& state() { return state_; }
+
+  std::function<void(const std::string&, const std::string&)> on_action;
+
+  void dispatch_action(const std::string& entity_id, const std::string& action) {
+    if (on_action) on_action(entity_id, action);
+  }
 
  private:
   bool initialized_ = false;

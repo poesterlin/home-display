@@ -18,6 +18,17 @@ esphome:
           g_theme.accent.font = id(font_small);
           g_theme.neutral.font = id(font_small);
           g_theme.success.font = id(font_small);
+          g_ui_app.on_action = [](const std::string& entity_id, const std::string& service) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr || !api->is_connected()) return;
+
+            esphome::api::HomeAssistantServiceCallAction<> call(api, false);
+            call.set_service(service);
+            call.init_data(1);
+            call.add_data("entity_id", entity_id);
+            call.play();
+          };
+          UiRedraw::set_display_updater([]() { id(main_display).update(); });
           UiRedraw::request_full();
           id(main_display).update();
   includes:
@@ -65,3 +76,13 @@ touchscreen:
         if (UiInvalidation::needs_redraw()) {
           id(main_display).update();
         }
+
+# Dummy: forces ESPHome to compile api::HomeAssistantServiceCallAction
+# so the generic C++ lambda in on_boot can use it for dynamic service calls.
+script:
+  - id: _ha_flag
+    then:
+      - homeassistant.service:
+          service: switch.toggle
+          data:
+            entity_id: none

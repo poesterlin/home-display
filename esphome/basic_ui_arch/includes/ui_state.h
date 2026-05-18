@@ -55,4 +55,5 @@ struct UiState {
   UiScreenId current_screen = UiScreenId::Home;
   Observable<bool> button_a_on{false};
   Observable<bool> button_b_on{false};
+  Observable<bool> led_switch{false};
 };

@@ -28,13 +28,14 @@ inline void ui_fast_filled_rectangle(display::Display &it, int x, int y, int w, 
 inline void ui_fast_fill(display::Display &it, Color color) { ui_fast_filled_rectangle(it, 0, 0, it.get_width(), it.get_height(), color); }
 
 inline void render_basic_ui(display::Display &it) {
+  const uint32_t now = millis();
+  g_ui_app.update(now);
+
   if (!UiInvalidation::needs_redraw()) {
     return;
   }
 
   UiRedraw::begin_draw();
-  const uint32_t now = millis();
-  g_ui_app.update(now);
   g_ui_app.draw(it, now);
   UiRedraw::end_draw();
 }

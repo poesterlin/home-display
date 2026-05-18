@@ -142,9 +142,21 @@ class ScreenController {
   std::vector<std::unique_ptr<GenericScreen>> owned_screens_;
 };
 
-inline void setup_ui_screens(ScreenController &screens, UiState &state) {
+struct EntityAction {
+  const char *entity_id;
+  const char *service;
+};
+
+inline void setup_ui_screens(ScreenController &screens, UiState &state, 
+                           std::function<void(const std::string&, const std::string&)> on_action) {
   auto *home = screens.get_screen(UiScreenId::Home);
   auto *actions = screens.get_screen(UiScreenId::Actions);
+
+  auto make_ha_callback = [on_action](const char* entity, const char* service) {
+    return [on_action, entity, service]() {
+      if (on_action) on_action(entity, service);
+    };
+  };
 
   home->emplace_widget<LabelWidget>(UiRect{10, 10, 100, 20}, "HOME", g_theme.header);
 
@@ -160,6 +172,16 @@ inline void setup_ui_screens(ScreenController &screens, UiState &state) {
 
   home->emplace_widget<ButtonWidget>(UiRect{20, 170, 200, 60}, "TOGGLE A",
       [&state]() { state.button_a_on = !state.button_a_on; }, g_theme.accent);
+
+  // LED Switch Section
+  home->emplace_widget<RectWidget>(UiRect{10, 240, 220, 20}, g_theme.info_bg);
+  {
+    auto *info = home->emplace_widget<LabelWidget>(UiRect{10, 240, 220, 20}, "", g_theme.label);
+    info->bind(state.led_switch.ptr(), "LED: ON", "LED: OFF");
+  }
+
+  home->emplace_widget<ButtonWidget>(UiRect{20, 270, 200, 60}, "LED SWITCH",
+      make_ha_callback("switch.led_stehlampe_switch", "switch.toggle"), g_theme.success);
 
   actions->emplace_widget<LabelWidget>(UiRect{10, 10, 100, 20}, "ACTIONS", g_theme.header);
 
