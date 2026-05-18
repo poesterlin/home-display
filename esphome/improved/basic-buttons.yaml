@@ -4,7 +4,7 @@ substitutions:
 
 packages:
   base: !include base.yaml
-  fonts: !include ../packages/fonts.yaml
+  fonts: !include fonts.yaml
   hardware: !include hardware.yaml
 
 esphome:
@@ -31,6 +31,22 @@ esphome:
           UiRedraw::set_display_updater([]() { id(main_display).update(); });
           UiRedraw::request_full();
           id(main_display).update();
+
+          // Generic HA state binding — one binary_sensor below enables
+          // USE_API_HOMEASSISTANT_STATES, then C++ handles dynamic subscriptions.
+          auto bind_ha_bool = [](const std::string& entity_id, Observable<bool>* target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(),
+                [target](esphome::StringRef state) {
+                  bool on = (state.size() == 2 && state.c_str()[0] == 'o'
+                             && state.c_str()[1] == 'n');
+                  target->set(on);
+                  UiRedraw::trigger_display_update();
+                });
+          };
+          bind_ha_bool("switch.led_stehlampe_switch", &g_ui_app.state().led_switch);
   includes:
     - includes/ui_types.h
     - includes/ui_state.h
@@ -86,3 +102,12 @@ script:
           service: switch.toggle
           data:
             entity_id: none
+
+# Dummy: enables api::global_api_server->subscribe_home_assistant_state().
+# Without at least one homeassistant platform sensor, the flag
+# USE_API_HOMEASSISTANT_STATES is not compiled.
+binary_sensor:
+  - platform: homeassistant
+    entity_id: sun.sun
+    id: _ha_state_flag
+    internal: true
