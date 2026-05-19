@@ -122,6 +122,7 @@ export type LightStateComponent = BaseComponent & {
   onText?: string;
   offText?: string;
   showIcon?: boolean;
+  icon?: string;
   onColor?: Color;
   offColor?: Color;
 };

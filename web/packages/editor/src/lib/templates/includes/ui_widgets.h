@@ -3,6 +3,7 @@
 #include "esphome.h"
 #include "ui_invalidation.h"
 #include "ui_types.h"
+#include <cmath>
 #include <memory>
 #include <vector>
 #include <functional>
@@ -60,7 +61,27 @@ class Widget {
   virtual void enter() {}
   virtual void exit() {}
   virtual void layout() {}
-  virtual void update(uint32_t now) {}
+
+  // Default update() polls the visibility_check_ lambda and self-marks dirty
+  // when its result flips. This is what makes conditional-area variants (and
+  // anything else using set_visibility_condition) repaint when the underlying
+  // state changes -- the codegen sets a visibility lambda on each variant
+  // child, and this poll detects the flip from active->inactive / vice versa.
+  //
+  // Subclasses that override update() MUST call Widget::update(now) at the
+  // end (or beginning) or they'll lose visibility-driven dirty marking.
+  virtual void update(uint32_t now) {
+    (void)now;
+    if (visibility_check_) {
+      const bool current = visibility_check_();
+      if (!visibility_baseline_set_ || current != last_visibility_) {
+        mark_dirty();
+        last_visibility_ = current;
+        visibility_baseline_set_ = true;
+      }
+    }
+  }
+
   virtual bool handle_touch(const TouchEvent &event, uint32_t now) { return false; }
   virtual void draw(display::Display &it, const UiState &state) = 0;
 
@@ -70,10 +91,21 @@ class Widget {
   // the full screen, which means "I might be anywhere -> always redraw me".
   virtual UiRect bounds() const { return UiRect{0, 0, 480, 480}; }
 
+  // Override the rect that mark_dirty() invalidates. By default mark_dirty
+  // invalidates bounds(); widgets inside a "container" like a conditional
+  // area set this to the container rect so that when they (dis)appear, the
+  // shared background + sibling variant widgets all repaint together. Without
+  // this, a small per-widget dirty rect would cause the bg to fill the whole
+  // container and erase siblings that don't intersect the dirty rect.
+  void set_dirty_bounds(UiRect b) {
+    dirty_bounds_ = b;
+    has_custom_dirty_bounds_ = true;
+  }
+
   // Mark this widget's bounds dirty so it (and only it) is redrawn on the
   // next render pass. Use this from state-change handlers / update() polls.
   void mark_dirty() {
-    const auto b = bounds();
+    const UiRect b = has_custom_dirty_bounds_ ? dirty_bounds_ : bounds();
     UiInvalidation::request_rect(UiDirtyRect{b.x, b.y, b.w, b.h});
   }
 
@@ -97,6 +129,10 @@ class Widget {
 
  protected:
   std::function<bool()> visibility_check_;
+  UiRect dirty_bounds_{0, 0, 0, 0};
+  bool has_custom_dirty_bounds_ = false;
+  bool last_visibility_ = false;
+  bool visibility_baseline_set_ = false;
 };
 
 class RectWidget : public Widget {
@@ -153,13 +189,13 @@ class LabelWidget : public Widget {
   // what makes the "only the label that actually changed redraws" optimisation
   // work for the common bound-bool case (LED on/off, button A/B, etc.).
   void update(uint32_t now) override {
-    (void)now;
     if (bound_bool_ != nullptr) {
       const bool current = *bound_bool_;
       if (!bool_baseline_set_ || current != last_bool_) {
         mark_dirty();
       }
     }
+    Widget::update(now);
   }
 
   void draw(display::Display &it, const UiState &state) override {
@@ -259,6 +295,7 @@ class ButtonWidget : public Widget {
       loading_ = false;
       mark_dirty();
     }
+    Widget::update(now);
   }
 
   bool handle_touch(const TouchEvent &event, uint32_t now) override {
@@ -336,6 +373,138 @@ class ButtonWidget : public Widget {
   bool loading_ = false;
   uint32_t loading_start_ms_ = 0;
   uint32_t loading_timeout_ms_ = 350;
+};
+
+class ImageToggleWidget : public Widget {
+ public:
+  using Callback = std::function<void()>;
+
+  ImageToggleWidget(UiRect rect, const char *label, const bool *on_state,
+                    const char *icon_glyph, Callback callback,
+                    Color on_color = Color(255, 180, 0),
+                    Color off_color = Color(80, 80, 80))
+      : rect_(rect), label_(label), on_state_(on_state),
+        icon_glyph_(icon_glyph), callback_(std::move(callback)), on_color_(on_color),
+        off_color_(off_color) {}
+
+  void bind(const bool *on_state) { on_state_ = on_state; }
+
+  UiRect bounds() const override { return rect_; }
+
+  void update(uint32_t now) override {
+    if (loading_timeout_ms_ > 0 && loading_ &&
+        (now - loading_start_ms_ > loading_timeout_ms_)) {
+      loading_ = false;
+      mark_dirty();
+    }
+    if (on_state_ != nullptr) {
+      bool current = *on_state_;
+      if (current != last_on_state_) {
+        mark_dirty();
+      }
+    }
+    Widget::update(now);
+  }
+
+  bool handle_touch(const TouchEvent &event, uint32_t now) override {
+    if (event.type != TouchType::Tap) return false;
+    if (loading_) return false;
+
+    if (esphome::api::global_api_server == nullptr ||
+        !esphome::api::global_api_server->is_connected()) {
+      return false;
+    }
+
+    if (!hit_test(event.x, event.y)) return false;
+    loading_ = true;
+    loading_start_ms_ = now;
+    mark_dirty();
+    if (callback_) callback_();
+
+    char name_buf[24];
+    snprintf(name_buf, sizeof(name_buf), "itg_%p", this);
+    esphome::App.scheduler.set_timeout(
+        nullptr, name_buf, loading_timeout_ms_, [this]() {
+          loading_ = false;
+          mark_dirty();
+          UiRedraw::trigger_display_update();
+        });
+    return true;
+  }
+
+  void draw(display::Display &it, const UiState &state) override {
+    (void)state;
+
+    bool is_on = on_state_ != nullptr ? *on_state_ : false;
+
+    Color base = Color(40, 40, 40);
+    Color icon_color = is_on ? on_color_ : off_color_;
+
+    it.rectangle(rect_.x, rect_.y, rect_.w, rect_.h, icon_color);
+    ui_fast_filled_rectangle(it, rect_.x + 1, rect_.y + 1, rect_.w - 2,
+                             rect_.h - 2, base);
+
+    if (loading_) {
+      float angle = (millis() % 1000) * 2.0f * 3.14159265f / 1000.0f;
+      int cx = rect_.x + 28;
+      int cy = rect_.y + rect_.h / 2;
+      int r = 10;
+      it.line(cx, cy, cx + (int)(cosf(angle) * r),
+              cy + (int)(sinf(angle) * r), icon_color);
+      if (label_ != nullptr && g_theme.label.font != nullptr) {
+        it.printf(rect_.x + 52, rect_.y + rect_.h / 2, g_theme.label.font,
+                  icon_color, TextAlign::CENTER_LEFT, "%s", label_);
+      }
+      return;
+    }
+
+    int icon_x = rect_.x + 28;
+    int icon_y = rect_.y + rect_.h / 2;
+    const bool has_mdi_icon =
+        icon_glyph_ != nullptr && icon_glyph_[0] != '\0' &&
+        g_theme.icon.font != nullptr;
+
+    if (has_mdi_icon) {
+      it.printf(icon_x, icon_y, g_theme.icon.font, icon_color, TextAlign::CENTER,
+                "%s", icon_glyph_);
+    } else {
+      it.circle(icon_x, icon_y, 9, icon_color);
+      if (is_on) {
+        it.filled_circle(icon_x, icon_y, 6, icon_color);
+        for (int i = 0; i < 8; i++) {
+          float a = i * 3.14159265f / 4.0f;
+          it.line(icon_x + (int)(cosf(a) * 11), icon_y + (int)(sinf(a) * 11),
+                  icon_x + (int)(cosf(a) * 15), icon_y + (int)(sinf(a) * 15), icon_color);
+        }
+      }
+    }
+
+    if (label_ != nullptr && g_theme.label.font != nullptr) {
+      it.printf(rect_.x + 52, rect_.y + rect_.h / 2, g_theme.label.font,
+                Color(255, 255, 255), TextAlign::CENTER_LEFT, "%s", label_);
+    }
+
+    last_on_state_ = is_on;
+  }
+
+ private:
+  bool hit_test(int tx, int ty) const {
+    const int sx = rect_.w < 40 ? 15 : (rect_.w < 60 ? 10 : 0);
+    const int sy = rect_.h < 40 ? 15 : (rect_.h < 60 ? 10 : 0);
+    return rect_.contains(tx, ty, sx, sy);
+  }
+
+  UiRect rect_;
+  const char *label_;
+  const bool *on_state_ = nullptr;
+  const char *icon_glyph_ = nullptr;
+  Callback callback_;
+  Color on_color_;
+  Color off_color_;
+  bool loading_ = false;
+  uint32_t loading_start_ms_ = 0;
+  uint32_t loading_timeout_ms_ = 350;
+  bool last_on_state_ = false;
 };
 
 #include "ui_tab_container.h"

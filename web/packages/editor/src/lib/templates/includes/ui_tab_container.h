@@ -113,6 +113,7 @@ class TabContainerWidget : public Widget {
     for (auto &w : tabs_[active_tab_].widgets) {
       w->update(now);
     }
+    Widget::update(now);
   }
 
  private:

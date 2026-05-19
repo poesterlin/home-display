@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { LightStateComponent } from "@esphome-designer/schema";
   import Draggable from "../Draggable.svelte";
+  import * as mdiIcons from "@mdi/js";
   import { colorToCss } from "$lib/utils/color-utils";
 
   interface Props {
@@ -9,43 +10,71 @@
 
   let { component }: Props = $props();
 
-  const onText = $derived(component.onText?.trim() || "ON");
   const offText = $derived(component.offText?.trim() || "OFF");
-  const showIcon = $derived(component.showIcon !== false);
+  const useImageToggle = $derived(component.showIcon !== false);
   const showBrightnessControl = $derived(component.showBrightnessControl === true);
   const hasBrightnessTarget = $derived(
     !!component.stateBinding?.entityId || !!component.targetDevice?.deviceId,
   );
 
+  const label = $derived(component.label?.trim() || "Light");
+  const iconName = $derived((component.icon?.trim() || "lightbulb").replace(/^mdi:/, ""));
+  const iconPath = $derived.by(() => {
+    const iconKey = "mdi" + iconName
+      .split(/[-_]/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join("");
+    const path = (mdiIcons as Record<string, unknown>)[iconKey];
+    return typeof path === "string" ? path : null;
+  });
   const offColor = $derived(colorToCss(component.offColor, "rgb(92, 102, 117)"));
 </script>
 
 <Draggable {component}>
   <div class="light-state-card" style:width="100%" style:height="100%">
-    {#if showIcon}
-      <span class="bulb">💡</span>
-    {/if}
-    <span class="label">{component.label || "Light"}</span>
-    <span class="state-pill" style:background-color={offColor}>
-      {offText}
-    </span>
-    <div class="bindings">
-      {#if component.stateBinding}
-        {component.stateBinding.entityId}
-      {:else}
-        Bind a light entity
-      {/if}
-    </div>
-    {#if showBrightnessControl}
-      <div class="brightness-row">
-        <span class="brightness-label">Brightness</span>
-        <div class="brightness-track">
-          <div class="brightness-fill" style:background-color={offColor}></div>
+    {#if useImageToggle}
+      <div class="image-toggle" style:border-color={offColor}>
+        <div class="icon-wrap" style:color={offColor}>
+          {#if iconPath}
+            <svg viewBox="0 0 24 24" class="icon-svg">
+              <path d={iconPath} fill="currentColor" />
+            </svg>
+          {:else}
+            <span class="icon-fallback">{iconName || "?"}</span>
+          {/if}
         </div>
-        {#if !hasBrightnessTarget}
-          <span class="brightness-hint">no target</span>
+        <span class="label">{label}</span>
+      </div>
+      <div class="bindings">
+        {#if component.stateBinding}
+          {component.stateBinding.entityId}
+        {:else}
+          Bind a light entity
         {/if}
       </div>
+    {:else}
+      <span class="label">{label}</span>
+      <span class="state-pill" style:background-color={offColor}>
+        {offText}
+      </span>
+      <div class="bindings">
+        {#if component.stateBinding}
+          {component.stateBinding.entityId}
+        {:else}
+          Bind a light entity
+        {/if}
+      </div>
+      {#if showBrightnessControl}
+        <div class="brightness-row">
+          <span class="brightness-label">Brightness</span>
+          <div class="brightness-track">
+            <div class="brightness-fill" style:background-color={offColor}></div>
+          </div>
+          {#if !hasBrightnessTarget}
+            <span class="brightness-hint">no target</span>
+          {/if}
+        </div>
+      {/if}
     {/if}
   </div>
 </Draggable>
@@ -53,7 +82,7 @@
 <style>
   .light-state-card {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 1fr auto;
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
@@ -62,10 +91,6 @@
     background: rgba(20, 24, 32, 0.7);
     box-sizing: border-box;
     overflow: hidden;
-  }
-
-  .bulb {
-    font-size: 14px;
   }
 
   .label {
@@ -128,5 +153,41 @@
   .brightness-hint {
     font-size: 10px;
     color: #8fa0b5;
+  }
+
+  .image-toggle {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid;
+    border-radius: 8px;
+    background: rgba(8, 10, 14, 0.45);
+  }
+
+  .icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+  }
+
+  .icon-svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .icon-fallback {
+    max-width: 24px;
+    font-size: 9px;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: lowercase;
   }
 </style>

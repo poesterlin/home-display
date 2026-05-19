@@ -83,9 +83,9 @@ class PageIndicatorWidget : public Widget {
   }
 
   void update(uint32_t now) override {
-    (void)now;
     // Page swipes mark full dirty already (see ScreenController), but
     // covering the bare-minimum case is cheap.
+    Widget::update(now);
   }
 
  private:
@@ -111,7 +111,6 @@ class HeaderWidget : public Widget {
   // human-visible has actually changed. This is what lets the 10s interval
   // tick redraw only the header (~3ms) instead of the whole screen (~60ms).
   void update(uint32_t now) override {
-    (void)now;
     bool changed = false;
 
     const bool t_active = timer_active_ ? *timer_active_ : false;
@@ -136,6 +135,7 @@ class HeaderWidget : public Widget {
     }
 
     if (changed) mark_dirty();
+    Widget::update(now);
   }
 
   void draw(display::Display& it, const UiState& state) override {

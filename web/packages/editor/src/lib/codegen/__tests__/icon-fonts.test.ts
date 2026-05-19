@@ -199,6 +199,36 @@ describe("collectProjectIconNames", () => {
     });
     expect(collectProjectIconNames(project)).toEqual(new Set(["lightbulb"]));
   });
+
+  test("includes light_state icon only when image toggle is enabled", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Page",
+          components: [
+            {
+              id: "l1",
+              type: "light_state",
+              position: { x: 0, y: 0 },
+              size: { width: 120, height: 44 },
+              showIcon: true,
+              icon: "ceiling-light",
+            },
+            {
+              id: "l2",
+              type: "light_state",
+              position: { x: 0, y: 60 },
+              size: { width: 120, height: 44 },
+              showIcon: false,
+              icon: "light-flood-down",
+            },
+          ],
+        },
+      ],
+    });
+    expect(collectProjectIconNames(project)).toEqual(new Set(["ceiling-light"]));
+  });
 });
 
 describe("getMdiCodepoint / getMdiUtf8CEscape", () => {
@@ -407,6 +437,52 @@ describe("generateUIScreensHeader icon emission", () => {
     const out = generateUIScreensHeader(project);
     expect(out).toContain("Unknown icon 'not-a-real-icon'");
     expect(out).not.toContain("emplace_widget<IconWidget>");
+  });
+
+  test("light_state image toggle emits configured MDI glyph", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Page",
+          components: [
+            {
+              id: "l1",
+              type: "light_state",
+              position: { x: 0, y: 0 },
+              size: { width: 120, height: 44 },
+              icon: "ceiling-light",
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain("emplace_widget<ImageToggleWidget>");
+    expect(out).toContain(getMdiUtf8CEscape("ceiling-light")!);
+  });
+
+  test("light_state defaults tap action to bound entity toggle", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Page",
+          components: [
+            {
+              id: "l1",
+              type: "light_state",
+              position: { x: 0, y: 0 },
+              size: { width: 120, height: 44 },
+              showIcon: true,
+              stateBinding: { entityId: "switch.led_stehlampe_switch" },
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain('make_ha_callback("switch.led_stehlampe_switch", "switch.toggle")');
   });
 });
 

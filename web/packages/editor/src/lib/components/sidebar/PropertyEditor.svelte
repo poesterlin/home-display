@@ -655,6 +655,15 @@
             onchange={(e) => updateProperty("showIcon", e.currentTarget.checked)}
           />
         </div>
+        {#if selectedComponent.showIcon !== false}
+          <div class="field">
+            <span class="field-label">Icon</span>
+            <IconSearcher
+              value={selectedComponent.icon ?? "lightbulb"}
+              onSelect={(icon) => updateProperty("icon", icon || "lightbulb")}
+            />
+          </div>
+        {/if}
         <div class="field">
           <span class="field-label">Brightness</span>
           <input
@@ -1017,8 +1026,8 @@
       </div>
     {/if}
 
-    <!-- Actions section for all components except sliders (which have onChange) -->
-    {#if selectedComponent.type !== "slider"}
+    <!-- Actions section for components with configurable tap actions -->
+    {#if selectedComponent.type !== "slider" && selectedComponent.type !== "light_state"}
       <div class="property-section">
         <label class="section-label">Actions</label>
         <ActionEditor

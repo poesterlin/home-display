@@ -7,6 +7,7 @@ import type {
   ButtonComponent,
   AutoLayoutListComponent,
   AutoLayoutListItem,
+  LightStateComponent,
 } from "@esphome-designer/schema";
 
 export function toCppIdentifier(name: string): string {
@@ -99,7 +100,8 @@ export function normalizeIconName(name: string | undefined | null): string {
  * Walk all components in a project (dashboards, detail views, page header)
  * and collect the set of normalized icon names referenced by them.
  *
- * Currently inspects: `icon`, `button.icon`, and `auto_layout_list` item icons.
+ * Currently inspects: `icon`, `button.icon`, `light_state.icon`, and
+ * `auto_layout_list` item icons.
  */
 export function collectProjectIconNames(project: Project): Set<string> {
   const icons = new Set<string>();
@@ -115,6 +117,11 @@ export function collectProjectIconNames(project: Project): Set<string> {
         addIcon((c as IconComponent).icon);
       } else if (c.type === "button") {
         addIcon((c as ButtonComponent).icon);
+      } else if (c.type === "light_state") {
+        const light = c as LightStateComponent;
+        if (light.showIcon !== false) {
+          addIcon(light.icon ?? "lightbulb");
+        }
       } else if (c.type === "auto_layout_list") {
         const list = c as AutoLayoutListComponent;
         for (const item of list.items as AutoLayoutListItem[]) {

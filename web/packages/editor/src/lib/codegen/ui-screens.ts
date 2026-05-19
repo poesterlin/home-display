@@ -76,8 +76,23 @@ function emitTapAction(action: OnTapAction | undefined): string {
   return '';
 }
 
+function emitLightToggleAction(c: LightStateComponent): string {
+  const explicit = emitTapAction(c.onTap);
+  if (explicit) return explicit;
+
+  const entityId = c.stateBinding?.entityId;
+  if (!entityId) return '';
+  const domain = entityId.split('.')[0];
+  if (!domain) return '';
+
+  // Default behavior for light-state components:
+  // if no explicit onTap is configured, toggle the bound entity.
+  return `make_ha_callback("${entityId}", "${domain}.toggle")`;
+}
+
 function generateLightWidget(c: LightStateComponent, stateVar: string,
-    factory: WidgetFactory, indent: string, offX = 0, offY = 0, visibilityExpr?: string): string {
+    factory: WidgetFactory, indent: string, offX = 0, offY = 0, visibilityExpr?: string,
+    dirtyBoundsExpr?: string): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
   const w = c.size?.width ?? 200;
@@ -85,24 +100,44 @@ function generateLightWidget(c: LightStateComponent, stateVar: string,
   const label = c.label ?? 'Light';
   const onText = c.onText ?? 'ON';
   const offText = c.offText ?? 'OFF';
-  const callback = emitTapAction(c.onTap);
+  const callback = emitLightToggleAction(c);
+  const useImageToggle = c.showIcon !== false;
+  const onColor = c.onColor ? emitColor(c.onColor) : 'Color(255, 180, 0)';
+  const offColor = c.offColor ? emitColor(c.offColor) : 'Color(80, 80, 80)';
+  const iconName = c.icon ?? 'lightbulb';
+  const iconGlyph = getMdiUtf8CEscape(iconName);
   const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const dirtyLine = (name: string) => dirtyBoundsExpr
+    ? `${indent}${name}->set_dirty_bounds(${dirtyBoundsExpr});\n`
+    : '';
 
   let out = '';
+  if (useImageToggle) {
+    out += `${indent}auto *light_toggle_${idSafe} = ${factory('ImageToggleWidget', `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(label)}", state.${stateVar}.ptr(), "${iconGlyph ?? ''}", ${callback || '[](){}'}, ${onColor}, ${offColor}`)};\n`;
+    if (visibilityExpr) {
+      out += `${indent}light_toggle_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+    }
+    out += dirtyLine(`light_toggle_${idSafe}`);
+    return out;
+  }
+
   out += `${indent}auto *light_bg_${idSafe} = ${factory('RectWidget', `UiRect{${x}, ${y}, ${w}, 20}, g_theme.info_bg`)};\n`;
   if (visibilityExpr) {
     out += `${indent}light_bg_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
   }
+  out += dirtyLine(`light_bg_${idSafe}`);
   out += `${indent}auto *light_lbl_${idSafe} = ${factory('LabelWidget', `UiRect{${x}, ${y}, ${w}, 20}, "", g_theme.label`)};\n`;
-  out += `${indent}light_lbl_${idSafe}->bind(state.${stateVar}.ptr(), "${onText}", "${offText}");\n`;
+  out += `${indent}light_lbl_${idSafe}->bind(state.${stateVar}.ptr(), "${escapeCString(onText)}", "${escapeCString(offText)}");\n`;
   if (visibilityExpr) {
     out += `${indent}light_lbl_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
   }
+  out += dirtyLine(`light_lbl_${idSafe}`);
   if (callback) {
     out += `${indent}auto *light_btn_${idSafe} = ${factory('ButtonWidget', `UiRect{${x + 10}, ${y + 30}, ${w - 20}, ${h - 30}}, "${escapeCString(label)}", ${callback}, g_theme.primary`)};\n`;
     if (visibilityExpr) {
       out += `${indent}light_btn_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
     }
+    out += dirtyLine(`light_btn_${idSafe}`);
   }
   return out;
 }
@@ -114,11 +149,20 @@ function generateComponentSetup(
     visibilityExpr?: string,
     offsetX = 0,
     offsetY = 0,
+    // When set, every top-level widget this function creates will call
+    // set_dirty_bounds(dirtyBoundsExpr). Used by conditional areas so that
+    // any variant child marking itself dirty (visibility flip OR internal
+    // state change) invalidates the WHOLE area rect, forcing the shared bg +
+    // currently-visible sibling widgets to repaint together. Without this, a
+    // small per-widget dirty rect would cause the area bg to fill and erase
+    // siblings whose own bounds don't intersect the dirty rect.
+    dirtyBoundsExpr?: string,
 ): string {
   const factory: WidgetFactory = (typeName, args) =>
     `${screenVar}->emplace_widget<${typeName}>(${args})`;
   const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
   const visLine = visibilityExpr ? `\n${indent}${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
+  const dirtyLine = dirtyBoundsExpr ? `\n${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});` : '';
 
   switch (c.type) {
     case 'text': {
@@ -130,13 +174,13 @@ function generateComponentSetup(
         medium: 'g_theme.header',
         large: 'g_theme.header',
       };
-      return `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(text)}", ${fontMap[fontSize]}`)};${visLine}\n`;
+      return `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(text)}", ${fontMap[fontSize]}`)};${visLine}${dirtyLine}\n`;
     }
     case 'button': {
       const label = c.label ?? '';
       const callback = emitTapAction(c.onTap ?? c.pressAction);
       const rect = `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 80}, ${c.size?.height ?? 36}}`;
-      let out = `${indent}auto *${idSafe} = ${factory('ButtonWidget', `${rect}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};${visLine}\n`;
+      let out = `${indent}auto *${idSafe} = ${factory('ButtonWidget', `${rect}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};${visLine}${dirtyLine}\n`;
       const iconGlyph = c.icon ? getMdiUtf8CEscape(c.icon) : null;
       if (iconGlyph) {
         out += `${indent}${idSafe}->set_icon("${iconGlyph}", &g_theme.icon);\n`;
@@ -144,14 +188,14 @@ function generateComponentSetup(
       return out;
     }
     case 'icon': {
-      return generateIconWidget(c, factory, indent, offsetX, offsetY, visibilityExpr);
+      return generateIconWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
-      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr);
+      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'tab_container':
-      return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
+      return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY, dirtyBoundsExpr);
     case 'conditional_area':
       return generateConditionalAreaWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
     default:
@@ -166,6 +210,7 @@ function generateIconWidget(
     offsetX: number,
     offsetY: number,
     visibilityExpr?: string,
+    dirtyBoundsExpr?: string,
 ): string {
   const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
   const glyph = getMdiUtf8CEscape(c.icon);
@@ -180,6 +225,9 @@ function generateIconWidget(
   }
   if (visibilityExpr) {
     out += `${indent}${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  if (dirtyBoundsExpr) {
+    out += `${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
   }
   return out;
 }
@@ -251,6 +299,15 @@ function generateConditionalAreaWidget(
   const areaH = c.size?.height ?? 0;
   const variantsInOrder = orderVariants(c);
   const defaultIndex = findDefaultVariantIndex(variantsInOrder, c.defaultVariantId);
+  // Children of a conditional area variant treat the whole area as their
+  // dirty rect: when any of them marks itself dirty (visibility flip on a
+  // variant change, or an internal value change), the area bg + every
+  // currently-visible sibling repaints together. Without this, a small per-
+  // child dirty rect would cause the bg RectWidget to fill the whole area
+  // and erase siblings whose own bounds don't intersect the dirty rect.
+  const dirtyBoundsExpr = (areaW > 0 && areaH > 0)
+    ? `UiRect{${areaX}, ${areaY}, ${areaW}, ${areaH}}`
+    : undefined;
 
   let out = '';
   out += `${indent}// Conditional area: ${c.id}\n`;
@@ -260,6 +317,8 @@ function generateConditionalAreaWidget(
     if (parentVisibilityExpr) {
       out += `${indent}${bgVar}->set_visibility_condition(${parentVisibilityExpr});\n`;
     }
+    // bg's own bounds == area, so default mark_dirty() invalidates the
+    // right rect on parent-visibility flip; no set_dirty_bounds needed.
   }
 
   for (let i = 0; i < variantsInOrder.length; i++) {
@@ -275,7 +334,7 @@ function generateConditionalAreaWidget(
     }
 
     for (const child of variant.components) {
-      out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY);
+      out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY, dirtyBoundsExpr);
     }
   }
 
@@ -289,6 +348,7 @@ function generateTabContainerWidget(
     visibilityExpr?: string,
     offX = 0,
     offY = 0,
+    dirtyBoundsExpr?: string,
 ): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
@@ -302,6 +362,9 @@ function generateTabContainerWidget(
   out += `${indent}auto *${varName} = ${screenVar}->emplace_widget<TabContainerWidget>(UiRect{${x}, ${y}, ${w}, ${h}}, g_theme.info_bg, g_theme.primary, ${clip});\n`;
   if (visibilityExpr) {
     out += `${indent}${varName}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  if (dirtyBoundsExpr) {
+    out += `${indent}${varName}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
   }
   out += `${indent}const Color ${bgVar} = g_theme.info_bg;\n`;
 
@@ -318,7 +381,7 @@ function generateTabContainerWidget(
 
   for (let i = 0; i < c.tabs.length; i++) {
     for (const child of c.tabs[i]!.components) {
-      out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar);
+      out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar, undefined, dirtyBoundsExpr);
     }
   }
 
@@ -326,7 +389,8 @@ function generateTabContainerWidget(
 }
 
 function generateNestedComponent(c: Component, containerVar: string, tabIndex: number, indent: string,
-    offsetX: number, offsetY: number, tabBgVar?: string, visibilityExpr?: string): string {
+    offsetX: number, offsetY: number, tabBgVar?: string, visibilityExpr?: string,
+    dirtyBoundsExpr?: string): string {
   const x = c.position.x + offsetX;
   const y = c.position.y + offsetY;
   const w = c.size?.width ?? 60;
@@ -337,6 +401,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
     `${containerVar}->emplace_child<${typeName}>(${tabIndex}, ${args})`;
 
   const visLine = visibilityExpr ? `\n${indent}${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
+  const dirtyLine = dirtyBoundsExpr ? `\n${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});` : '';
 
   switch (c.type) {
     case 'text': {
@@ -350,10 +415,11 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(text)}", ${fontMap[fontSize]}`;
       if (tabBgVar) {
         const visInner = visibilityExpr ? `\n${indent}  ${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
-        return `${indent}{\n${indent}  auto *${idSafe} = ${factory('LabelWidget', wargs)};\n${indent}  ${idSafe}->set_bg_color(${tabBgVar});${visInner}\n${indent}}\n`;
+        const dirtyInner = dirtyBoundsExpr ? `\n${indent}  ${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});` : '';
+        return `${indent}{\n${indent}  auto *${idSafe} = ${factory('LabelWidget', wargs)};\n${indent}  ${idSafe}->set_bg_color(${tabBgVar});${visInner}${dirtyInner}\n${indent}}\n`;
       }
-      if (visibilityExpr) {
-        return `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};${visLine}\n`;
+      if (visibilityExpr || dirtyBoundsExpr) {
+        return `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};${visLine}${dirtyLine}\n`;
       }
       return `${indent}${factory('LabelWidget', wargs)};\n`;
     }
@@ -362,9 +428,10 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       const callback = emitTapAction(c.onTap ?? c.pressAction);
       const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`;
       const iconGlyph = c.icon ? getMdiUtf8CEscape(c.icon) : null;
-      if (visibilityExpr || iconGlyph) {
+      if (visibilityExpr || iconGlyph || dirtyBoundsExpr) {
         let out = `${indent}auto *${idSafe} = ${factory('ButtonWidget', wargs)};`;
         if (visibilityExpr) out += `\n${indent}${idSafe}->set_visibility_condition(${visibilityExpr});`;
+        if (dirtyBoundsExpr) out += `\n${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});`;
         if (iconGlyph) out += `\n${indent}${idSafe}->set_icon("${iconGlyph}", &g_theme.icon);`;
         return `${out}\n`;
       }
@@ -383,11 +450,14 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       if (visibilityExpr) {
         out += `${indent}${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
       }
+      if (dirtyBoundsExpr) {
+        out += `${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
+      }
       return out;
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
-      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr);
+      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'conditional_area':
       return generateConditionalAreaNested(c, containerVar, tabIndex, indent, visibilityExpr, offsetX, offsetY, tabBgVar);
@@ -413,6 +483,11 @@ function generateConditionalAreaNested(
   const areaH = c.size?.height ?? 0;
   const variantsInOrder = orderVariants(c);
   const defaultIndex = findDefaultVariantIndex(variantsInOrder, c.defaultVariantId);
+  // See generateConditionalAreaWidget for why variant children dirty the
+  // whole area instead of their own bounds.
+  const dirtyBoundsExpr = (areaW > 0 && areaH > 0)
+    ? `UiRect{${areaX}, ${areaY}, ${areaW}, ${areaH}}`
+    : undefined;
 
   let out = '';
   out += `${indent}// Conditional area (nested): ${c.id}\n`;
@@ -438,7 +513,7 @@ function generateConditionalAreaNested(
     }
 
     for (const child of variant.components) {
-      out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar);
+      out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar, dirtyBoundsExpr);
     }
   }
 

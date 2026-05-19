@@ -3,6 +3,7 @@
 #include "esphome.h"
 #include "ui_invalidation.h"
 #include "ui_types.h"
+#include <cmath>
 #include <memory>
 #include <vector>
 #include <functional>
@@ -280,6 +281,130 @@ class ButtonWidget : public Widget {
   bool loading_ = false;
   uint32_t loading_start_ms_ = 0;
   uint32_t loading_timeout_ms_ = 350;
+};
+
+class ImageToggleWidget : public Widget {
+ public:
+  using Callback = std::function<void()>;
+
+  ImageToggleWidget(UiRect rect, const char *label, const bool *on_state,
+                    Callback callback, Color on_color = Color(255, 180, 0),
+                    Color off_color = Color(80, 80, 80))
+      : rect_(rect), label_(label), on_state_(on_state),
+        callback_(std::move(callback)), on_color_(on_color),
+        off_color_(off_color) {}
+
+  void bind(const bool *on_state) { on_state_ = on_state; }
+
+  UiRect bounds() const override { return rect_; }
+
+  void update(uint32_t now) override {
+    if (loading_timeout_ms_ > 0 && loading_ &&
+        (now - loading_start_ms_ > loading_timeout_ms_)) {
+      loading_ = false;
+      mark_dirty();
+    }
+    if (on_state_ != nullptr) {
+      bool current = *on_state_;
+      if (current != last_on_state_) {
+        mark_dirty();
+      }
+    }
+  }
+
+  bool handle_touch(const TouchEvent &event, uint32_t now) override {
+    if (event.type != TouchType::Tap) return false;
+    if (loading_) return false;
+
+    if (esphome::api::global_api_server == nullptr ||
+        !esphome::api::global_api_server->is_connected()) {
+      return false;
+    }
+
+    if (!hit_test(event.x, event.y)) return false;
+    loading_ = true;
+    loading_start_ms_ = now;
+    mark_dirty();
+    if (callback_) callback_();
+
+    char name_buf[24];
+    snprintf(name_buf, sizeof(name_buf), "itg_%p", this);
+    esphome::App.scheduler.set_timeout(
+        nullptr, name_buf, loading_timeout_ms_, [this]() {
+          loading_ = false;
+          mark_dirty();
+          UiRedraw::trigger_display_update();
+        });
+    return true;
+  }
+
+  // TODO: Replace hardcoded bulb icon drawing with an MDI icon rendering
+  // once MDI icon support is added to the renderer. The bulb is drawn as
+  // a circle, optionally filled with radial rays when the entity is on.
+  void draw(display::Display &it, const UiState &state) override {
+    (void)state;
+
+    bool is_on = on_state_ != nullptr ? *on_state_ : false;
+
+    Color base = Color(40, 40, 40);
+    Color icon_color = is_on ? on_color_ : off_color_;
+
+    it.rectangle(rect_.x, rect_.y, rect_.w, rect_.h, icon_color);
+    ui_fast_filled_rectangle(it, rect_.x + 1, rect_.y + 1, rect_.w - 2,
+                             rect_.h - 2, base);
+
+    if (loading_) {
+      float angle = (millis() % 1000) * 2.0f * 3.14159265f / 1000.0f;
+      int cx = rect_.x + 28;
+      int cy = rect_.y + rect_.h / 2;
+      int r = 10;
+      it.line(cx, cy, cx + (int)(cosf(angle) * r),
+              cy + (int)(sinf(angle) * r), icon_color);
+      if (label_ != nullptr && g_theme.label.font != nullptr) {
+        it.printf(rect_.x + 52, rect_.y + rect_.h / 2, g_theme.label.font,
+                  icon_color, TextAlign::CENTER_LEFT, "%s", label_);
+      }
+      return;
+    }
+
+    int bx = rect_.x + 28;
+    int by = rect_.y + rect_.h / 2;
+
+    it.circle(bx, by, 9, icon_color);
+    if (is_on) {
+      it.filled_circle(bx, by, 6, icon_color);
+      for (int i = 0; i < 8; i++) {
+        float a = i * 3.14159265f / 4.0f;
+        it.line(bx + (int)(cosf(a) * 11), by + (int)(sinf(a) * 11),
+                bx + (int)(cosf(a) * 15), by + (int)(sinf(a) * 15), icon_color);
+      }
+    }
+
+    if (label_ != nullptr && g_theme.label.font != nullptr) {
+      it.printf(rect_.x + 52, rect_.y + rect_.h / 2, g_theme.label.font,
+                Color(255, 255, 255), TextAlign::CENTER_LEFT, "%s", label_);
+    }
+
+    last_on_state_ = is_on;
+  }
+
+ private:
+  bool hit_test(int tx, int ty) const {
+    const int sx = rect_.w < 40 ? 15 : (rect_.w < 60 ? 10 : 0);
+    const int sy = rect_.h < 40 ? 15 : (rect_.h < 60 ? 10 : 0);
+    return rect_.contains(tx, ty, sx, sy);
+  }
+
+  UiRect rect_;
+  const char *label_;
+  const bool *on_state_ = nullptr;
+  Callback callback_;
+  Color on_color_;
+  Color off_color_;
+  bool loading_ = false;
+  uint32_t loading_start_ms_ = 0;
+  uint32_t loading_timeout_ms_ = 350;
+  bool last_on_state_ = false;
 };
 
 #include "ui_tab_container.h"

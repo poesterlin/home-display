@@ -597,6 +597,7 @@
             "onText": { "type": "string", "default": "ON" },
             "offText": { "type": "string", "default": "OFF" },
             "showIcon": { "type": "boolean", "default": true },
+            "icon": { "type": "string", "default": "lightbulb" },
             "onColor": { "$ref": "#/definitions/Color" },
             "offColor": { "$ref": "#/definitions/Color" }
           },

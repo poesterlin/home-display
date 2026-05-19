@@ -86,6 +86,7 @@ export function createComponent(type: string, x: number, y: number): Component {
         ...base,
         type: "light_state",
         label: "Light",
+        icon: "lightbulb",
         onText: "ON",
         offText: "OFF",
         showIcon: true,
