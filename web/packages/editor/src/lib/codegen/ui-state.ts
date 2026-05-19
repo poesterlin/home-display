@@ -1,5 +1,6 @@
 import type { Project, LightStateComponent, Component } from "@esphome-designer/schema";
 import { toCppIdentifier, firstScreenId, cppDefaultValue, cppTypeFor, stateVarFromEntity, collectAllComponents } from "./utils";
+import { collectConditionEntities } from "./condition-expr";
 
 function collectLightStateVars(project: Project): string[] {
   const vars = new Set<string>();
@@ -21,10 +22,13 @@ export function generateUIStateHeader(project: Project): string {
   const screenName = firstScreenId(project);
   const existingNames = new Set(fields.map(f => f.name));
   const lightVars = collectLightStateVars(project).filter(v => !existingNames.has(v));
+  for (const v of lightVars) existingNames.add(v);
+  const conditionEntities = collectConditionEntities(project).filter(e => !existingNames.has(e.varName));
 
   const allFields: string[] = [
     ...fields.map(f => `  Observable<${cppTypeFor(f.cppType)}> ${f.name}{${cppDefaultValue(f.cppType)}};`),
     ...lightVars.map(v => `  Observable<bool> ${v}{false};`),
+    ...conditionEntities.map(e => `  Observable<${cppTypeFor(e.cppType)}> ${e.varName}{${cppDefaultValue(e.cppType)}};`),
   ];
 
   const observableFields = allFields.length > 0 ? allFields.join('\n') : '';

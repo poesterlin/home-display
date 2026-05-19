@@ -1,4 +1,4 @@
-import type { Component, TabContainerComponent } from "@esphome-designer/schema";
+import type { Component, TabContainerComponent, ConditionalAreaComponent } from "@esphome-designer/schema";
 
 export function toCppIdentifier(name: string): string {
   return name
@@ -54,6 +54,11 @@ export function collectAllComponents(components: Component[]): Component[] {
       const tc = c as TabContainerComponent;
       for (const tab of tc.tabs) {
         result.push(...collectAllComponents(tab.components));
+      }
+    } else if (c.type === 'conditional_area') {
+      const ca = c as ConditionalAreaComponent;
+      for (const variant of ca.variants) {
+        result.push(...collectAllComponents(variant.components));
       }
     }
   }

@@ -1,20 +1,52 @@
-import type { Project, LightStateComponent } from "@esphome-designer/schema";
+import type { Project, LightStateComponent, StateField } from "@esphome-designer/schema";
 import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents } from "./utils";
+import { collectConditionEntities, type ConditionEntityType } from "./condition-expr";
+
+const BINDER_BY_TYPE: Record<string, string> = {
+  'bool': 'bind_ha_bool',
+  'int': 'bind_ha_int',
+  'float': 'bind_ha_float',
+  'std::string': 'bind_ha_string',
+};
 
 function generateBindings(project: Project): string {
   const lines: string[] = [];
+  const claimed = new Set<string>();
+
   const allComponents = collectAllComponents([
     ...project.dashboardPages.flatMap(p => p.components),
     ...project.detailViews.flatMap(v => v.components),
   ]);
+
   for (const c of allComponents) {
     if (c.type !== 'light_state') continue;
     const lc = c as LightStateComponent;
     const entityId = lc.stateBinding?.entityId;
     if (!entityId) continue;
     const stateVar = stateVarFromEntity(entityId);
+    if (claimed.has(stateVar)) continue;
+    claimed.add(stateVar);
     lines.push(`          bind_ha_bool("${entityId}", &g_ui_app.state().${stateVar});`);
   }
+
+  for (const f of (project.state?.fields ?? []) as StateField[]) {
+    if (!f.haEntity) continue;
+    if (claimed.has(f.name)) continue;
+    const binder = BINDER_BY_TYPE[f.cppType];
+    if (!binder) continue;
+    claimed.add(f.name);
+    lines.push(`          ${binder}("${f.haEntity}", &g_ui_app.state().${f.name});`);
+  }
+
+  for (const e of collectConditionEntities(project)) {
+    if (claimed.has(e.varName)) continue;
+    const cppType: ConditionEntityType = e.cppType;
+    const binder = BINDER_BY_TYPE[cppType];
+    if (!binder) continue;
+    claimed.add(e.varName);
+    lines.push(`          ${binder}("${e.entityId}", &g_ui_app.state().${e.varName});`);
+  }
+
   return lines.join('\n');
 }
 
@@ -66,6 +98,49 @@ esphome:
                   bool on = (state.size() == 2 && state.c_str()[0] == 'o'
                              && state.c_str()[1] == 'n');
                   target->set(on);
+                  UiRedraw::trigger_display_update();
+                });
+          };
+
+          auto bind_ha_string = [](const std::string& entity_id, Observable<std::string>* target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(),
+                [target](esphome::StringRef state) {
+                  target->set(std::string(state.c_str(), state.size()));
+                  UiRedraw::trigger_display_update();
+                });
+          };
+
+          auto bind_ha_float = [](const std::string& entity_id, Observable<float>* target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(),
+                [target](esphome::StringRef state) {
+                  std::string s(state.c_str(), state.size());
+                  if (s.empty()) return;
+                  char *end = nullptr;
+                  float v = strtof(s.c_str(), &end);
+                  if (end == s.c_str()) return;
+                  target->set(v);
+                  UiRedraw::trigger_display_update();
+                });
+          };
+
+          auto bind_ha_int = [](const std::string& entity_id, Observable<int>* target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(),
+                [target](esphome::StringRef state) {
+                  std::string s(state.c_str(), state.size());
+                  if (s.empty()) return;
+                  char *end = nullptr;
+                  long v = strtol(s.c_str(), &end, 10);
+                  if (end == s.c_str()) return;
+                  target->set(static_cast<int>(v));
                   UiRedraw::trigger_display_update();
                 });
           };

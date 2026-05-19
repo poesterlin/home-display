@@ -3,6 +3,8 @@ import type {
   Component,
   LightStateComponent,
   TabContainerComponent,
+  ConditionalAreaComponent,
+  ConditionalVariant,
   TextComponent,
   ButtonComponent,
   OnTapAction,
@@ -14,6 +16,7 @@ import {
   type ScreenDescriptor,
   type WidgetFactory,
 } from "./utils";
+import { emitConditionExpression } from "./condition-expr";
 
 const TAB_BAR_HEIGHT = 36;
 
@@ -133,9 +136,109 @@ function generateComponentSetup(
     }
     case 'tab_container':
       return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
+    case 'conditional_area':
+      return generateConditionalAreaWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
     default:
       return `${indent}// TODO: component type '${c.type}' (id: ${c.id})\n`;
   }
+}
+
+function orderVariants(c: ConditionalAreaComponent): ConditionalVariant[] {
+  const mode = c.evaluationMode ?? 'first_match';
+  if (mode === 'priority') {
+    return [...c.variants].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  }
+  return [...c.variants];
+}
+
+function findDefaultVariantIndex(
+  variantsInOrder: ConditionalVariant[],
+  defaultVariantId: string | undefined,
+): number {
+  if (defaultVariantId) {
+    const idx = variantsInOrder.findIndex(v => v.id === defaultVariantId);
+    if (idx >= 0) return idx;
+  }
+  return variantsInOrder.findIndex(v => !v.condition);
+}
+
+function variantMatchExpression(variant: ConditionalVariant): string {
+  return variant.condition ? emitConditionExpression(variant.condition) : 'true';
+}
+
+function variantActiveExpression(
+  variantsInOrder: ConditionalVariant[],
+  index: number,
+  defaultIndex: number,
+): string {
+  const variant = variantsInOrder[index]!;
+  const isDefault = index === defaultIndex;
+  const guard = variantsInOrder
+    .slice(0, index)
+    .filter((_, j) => j !== defaultIndex)
+    .map(v => `!${variantMatchExpression(v)}`);
+  const own = variantMatchExpression(variant);
+
+  if (isDefault) {
+    const noneMatch = variantsInOrder
+      .map((v, j) => (j === index ? null : `!${variantMatchExpression(v)}`))
+      .filter((s): s is string => s !== null);
+    if (noneMatch.length === 0) {
+      return 'true';
+    }
+    return noneMatch.join(' && ');
+  }
+
+  const parts = [...guard];
+  if (own !== 'true') parts.push(own);
+  if (parts.length === 0) return 'true';
+  return parts.join(' && ');
+}
+
+function generateConditionalAreaWidget(
+  c: ConditionalAreaComponent,
+  screenVar: string,
+  indent: string,
+  parentVisibilityExpr?: string,
+  offsetX = 0,
+  offsetY = 0,
+): string {
+  const areaIdSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const areaX = c.position.x + offsetX;
+  const areaY = c.position.y + offsetY;
+  const areaW = c.size?.width ?? 0;
+  const areaH = c.size?.height ?? 0;
+  const variantsInOrder = orderVariants(c);
+  const defaultIndex = findDefaultVariantIndex(variantsInOrder, c.defaultVariantId);
+
+  let out = '';
+  out += `${indent}// Conditional area: ${c.id}\n`;
+  if (areaW > 0 && areaH > 0) {
+    const bgVar = `ca_bg_${areaIdSafe}`;
+    out += `${indent}auto *${bgVar} = ${screenVar}->emplace_widget<RectWidget>(UiRect{${areaX}, ${areaY}, ${areaW}, ${areaH}}, g_theme.info_bg);\n`;
+    if (parentVisibilityExpr) {
+      out += `${indent}${bgVar}->set_visibility_condition(${parentVisibilityExpr});\n`;
+    }
+  }
+
+  for (let i = 0; i < variantsInOrder.length; i++) {
+    const variant = variantsInOrder[i]!;
+    const variantIdSafe = variant.id.replace(/[^a-zA-Z0-9_]/g, '_');
+    const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
+    const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
+
+    if (parentVisibilityExpr) {
+      out += `${indent}auto ${variantLambdaVar} = [&state, ${parentVisibilityExpr}]() { return ${parentVisibilityExpr}() && (${activeExpr}); };\n`;
+    } else {
+      out += `${indent}auto ${variantLambdaVar} = [&state]() { return ${activeExpr}; };\n`;
+    }
+
+    for (const child of variant.components) {
+      out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY);
+    }
+  }
+
+  return out;
 }
 
 function generateTabContainerWidget(
@@ -182,14 +285,17 @@ function generateTabContainerWidget(
 }
 
 function generateNestedComponent(c: Component, containerVar: string, tabIndex: number, indent: string,
-    offsetX: number, offsetY: number, tabBgVar?: string): string {
+    offsetX: number, offsetY: number, tabBgVar?: string, visibilityExpr?: string): string {
   const x = c.position.x + offsetX;
   const y = c.position.y + offsetY;
   const w = c.size?.width ?? 60;
   const h = c.size?.height ?? 20;
+  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
 
   const factory: WidgetFactory = (typeName, args) =>
     `${containerVar}->emplace_child<${typeName}>(${tabIndex}, ${args})`;
+
+  const visLine = visibilityExpr ? `\n${indent}${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
 
   switch (c.type) {
     case 'text': {
@@ -202,22 +308,81 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       };
       const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(text)}", ${fontMap[fontSize]}`;
       if (tabBgVar) {
-        return `${indent}{\n${indent}  auto *l = ${factory('LabelWidget', wargs)};\n${indent}  l->set_bg_color(${tabBgVar});\n${indent}}\n`;
+        const visInner = visibilityExpr ? `\n${indent}  ${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
+        return `${indent}{\n${indent}  auto *${idSafe} = ${factory('LabelWidget', wargs)};\n${indent}  ${idSafe}->set_bg_color(${tabBgVar});${visInner}\n${indent}}\n`;
+      }
+      if (visibilityExpr) {
+        return `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};${visLine}\n`;
       }
       return `${indent}${factory('LabelWidget', wargs)};\n`;
     }
     case 'button': {
       const label = c.label ?? '';
       const callback = emitTapAction(c.onTap ?? c.pressAction);
-      return `${indent}${factory('ButtonWidget', `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};\n`;
+      const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`;
+      if (visibilityExpr) {
+        return `${indent}auto *${idSafe} = ${factory('ButtonWidget', wargs)};${visLine}\n`;
+      }
+      return `${indent}${factory('ButtonWidget', wargs)};\n`;
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
-      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY);
+      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr);
     }
+    case 'conditional_area':
+      return generateConditionalAreaNested(c, containerVar, tabIndex, indent, visibilityExpr, offsetX, offsetY, tabBgVar);
     default:
       return `${indent}// TODO: nested ${c.type} (id: ${c.id}) in tab ${tabIndex}\n`;
   }
+}
+
+function generateConditionalAreaNested(
+  c: ConditionalAreaComponent,
+  containerVar: string,
+  tabIndex: number,
+  indent: string,
+  parentVisibilityExpr: string | undefined,
+  offsetX: number,
+  offsetY: number,
+  tabBgVar?: string,
+): string {
+  const areaIdSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const areaX = c.position.x + offsetX;
+  const areaY = c.position.y + offsetY;
+  const areaW = c.size?.width ?? 0;
+  const areaH = c.size?.height ?? 0;
+  const variantsInOrder = orderVariants(c);
+  const defaultIndex = findDefaultVariantIndex(variantsInOrder, c.defaultVariantId);
+
+  let out = '';
+  out += `${indent}// Conditional area (nested): ${c.id}\n`;
+  if (areaW > 0 && areaH > 0) {
+    const bgVar = `ca_bg_${areaIdSafe}`;
+    const bgColor = tabBgVar ?? 'g_theme.info_bg';
+    out += `${indent}auto *${bgVar} = ${containerVar}->emplace_child<RectWidget>(${tabIndex}, UiRect{${areaX}, ${areaY}, ${areaW}, ${areaH}}, ${bgColor});\n`;
+    if (parentVisibilityExpr) {
+      out += `${indent}${bgVar}->set_visibility_condition(${parentVisibilityExpr});\n`;
+    }
+  }
+
+  for (let i = 0; i < variantsInOrder.length; i++) {
+    const variant = variantsInOrder[i]!;
+    const variantIdSafe = variant.id.replace(/[^a-zA-Z0-9_]/g, '_');
+    const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
+    const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
+
+    if (parentVisibilityExpr) {
+      out += `${indent}auto ${variantLambdaVar} = [&state, ${parentVisibilityExpr}]() { return ${parentVisibilityExpr}() && (${activeExpr}); };\n`;
+    } else {
+      out += `${indent}auto ${variantLambdaVar} = [&state]() { return ${activeExpr}; };\n`;
+    }
+
+    for (const child of variant.components) {
+      out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar);
+    }
+  }
+
+  return out;
 }
 
 export function generateUIScreensHeader(project: Project): string {
