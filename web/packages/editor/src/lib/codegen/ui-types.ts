@@ -1,10 +1,15 @@
 import type { Project } from "@esphome-designer/schema";
 import { toCppIdentifier } from "./utils";
 
-export function generateUITypesHeader(project: Project): string {
-  const screenIds: string[] = [];
+function detailScreenId(id: string, title: string): string {
+  return 'Detail' + (toCppIdentifier(id) || toCppIdentifier(title) || 'View');
+}
 
-  for (const page of project.dashboardPages) {
+export function generateUITypesHeader(project: Project): string {
+  const screenIds: string[] = ['Home'];
+
+  for (const [index, page] of project.dashboardPages.entries()) {
+    if (index === 0) continue;
     const id = toCppIdentifier(page.name);
     if (id && !screenIds.includes(id)) {
       screenIds.push(id);
@@ -12,14 +17,10 @@ export function generateUITypesHeader(project: Project): string {
   }
 
   for (const view of project.detailViews) {
-    const id = 'Detail' + toCppIdentifier(view.title);
+    const id = detailScreenId(view.id, view.title);
     if (id && !screenIds.includes(id)) {
       screenIds.push(id);
     }
-  }
-
-  if (screenIds.length === 0) {
-    screenIds.push('Home');
   }
 
   const screenEnum = screenIds.map(id => `  ${id}`).join(',\n');

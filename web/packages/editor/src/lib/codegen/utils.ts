@@ -9,10 +9,7 @@ export function toCppIdentifier(name: string): string {
     .join('');
 }
 
-export function firstScreenId(project: { dashboardPages: { name: string }[] }): string {
-  if (project.dashboardPages.length > 0) {
-    return toCppIdentifier(project.dashboardPages[0]!.name) || 'Home';
-  }
+export function firstScreenId(_project: { dashboardPages: { name: string }[] }): string {
   return 'Home';
 }
 

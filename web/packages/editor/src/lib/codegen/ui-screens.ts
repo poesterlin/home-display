@@ -15,14 +15,30 @@ import {
   type WidgetFactory,
 } from "./utils";
 
+const TAB_BAR_HEIGHT = 36;
+
+function dashboardScreenId(name: string, index: number): string {
+  if (index === 0) return 'Home';
+  return toCppIdentifier(name) || `Page${index + 1}`;
+}
+
+function detailScreenId(id: string, title: string): string {
+  return 'Detail' + (toCppIdentifier(id) || toCppIdentifier(title) || 'View');
+}
+
 function collectScreens(project: Project): ScreenDescriptor[] {
   const screens: ScreenDescriptor[] = [];
-  for (const page of project.dashboardPages) {
-    const cppName = toCppIdentifier(page.name) || 'Page';
-    screens.push({ cppName, name: page.name });
+  const seen = new Set<string>();
+  for (const [index, page] of project.dashboardPages.entries()) {
+    const cppName = dashboardScreenId(page.name, index);
+    if (seen.has(cppName)) continue;
+    seen.add(cppName);
+    screens.push({ cppName, name: page.name || cppName });
   }
   for (const view of project.detailViews) {
-    const cppName = 'Detail' + (toCppIdentifier(view.title) || 'View');
+    const cppName = detailScreenId(view.id, view.title);
+    if (seen.has(cppName)) continue;
+    seen.add(cppName);
     screens.push({ cppName, name: view.title });
   }
   if (screens.length === 0) {
@@ -38,16 +54,31 @@ function emitTapAction(action: OnTapAction | undefined): string {
     return `make_ha_callback("${entity}", "${action.service}")`;
   }
   if (action.type === 'OPEN_DETAIL') {
-    const detailId = 'Detail' + (toCppIdentifier(action.targetId ?? '') || 'View');
+    const detailId = detailScreenId(action.targetId ?? '', '');
     return `[&screens]() { screens.navigate_to(UiScreenId::${detailId}); }`;
+  }
+  if (action.type === 'GO_BACK') {
+    return `[&screens]() { screens.navigate_to(UiScreenId::Home); }`;
+  }
+  if (action.type === 'NEXT_PAGE') {
+    return `[&state]() {
+      state.home_page_index = (state.home_page_index + 1) % state.home_total_pages;
+      UiInvalidation::request_full();
+    }`;
+  }
+  if (action.type === 'PREV_PAGE') {
+    return `[&state]() {
+      state.home_page_index = (state.home_page_index - 1 + state.home_total_pages) % state.home_total_pages;
+      UiInvalidation::request_full();
+    }`;
   }
   return '';
 }
 
 function generateLightWidget(c: LightStateComponent, stateVar: string,
-    factory: WidgetFactory, indent: string): string {
-  const x = c.position.x;
-  const y = c.position.y;
+    factory: WidgetFactory, indent: string, offX = 0, offY = 0): string {
+  const x = c.position.x + offX;
+  const y = c.position.y + offY;
   const w = c.size?.width ?? 200;
   const h = c.size?.height ?? 90;
   const label = c.label ?? 'Light';
@@ -125,16 +156,17 @@ function generateTabContainerWidget(c: TabContainerComponent, screenVar: string,
 
   for (let i = 0; i < c.tabs.length; i++) {
     for (const child of c.tabs[i]!.components) {
-      out += generateNestedComponent(child, varName, i, indent, bgVar);
+      out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar);
     }
   }
 
   return out;
 }
 
-function generateNestedComponent(c: Component, containerVar: string, tabIndex: number, indent: string, tabBgVar?: string): string {
-  const x = c.position.x;
-  const y = c.position.y;
+function generateNestedComponent(c: Component, containerVar: string, tabIndex: number, indent: string,
+    offsetX: number, offsetY: number, tabBgVar?: string): string {
+  const x = c.position.x + offsetX;
+  const y = c.position.y + offsetY;
   const w = c.size?.width ?? 60;
   const h = c.size?.height ?? 20;
 
@@ -163,7 +195,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
-      return generateLightWidget(c, stateVar, factory, indent);
+      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY);
     }
     default:
       return `${indent}// TODO: nested ${c.type} (id: ${c.id}) in tab ${tabIndex}\n`;
@@ -186,8 +218,8 @@ export function generateUIScreensHeader(project: Project): string {
     current_ = screens_.at(UiScreenId::${firstScreen});`
 
   let setupBody = '';
-  for (const page of project.dashboardPages) {
-    const cppName = toCppIdentifier(page.name) || 'Page';
+  for (const [index, page] of project.dashboardPages.entries()) {
+    const cppName = dashboardScreenId(page.name, index);
     const screenVar = cppName.toLowerCase();
     if (page.components.length === 0) continue;
     setupBody += `  auto *${screenVar} = screens.get_screen(UiScreenId::${cppName});\n`;
@@ -200,10 +232,15 @@ export function generateUIScreensHeader(project: Project): string {
   }
 
   for (const view of project.detailViews) {
-    const cppName = 'Detail' + (toCppIdentifier(view.title) || 'View');
+    const cppName = detailScreenId(view.id, view.title);
     const screenVar = cppName.toLowerCase();
-    if (view.components.length === 0) continue;
     setupBody += `  auto *${screenVar} = screens.get_screen(UiScreenId::${cppName});\n`;
+    setupBody += `  ${screenVar}->emplace_widget<DetailHeaderWidget>(g_theme.header.font, g_theme.label.font, "${escapeCString(view.title)}",\n`;
+    setupBody += `      [&screens]() { screens.navigate_to(UiScreenId::Home); });\n`;
+    if (view.components.length === 0) {
+      setupBody += '\n';
+      continue;
+    }
     setupBody += `  // Detail: ${view.title}\n`;
     for (const c of view.components) {
       setupBody += generateComponentSetup(c, screenVar, '  ');
