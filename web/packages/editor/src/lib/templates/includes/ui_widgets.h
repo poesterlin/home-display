@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome.h"
+#include "ui_invalidation.h"
 #include "ui_types.h"
 #include <memory>
 #include <vector>
@@ -63,6 +64,27 @@ class Widget {
   virtual bool handle_touch(const TouchEvent &event, uint32_t now) { return false; }
   virtual void draw(display::Display &it, const UiState &state) = 0;
 
+  // Bounding box used by the dirty-rect machinery. Widgets with a fixed
+  // rectangle override this to return their rect_; widgets that paint
+  // outside a single box can return a conservative superset. Default is
+  // the full screen, which means "I might be anywhere -> always redraw me".
+  virtual UiRect bounds() const { return UiRect{0, 0, 480, 480}; }
+
+  // Mark this widget's bounds dirty so it (and only it) is redrawn on the
+  // next render pass. Use this from state-change handlers / update() polls.
+  void mark_dirty() {
+    const auto b = bounds();
+    UiInvalidation::request_rect(UiDirtyRect{b.x, b.y, b.w, b.h});
+  }
+
+  // Should this widget actually be drawn this frame? Combines visibility
+  // and dirty-rect intersection.
+  bool needs_draw(const UiState &state) const {
+    if (!is_visible(state)) return false;
+    const auto b = bounds();
+    return UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h);
+  }
+
   virtual bool is_visible(const UiState &state) const {
     (void)state;
     if (visibility_check_) return visibility_check_();
@@ -80,6 +102,8 @@ class Widget {
 class RectWidget : public Widget {
  public:
   RectWidget(UiRect rect, Color color) : rect_(rect), color_(color) {}
+
+  UiRect bounds() const override { return rect_; }
 
   void draw(display::Display &it, const UiState &state) override {
     (void)state;
@@ -107,10 +131,14 @@ class LabelWidget : public Widget {
 
   void set_bg_color(Color c) { bg_color_ = c; }
 
+  UiRect bounds() const override { return rect_; }
+
   void bind(const bool *value, const char *on_text = "ON", const char *off_text = "OFF") {
     bound_bool_ = value;
     on_text_ = on_text;
     off_text_ = off_text;
+    last_bool_ = value != nullptr ? *value : false;
+    bool_baseline_set_ = (value != nullptr);
   }
 
   template<typename T>
@@ -119,6 +147,19 @@ class LabelWidget : public Widget {
                              esphome::font::Font *f, Color c, TextAlign a) {
       it.printf(x, y, f, c, a, fmt, *value);
     };
+  }
+
+  // Poll bound state and mark dirty if it changed since the last draw. This is
+  // what makes the "only the label that actually changed redraws" optimisation
+  // work for the common bound-bool case (LED on/off, button A/B, etc.).
+  void update(uint32_t now) override {
+    (void)now;
+    if (bound_bool_ != nullptr) {
+      const bool current = *bound_bool_;
+      if (!bool_baseline_set_ || current != last_bool_) {
+        mark_dirty();
+      }
+    }
   }
 
   void draw(display::Display &it, const UiState &state) override {
@@ -139,6 +180,8 @@ class LabelWidget : public Widget {
       int cw = (tw > aw) ? tw : aw;
       ui_fast_filled_rectangle(it, tx - 2, ty, cw + 4, th, bg_color_);
       it.printf(rect_.x, rect_.y, f, cl, a, "%s", display);
+      last_bool_ = *bound_bool_;
+      bool_baseline_set_ = true;
     } else if (printer_) {
       ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
       printer_(it, rect_.x, rect_.y, f, cl, a);
@@ -159,12 +202,16 @@ class LabelWidget : public Widget {
   const char *off_text_ = "OFF";
   std::function<void(display::Display&, int, int, esphome::font::Font*, Color, TextAlign)> printer_;
   Color bg_color_{0, 0, 0};
+  bool last_bool_ = false;
+  bool bool_baseline_set_ = false;
 };
 
 class IconWidget : public Widget {
  public:
   IconWidget(UiRect rect, const char *glyph, const Theme::TextStyle &style)
       : rect_(rect), glyph_(glyph), style_(&style) {}
+
+  UiRect bounds() const override { return rect_; }
 
   void set_color(Color c) {
     color_override_ = c;
@@ -198,6 +245,8 @@ class ButtonWidget : public Widget {
   ButtonWidget(UiRect rect, const char *label, Callback callback, const Theme::ButtonStyle &style)
       : rect_(rect), label_(label), callback_(callback), style_(&style) {}
 
+  UiRect bounds() const override { return rect_; }
+
   // Configure an optional icon glyph drawn above the label using the
   // provided text style (typically `g_theme.icon` so the MDI font is used).
   void set_icon(const char *glyph, const Theme::TextStyle *icon_style) {
@@ -208,7 +257,7 @@ class ButtonWidget : public Widget {
   void update(uint32_t now) override {
     if (loading_timeout_ms_ > 0 && loading_ && (now - loading_start_ms_ > loading_timeout_ms_)) {
       loading_ = false;
-      UiInvalidation::request_partial(); // Request redraw when loading ends
+      mark_dirty();
     }
   }
 
@@ -224,7 +273,7 @@ class ButtonWidget : public Widget {
     if (!hit_test(event.x, event.y)) return false;
     loading_ = true;
     loading_start_ms_ = now;
-    UiInvalidation::request_partial(); // Request redraw when loading starts
+    mark_dirty();
     if (callback_) callback_();
 
     // Schedule a delayed reset to end the loading state and trigger redraw
@@ -233,7 +282,7 @@ class ButtonWidget : public Widget {
     esphome::App.scheduler.set_timeout(nullptr, name_buf, loading_timeout_ms_,
         [this]() {
           loading_ = false;
-          UiInvalidation::request_partial();
+          mark_dirty();
           UiRedraw::trigger_display_update();
         });
     return true;

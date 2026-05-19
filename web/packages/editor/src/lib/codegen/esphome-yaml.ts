@@ -218,12 +218,13 @@ interval:
               UiInvalidation::request_full();
             } else if (screen_id != UiScreenId::Home) {
               g_ui_app.screens().navigate_to(UiScreenId::Home);
-            } else {
-              UiInvalidation::request_partial();
             }
-          } else {
-            UiInvalidation::request_partial();
+            // else: idle on home page 0 -- let widgets poll for changes
+            // (HeaderWidget detects minute changes) and self-mark dirty.
           }
+          // Trigger an update so widgets get a chance to poll their bound
+          // state. If nothing actually changed, render_basic_ui() returns
+          // early at the needs_redraw() check.
           id(main_display).update();
 
 # Dummy: forces ESPHome to compile api::HomeAssistantServiceCallAction

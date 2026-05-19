@@ -46,6 +46,28 @@ class UiInvalidation {
 
   static const UiDirtyRect &dirty_rect(int index) { return dirty_rects_[index]; }
 
+  // Returns true iff the given rect needs to be redrawn given the current
+  // invalidation state. Used by Screen::draw() and TabContainerWidget::draw()
+  // to skip widgets whose bounds don't overlap any dirty rect.
+  //
+  // Semantics:
+  //  * full_dirty   -> everything redraws
+  //  * dirty_count_ > 0 -> only widgets overlapping a dirty rect redraw
+  //  * needs_redraw_ but no rects -> legacy "partial" fallback: everything
+  //    redraws (some caller didn't migrate to mark_dirty() yet)
+  //  * nothing set -> nothing redraws (and we shouldn't be inside a draw)
+  static bool needs_redraw_in(int x, int y, int w, int h) {
+    if (full_dirty_) return true;
+    if (dirty_count_ == 0) return needs_redraw_;
+    for (int i = 0; i < dirty_count_; i++) {
+      const auto &r = dirty_rects_[i];
+      if (x + w <= r.x || r.x + r.w <= x) continue;
+      if (y + h <= r.y || r.y + r.h <= y) continue;
+      return true;
+    }
+    return false;
+  }
+
   static void clear() {
     needs_redraw_ = false;
     full_dirty_ = false;

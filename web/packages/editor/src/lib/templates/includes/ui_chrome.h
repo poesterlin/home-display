@@ -54,6 +54,12 @@ class PageIndicatorWidget : public Widget {
   PageIndicatorWidget(int y, int dot_spacing = 28, int radius_active = 8, int radius_inactive = 6)
       : y_(y), dot_spacing_(dot_spacing), radius_active_(radius_active), radius_inactive_(radius_inactive) {}
 
+  UiRect bounds() const override {
+    // Dots are centered horizontally at 240, padded generously to cover any
+    // page count up to ~14 dots; full width is fine and avoids overthinking.
+    return UiRect{0, y_ - radius_active_ - 2, 480, 2 * (radius_active_ + 2)};
+  }
+
   void draw(display::Display& it, const UiState& state) override {
     int total = state.home_total_pages;
     if (total <= 1) return;
@@ -71,6 +77,15 @@ class PageIndicatorWidget : public Widget {
         it.circle(dot_x, y_, radius_inactive_, ChromeColors::DIM);
       }
     }
+    last_page_ = page;
+    last_total_ = total;
+    page_baseline_set_ = true;
+  }
+
+  void update(uint32_t now) override {
+    (void)now;
+    // Page swipes mark full dirty already (see ScreenController), but
+    // covering the bare-minimum case is cheap.
   }
 
  private:
@@ -78,6 +93,9 @@ class PageIndicatorWidget : public Widget {
   int dot_spacing_;
   int radius_active_;
   int radius_inactive_;
+  int last_page_ = -1;
+  int last_total_ = -1;
+  bool page_baseline_set_ = false;
 };
 
 class HeaderWidget : public Widget {
@@ -87,6 +105,39 @@ class HeaderWidget : public Widget {
       : time_font_(time_font), detail_font_(detail_font),
         timer_active_(timer_active), timer_remaining_(timer_remaining) {}
 
+  UiRect bounds() const override { return UiRect{0, 0, 480, 50}; }
+
+  // Poll the clock & timer state, mark the header dirty when something
+  // human-visible has actually changed. This is what lets the 10s interval
+  // tick redraw only the header (~3ms) instead of the whole screen (~60ms).
+  void update(uint32_t now) override {
+    (void)now;
+    bool changed = false;
+
+    const bool t_active = timer_active_ ? *timer_active_ : false;
+    const int t_rem = timer_remaining_ ? *timer_remaining_ : 0;
+    if (t_active != last_timer_active_ || t_rem != last_timer_remaining_) {
+      changed = true;
+    }
+
+    if (!t_active) {
+      auto time_now = sntp_time->now();
+      if (time_now.is_valid()) {
+        if (time_now.hour != last_hour_ ||
+            time_now.minute != last_minute_ ||
+            time_now.day_of_month != last_day_) {
+          changed = true;
+        }
+      }
+    }
+
+    if (!baseline_set_) {
+      changed = true;
+    }
+
+    if (changed) mark_dirty();
+  }
+
   void draw(display::Display& it, const UiState& state) override {
     (void)state;
 
@@ -95,10 +146,13 @@ class HeaderWidget : public Widget {
     it.line(0, 0, 0, 480, ChromeColors::DIMMER);
     it.line(479, 0, 479, 480, ChromeColors::DIMMER);
 
-    if (timer_active_ && *timer_active_ && timer_remaining_) {
-      int minutes = *timer_remaining_ / 60;
-      int seconds = *timer_remaining_ % 60;
-      Color tc = (*timer_remaining_ == 0) ? ChromeColors::RED : ChromeColors::CYAN;
+    const bool t_active = timer_active_ ? *timer_active_ : false;
+    const int t_rem = timer_remaining_ ? *timer_remaining_ : 0;
+
+    if (t_active) {
+      int minutes = t_rem / 60;
+      int seconds = t_rem % 60;
+      Color tc = (t_rem == 0) ? ChromeColors::RED : ChromeColors::CYAN;
 
       int cx = 40, cy = 25;
       it.circle(cx, cy, 10, tc);
@@ -121,10 +175,18 @@ class HeaderWidget : public Widget {
 
         it.printf(460, 14, detail_font_, ChromeColors::DIM, TextAlign::TOP_RIGHT, "%s %02d %s",
                   days[dayIdx], time_now.day_of_month, months[time_now.month - 1]);
+
+        last_hour_ = time_now.hour;
+        last_minute_ = time_now.minute;
+        last_day_ = time_now.day_of_month;
       }
     }
 
     it.line(20, 48, 460, 48, ChromeColors::DIM);
+
+    last_timer_active_ = t_active;
+    last_timer_remaining_ = t_rem;
+    baseline_set_ = true;
   }
 
  private:
@@ -132,6 +194,12 @@ class HeaderWidget : public Widget {
   esphome::font::Font* detail_font_;
   const bool* timer_active_ = nullptr;
   const int* timer_remaining_ = nullptr;
+  bool last_timer_active_ = false;
+  int last_timer_remaining_ = 0;
+  int last_hour_ = -1;
+  int last_minute_ = -1;
+  int last_day_ = -1;
+  bool baseline_set_ = false;
 };
 
 class DetailHeaderWidget : public Widget {
@@ -140,7 +208,14 @@ class DetailHeaderWidget : public Widget {
                      const char* title, std::function<void()> back_callback)
       : title_font_(title_font), btn_font_(btn_font), title_(title), back_callback_(back_callback) {}
 
-  void set_title(const char* title) { title_ = title; }
+  UiRect bounds() const override { return UiRect{0, 0, 480, 50}; }
+
+  void set_title(const char* title) {
+    if (title_ != title) {
+      title_ = title;
+      mark_dirty();
+    }
+  }
 
   bool handle_touch(const TouchEvent& event, uint32_t now) override {
     (void)now;

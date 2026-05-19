@@ -31,10 +31,62 @@ class TabContainerWidget : public Widget {
     return ptr;
   }
 
+  UiRect bounds() const override { return rect_; }
+
   void draw(display::Display &it, const UiState &state) override {
-    draw_background(it);
-    draw_tab_bar(it);
-    draw_active_children(it, state);
+    const bool full = UiInvalidation::is_full_dirty();
+    const bool legacy_partial =
+        !full && UiInvalidation::dirty_count() == 0 && UiInvalidation::needs_redraw();
+
+    // Repaint the tab-bar/body backgrounds ONLY when a dirty rect actually
+    // covers their full area (e.g. tab switch marks the container's whole
+    // rect). A small dirty rect from a child must NOT trigger a bg repaint,
+    // because that would erase sibling widgets that won't redraw this frame.
+    const int bar_y = rect_.y;
+    const int bar_h = kTabBarHeight;
+    const int body_y = rect_.y + kTabBarHeight;
+    const int body_h = rect_.h - kTabBarHeight;
+
+    const bool draw_bar = full || legacy_partial ||
+        rect_fully_covered(rect_.x, bar_y, rect_.w, bar_h);
+    const bool draw_body_bg = full || legacy_partial ||
+        rect_fully_covered(rect_.x, body_y, rect_.w, body_h);
+
+    if (draw_body_bg) {
+      draw_background(it);
+    }
+    if (draw_bar) {
+      draw_tab_bar(it);
+    }
+
+    for (auto &w : tabs_[active_tab_].widgets) {
+      if (!w->is_visible(state)) continue;
+      // If we repainted the body bg we must redraw every child that lives
+      // there or it'll vanish.
+      if (draw_body_bg) {
+        w->draw(it, state);
+        continue;
+      }
+      if (full || legacy_partial) {
+        w->draw(it, state);
+        continue;
+      }
+      const auto b = w->bounds();
+      if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
+      w->draw(it, state);
+    }
+  }
+
+  // Returns true iff some dirty rect fully covers the given area.
+  static bool rect_fully_covered(int x, int y, int w, int h) {
+    for (int i = 0; i < UiInvalidation::dirty_count(); i++) {
+      const auto &r = UiInvalidation::dirty_rect(i);
+      if (r.x <= x && r.x + r.w >= x + w &&
+          r.y <= y && r.y + r.h >= y + h) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool handle_touch(const TouchEvent &event, uint32_t now) override {
@@ -84,7 +136,7 @@ class TabContainerWidget : public Widget {
     for (auto &w : tabs_[active_tab_].widgets) w->exit();
     active_tab_ = tab_index;
     for (auto &w : tabs_[active_tab_].widgets) w->enter();
-    UiInvalidation::request_partial();
+    mark_dirty();
   }
 
   void draw_background(display::Display &it) const {

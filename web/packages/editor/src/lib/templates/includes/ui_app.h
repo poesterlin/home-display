@@ -8,6 +8,17 @@
 
 void ui_fast_fill(display::Display &it, Color color);
 
+#ifndef UI_PROFILE
+#define UI_PROFILE 1
+#endif
+
+#if UI_PROFILE
+struct UiProfileTimer {
+  inline static uint32_t fill_us = 0;
+  inline static uint32_t screens_us = 0;
+};
+#endif
+
 class UiApp {
  public:
   void init() {
@@ -22,9 +33,11 @@ class UiApp {
   void on_touch_event(const TouchEvent &event) {
     init();
     const uint32_t now = millis();
-    if (screens_.handle_touch(event, now, state_)) {
-      UiInvalidation::request_partial();
-    }
+    // Touch handlers (buttons, tabs, page-swipe, scrollable entries) are
+    // responsible for marking their own dirty rects via mark_dirty() /
+    // request_full(). We deliberately don't blanket-request a partial repaint
+    // here -- doing so would force every widget to redraw on every touch.
+    (void)screens_.handle_touch(event, now, state_);
   }
 
   void update(uint32_t now) {
@@ -35,10 +48,23 @@ class UiApp {
   void draw(display::Display &it, uint32_t now) {
     init();
     (void)now;
-    if (UiInvalidation::is_full_dirty()) {
+#if UI_PROFILE
+    if (UiInvalidation::is_full_dirty() &&
+        !screens_.current()->draws_own_background()) {
+      const uint32_t t = micros();
+      ui_fast_fill(it, Color(0, 0, 0));
+      UiProfileTimer::fill_us = micros() - t;
+    }
+    const uint32_t t = micros();
+    screens_.draw(it, state_);
+    UiProfileTimer::screens_us = micros() - t;
+#else
+    if (UiInvalidation::is_full_dirty() &&
+        !screens_.current()->draws_own_background()) {
       ui_fast_fill(it, Color(0, 0, 0));
     }
     screens_.draw(it, state_);
+#endif
   }
 
   ScreenController& screens() { return screens_; }

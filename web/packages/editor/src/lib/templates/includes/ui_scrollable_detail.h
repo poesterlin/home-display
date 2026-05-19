@@ -49,10 +49,12 @@ class ScrollableDetailScreen : public Screen {
   }
 
   void update(uint32_t now) override {
-    for (auto &e : entries_) {
+    for (size_t i = 0; i < entries_.size(); i++) {
+      auto &e = entries_[i];
       if (e.loading && e.loading_timeout_ms > 0
           && (now - e.loading_start > e.loading_timeout_ms)) {
         e.loading = false;
+        mark_entry_dirty(static_cast<int>(i));
       }
     }
   }
@@ -104,15 +106,16 @@ class ScrollableDetailScreen : public Screen {
           if (e.loading) return true;
           e.loading = true;
           e.loading_start = now;
-          UiInvalidation::request_partial();
+          mark_entry_dirty(i);
           if (e.callback) e.callback();
 
           char name_buf[24];
           snprintf(name_buf, sizeof(name_buf), "se_%p", &e);
+          const int idx = static_cast<int>(i);
           esphome::App.scheduler.set_timeout(nullptr, name_buf, e.loading_timeout_ms,
-              [&e]() {
+              [this, &e, idx]() {
                 e.loading = false;
-                UiInvalidation::request_partial();
+                mark_entry_dirty(idx);
                 UiRedraw::trigger_display_update();
               });
           return true;
@@ -123,10 +126,17 @@ class ScrollableDetailScreen : public Screen {
     return true;
   }
 
+  bool draws_own_background() const override { return true; }
+
   void draw(display::Display &it, const UiState &state) override {
     (void)state;
 
-    if (fast_scroll_ && millis() - last_full_draw_ms_ < 1000) {
+    const bool full = UiInvalidation::is_full_dirty();
+    const bool legacy_partial =
+        !full && UiInvalidation::dirty_count() == 0 && UiInvalidation::needs_redraw();
+    const bool draw_all = full || legacy_partial;
+
+    if (fast_scroll_ && !full && millis() - last_full_draw_ms_ < 1000) {
       if (max_scroll_ > 0) {
         ui_fast_filled_rectangle(it, 475, content_y_, 3, content_area_h_, Color(10, 10, 10));
         int sb_h = content_area_h_ * content_area_h_ / content_height_;
@@ -138,9 +148,30 @@ class ScrollableDetailScreen : public Screen {
     }
 
     last_full_draw_ms_ = millis();
-    header_->draw(it, state);
 
-    ui_fast_filled_rectangle(it, 0, content_y_, 480, content_area_h_, Color(10, 10, 10));
+    // Header: only repaint if it's actually dirty (rare -- title changes)
+    // or we're doing a full / legacy repaint.
+    if (draw_all || header_->needs_draw(state)) {
+      header_->draw(it, state);
+    }
+
+    // Content background: only repaint when a dirty rect FULLY covers the
+    // content area. A per-entry dirty rect must not wipe the whole content
+    // (that would erase sibling entries that won't redraw this frame).
+    bool need_content_bg = draw_all;
+    if (!need_content_bg) {
+      for (int i = 0; i < UiInvalidation::dirty_count(); i++) {
+        const auto &r = UiInvalidation::dirty_rect(i);
+        if (r.x <= 0 && r.x + r.w >= 480 &&
+            r.y <= content_y_ && r.y + r.h >= 480) {
+          need_content_bg = true;
+          break;
+        }
+      }
+    }
+    if (need_content_bg) {
+      ui_fast_filled_rectangle(it, 0, content_y_, 480, 480 - content_y_, Color(10, 10, 10));
+    }
 
     for (size_t i = 0; i < entries_.size(); i++) {
       auto &e = entries_[i];
@@ -159,10 +190,23 @@ class ScrollableDetailScreen : public Screen {
       }
       if (draw_h <= 0) continue;
 
+      // Skip entries that are outside any dirty rect on partial passes. If
+      // the content bg was repainted above, every entry is implicitly dirty
+      // because its background just got erased, so we draw them all.
+      if (!draw_all && !need_content_bg &&
+          !UiInvalidation::needs_redraw_in(20, draw_y, 440, draw_h)) {
+        continue;
+      }
+
       Color c = e.color;
       it.rectangle(20, draw_y, 440, draw_h, c);
 
       if (draw_y == sy && draw_h == 50) {
+        // If the content bg wasn't repainted, paint inside the entry rect to
+        // erase the previous label/spinner before drawing the new one.
+        if (!need_content_bg) {
+          ui_fast_filled_rectangle(it, 21, draw_y + 1, 438, draw_h - 2, Color(10, 10, 10));
+        }
         if (e.loading) {
           it.printf(240, draw_y + draw_h / 2, entry_font_, c, TextAlign::CENTER, "...");
         } else {
@@ -172,11 +216,33 @@ class ScrollableDetailScreen : public Screen {
     }
 
     if (max_scroll_ > 0) {
+      // Scrollbar always paints on slow path -- it's cheap and tracks scroll.
       int sb_h = content_area_h_ * content_area_h_ / content_height_;
       int sb_y = content_y_ + (-scroll_y_ * content_area_h_ / content_height_);
       if (sb_h < 20) sb_h = 20;
+      if (!need_content_bg) {
+        // Erase the scrollbar track in the small affected vertical region.
+        ui_fast_filled_rectangle(it, 475, content_y_, 3, content_area_h_, Color(10, 10, 10));
+      }
       ui_fast_filled_rectangle(it, 475, sb_y, 3, sb_h, Color(60, 60, 60));
     }
+  }
+
+  // Mark a single entry's screen-space rect dirty so that the next render
+  // only repaints that entry (loading spinner toggle, etc.).
+  void mark_entry_dirty(int index) {
+    int sy = content_y_ + 10 + index * 55 + scroll_y_;
+    int draw_y = sy;
+    int draw_h = 50;
+    if (draw_y < content_y_) {
+      draw_h -= (content_y_ - draw_y);
+      draw_y = content_y_;
+    }
+    if (draw_y + draw_h > content_y_ + content_area_h_) {
+      draw_h = content_y_ + content_area_h_ - draw_y;
+    }
+    if (draw_h <= 0) return;
+    UiInvalidation::request_rect(UiDirtyRect{20, draw_y, 440, draw_h});
   }
 
   void layout() override {}

@@ -13,7 +13,10 @@ class Observable {
   Observable &operator=(const T &v) {
     if (value_ != v) {
       value_ = v;
-      UiInvalidation::request_partial();
+      // No invalidation here: bound widgets poll their values in update()
+      // and self-mark dirty via mark_dirty(). The render is still triggered
+      // by whoever owns the state change (HA callback -> trigger_display_update,
+      // touch handler -> main_display.update()).
     }
     return *this;
   }

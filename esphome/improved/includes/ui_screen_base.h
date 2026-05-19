@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome.h"
+#include "ui_invalidation.h"
 #include "ui_types.h"
 #include "ui_widgets.h"
 #include <memory>
@@ -17,6 +18,12 @@ class Screen {
   virtual void update(uint32_t now) = 0;
   virtual bool handle_touch(const TouchEvent &event, uint32_t now, const UiState &state) = 0;
   virtual void draw(display::Display &it, const UiState &state) = 0;
+
+  // If true, the screen's draw() is responsible for painting every pixel
+  // (or knowingly accepts leftover content from the previous frame). When set,
+  // UiApp skips the full-screen black fill on a full redraw, eliminating the
+  // brief black flash you otherwise see between the clear and the repaint.
+  virtual bool draws_own_background() const { return false; }
 };
 
 class GenericScreen : public Screen {
@@ -59,8 +66,16 @@ class GenericScreen : public Screen {
   }
 
   void draw(display::Display &it, const UiState &state) override {
+    const bool full = UiInvalidation::is_full_dirty();
+    const bool legacy_partial =
+        !full && UiInvalidation::dirty_count() == 0 && UiInvalidation::needs_redraw();
     for (auto &w : widgets_) {
-      if (w->is_visible(state)) w->draw(it, state);
+      if (!w->is_visible(state)) continue;
+      if (!full && !legacy_partial) {
+        const auto b = w->bounds();
+        if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
+      }
+      w->draw(it, state);
     }
   }
 
