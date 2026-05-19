@@ -6,11 +6,15 @@
   import SelectionOverlay from "./SelectionOverlay.svelte";
   import DetailHeader from "./DetailHeader.svelte";
   import PageIndicator from "./PageIndicator.svelte";
-  import type { Component } from "@esphome-designer/schema";
   import { createComponent } from "$lib/utils/component-factory";
 
   let canvasEl: HTMLDivElement | undefined = $state();
   let headerEl: HTMLDivElement | undefined = $state();
+  let selectedComponent = $derived(
+    selectionStore.firstSelectedId
+      ? projectStore.getComponent(selectionStore.firstSelectedId)
+      : null,
+  );
 
   const canvasHeight = $derived(
     projectStore.project &&
@@ -145,7 +149,11 @@
       {#each projectStore.headerComponents as component (component.id)}
         <ComponentRenderer {component} />
       {/each}
-      <SelectionOverlay region="header" regionOffset={0} />
+      <SelectionOverlay
+        region="header"
+        regionOffset={0}
+        widthOnly={selectedComponent?.type === "light_state"}
+      />
     </div>
     <div class="header-divider"></div>
   {/if}
@@ -167,7 +175,11 @@
       {/each}
     {/if}
 
-    <SelectionOverlay region="content" regionOffset={headerHeight} />
+    <SelectionOverlay
+      region="content"
+      regionOffset={headerHeight}
+      widthOnly={selectedComponent?.type === "light_state"}
+    />
 
     {#if projectStore.viewMode === "dashboard"}
       <PageIndicator

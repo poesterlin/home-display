@@ -6,9 +6,10 @@
   interface Props {
     region?: "header" | "content";
     regionOffset?: number;
+    widthOnly?: boolean;
   }
 
-  let { region = "content", regionOffset = 0 }: Props = $props();
+  let { region = "content", regionOffset = 0, widthOnly = false }: Props = $props();
 
   // Resize handles
   type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -65,12 +66,14 @@
       newX = resizeStart.compX + dx;
     }
 
-    // Handle height changes
-    if (handle.includes("s")) {
-      newHeight = resizeStart.height + dy;
-    } else if (handle.includes("n")) {
-      newHeight = resizeStart.height - dy;
-      newY = resizeStart.compY + dy;
+    // Handle height changes (skipped in widthOnly mode)
+    if (!widthOnly) {
+      if (handle.includes("s")) {
+        newHeight = resizeStart.height + dy;
+      } else if (handle.includes("n")) {
+        newHeight = resizeStart.height - dy;
+        newY = resizeStart.compY + dy;
+      }
     }
 
     // Apply constraints
@@ -133,55 +136,71 @@
     style:width="{bound.width}px"
     style:height="{bound.height}px"
   >
-    <!-- Resize handles -->
-    <div
-      class="handle nw"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "nw", e)}
-    ></div>
-    <div
-      class="handle n"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "n", e)}
-    ></div>
-    <div
-      class="handle ne"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "ne", e)}
-    ></div>
-    <div
-      class="handle e"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "e", e)}
-    ></div>
-    <div
-      class="handle se"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "se", e)}
-    ></div>
-    <div
-      class="handle s"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "s", e)}
-    ></div>
-    <div
-      class="handle sw"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "sw", e)}
-    ></div>
-    <div
-      class="handle w"
-      role="button"
-      tabindex="-1"
-      onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "w", e)}
-    ></div>
+    {#if widthOnly}
+      <!-- Width-only handles -->
+      <div
+        class="handle e"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "e", e)}
+      ></div>
+      <div
+        class="handle w"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "w", e)}
+      ></div>
+    {:else}
+      <!-- Resize handles -->
+      <div
+        class="handle nw"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "nw", e)}
+      ></div>
+      <div
+        class="handle n"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "n", e)}
+      ></div>
+      <div
+        class="handle ne"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "ne", e)}
+      ></div>
+      <div
+        class="handle e"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "e", e)}
+      ></div>
+      <div
+        class="handle se"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "se", e)}
+      ></div>
+      <div
+        class="handle s"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "s", e)}
+      ></div>
+      <div
+        class="handle sw"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "sw", e)}
+      ></div>
+      <div
+        class="handle w"
+        role="button"
+        tabindex="-1"
+        onmousedown={(e: MouseEvent) => handleResizeStart(bound.id, "w", e)}
+      ></div>
+    {/if}
   </div>
 {/each}
 

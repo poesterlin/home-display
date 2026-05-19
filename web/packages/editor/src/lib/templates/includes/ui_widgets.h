@@ -186,6 +186,22 @@ class LabelWidget : public Widget {
     };
   }
 
+  // Bind the label to a runtime-computed string. Used by the codegen to
+  // render templates with multiple bindings (e.g. "Temp: {{sensor.x}}").
+  // The function is polled on every update() so the widget can self-mark
+  // dirty when any contributing input changes, and is invoked again at
+  // draw() time to produce the final string.
+  void bind_text_fn(std::function<std::string()> fn) {
+    text_fn_ = std::move(fn);
+    // Pre-render once so the very first draw has something sensible to
+    // show. If the lambda happens to throw (e.g. accessing a not-yet-
+    // initialised observable), we'd rather catch it here at setup time
+    // than at a random later moment when we'd lose the call site.
+    if (text_fn_) {
+      last_text_ = text_fn_();
+    }
+  }
+
   // Poll bound state and mark dirty if it changed since the last draw. This is
   // what makes the "only the label that actually changed redraws" optimisation
   // work for the common bound-bool case (LED on/off, button A/B, etc.).
@@ -193,6 +209,20 @@ class LabelWidget : public Widget {
     if (bound_bool_ != nullptr) {
       const bool current = *bound_bool_;
       if (!bool_baseline_set_ || current != last_bool_) {
+        mark_dirty();
+      }
+    }
+    // Skip the text recompute when we're known to be hidden -- the
+    // visibility check is the only thing that could make this widget
+    // redraw, and `mark_dirty()` while hidden would only invalidate
+    // pixels nobody is going to repaint anyway. This also avoids the
+    // per-frame heap allocation for templated labels stacked inside
+    // conditional areas (only one variant is on-screen at a time).
+    const bool currently_visible = !visibility_check_ || visibility_check_();
+    if (text_fn_ && currently_visible) {
+      std::string current = text_fn_();
+      if (current != last_text_) {
+        last_text_ = std::move(current);
         mark_dirty();
       }
     }
@@ -219,6 +249,11 @@ class LabelWidget : public Widget {
       it.printf(rect_.x, rect_.y, f, cl, a, "%s", display);
       last_bool_ = *bound_bool_;
       bool_baseline_set_ = true;
+    } else if (text_fn_) {
+      // last_text_ is kept in sync by update(); use it directly so the
+      // draw doesn't re-invoke the (potentially heavy) compose function.
+      ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
+      it.printf(rect_.x, rect_.y, f, cl, a, "%s", last_text_.c_str());
     } else if (printer_) {
       ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
       printer_(it, rect_.x, rect_.y, f, cl, a);
@@ -238,6 +273,8 @@ class LabelWidget : public Widget {
   const char *on_text_ = "ON";
   const char *off_text_ = "OFF";
   std::function<void(display::Display&, int, int, esphome::font::Font*, Color, TextAlign)> printer_;
+  std::function<std::string()> text_fn_;
+  std::string last_text_;
   Color bg_color_{0, 0, 0};
   bool last_bool_ = false;
   bool bool_baseline_set_ = false;

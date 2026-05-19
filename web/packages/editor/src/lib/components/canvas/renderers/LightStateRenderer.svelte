@@ -3,7 +3,6 @@
   import Draggable from "../Draggable.svelte";
   import * as mdiIcons from "@mdi/js";
   import { colorToCss } from "$lib/utils/color-utils";
-
   interface Props {
     component: LightStateComponent;
   }
@@ -38,8 +37,7 @@
   );
 </script>
 
-<Draggable {component}>
-  <div class="light-state-card" style:width="100%" style:height="100%">
+<Draggable {component} widthOnly>
     {#if useImageToggle}
       <div class="image-toggle" style:border-color={offColor}>
         <div class="icon-wrap" style:color={offColor}>
@@ -63,11 +61,6 @@
       <span class="state-pill" style:background-color={offColor}>
         {offText}
       </span>
-      <div class="bindings">
-        {#if !component.stateBinding}
-          Bind a light entity
-        {/if}
-      </div>
       {#if showBrightnessControl}
         <div class="brightness-row">
           <span class="brightness-label">Brightness</span>
@@ -83,23 +76,9 @@
         </div>
       {/if}
     {/if}
-  </div>
 </Draggable>
 
 <style>
-  .light-state-card {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 8px;
-    background: rgba(20, 24, 32, 0.7);
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-
   .label {
     min-width: 0;
     font-size: 12px;

@@ -5,15 +5,24 @@
   import type { Component } from "@esphome-designer/schema";
   import type { Snippet } from "svelte";
 
+
   interface Props {
     component: Component;
     children: Snippet;
+    widthOnly?: boolean;
   }
 
-  let { component, children }: Props = $props();
+  let { component, children, widthOnly = false }: Props = $props();
 
   let dragging = $state(false);
-  let dragStart = $state<{ x: number; y: number; compX: number; compY: number } | null>(null);
+  let dragStart = $state<{
+    x: number;
+    y: number;
+    compX: number;
+    compY: number;
+    compWidth: number;
+    compHeight: number;
+  } | null>(null);
 
   const isSelected = $derived(selectionStore.isSelected(component.id));
   const isHovered = $derived(selectionStore.isHovered(component.id));
@@ -21,7 +30,6 @@
   function handleMouseDown(e: MouseEvent) {
     e.stopPropagation();
 
-    // Select if not already selected
     if (!selectionStore.isSelected(component.id)) {
       if (e.shiftKey) {
         selectionStore.addToSelection(component.id);
@@ -33,8 +41,8 @@
     historyStore.record("Move component");
 
     dragging = true;
-    dragStart = {
-      x: e.clientX,
+      dragStart = {
+        x: e.clientX,
       y: e.clientY,
       compX: component.position.x,
       compY: component.position.y,
@@ -50,8 +58,8 @@
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
 
-    const newX = Math.max(0, dragStart.compX + dx);
-    const newY = Math.max(0, dragStart.compY + dy);
+      const newX = Math.max(0, dragStart.compX + dx);
+      const newY = Math.max(0, dragStart.compY + dy);
 
     projectStore.updateComponent(component.id, {
       position: { x: Math.round(newX), y: Math.round(newY) },

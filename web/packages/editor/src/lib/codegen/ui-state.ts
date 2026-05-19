@@ -1,6 +1,7 @@
-import type { Project, LightStateComponent, Component, TodoListComponent } from "@esphome-designer/schema";
-import { toCppIdentifier, firstScreenId, cppDefaultValue, cppTypeFor, stateVarFromEntity, collectAllComponents, todoItemsVarFromBinding } from "./utils";
+import type { Project, LightStateComponent, Component, TodoListComponent, TextComponent } from "@esphome-designer/schema";
+import { toCppIdentifier, firstScreenId, cppDefaultValue, cppTypeFor, stateVarFromEntity, collectAllComponents, todoItemsVarFromBinding, textBindingVar } from "./utils";
 import { collectConditionEntities } from "./condition-expr";
+import { extractBindings, parseTemplate } from "../utils/template-utils";
 
 function collectLightStateVars(project: Project): string[] {
   const vars = new Set<string>();
@@ -31,6 +32,30 @@ function collectTodoItemsVars(project: Project): string[] {
   return [...vars];
 }
 
+function collectTextEntityVars(project: Project): string[] {
+  const vars = new Set<string>();
+  const allComponents = collectAllComponents([
+    ...project.dashboardPages.flatMap(p => p.components),
+    ...project.detailViews.flatMap(v => v.components),
+  ]);
+  for (const c of allComponents) {
+    if (c.type !== "text") continue;
+    const tc = c as TextComponent;
+    // Bindings are derived from the `{{...}}` placeholders in the
+    // template text itself, so the declared Observables always match
+    // what the runtime will reference. The legacy single-binding
+    // `textBinding` is honoured for backward compat with older
+    // projects.
+    if (tc.textBinding) {
+      vars.add(textBindingVar(tc.textBinding));
+    }
+    for (const b of extractBindings(parseTemplate(tc.text ?? ""))) {
+      vars.add(textBindingVar(b));
+    }
+  }
+  return [...vars];
+}
+
 export function generateUIStateHeader(project: Project): string {
   const fields = project.state?.fields ?? [];
   const screenName = firstScreenId(project);
@@ -39,12 +64,15 @@ export function generateUIStateHeader(project: Project): string {
   for (const v of lightVars) existingNames.add(v);
   const todoItemsVars = collectTodoItemsVars(project).filter(v => !existingNames.has(v));
   for (const v of todoItemsVars) existingNames.add(v);
+  const textVars = collectTextEntityVars(project).filter(v => !existingNames.has(v));
+  for (const v of textVars) existingNames.add(v);
   const conditionEntities = collectConditionEntities(project).filter(e => !existingNames.has(e.varName));
 
   const allFields: string[] = [
     ...fields.map(f => `  Observable<${cppTypeFor(f.cppType)}> ${f.name}{${cppDefaultValue(f.cppType)}};`),
     ...lightVars.map(v => `  Observable<bool> ${v}{false};`),
     ...todoItemsVars.map(v => `  Observable<std::string> ${v}{"LIST EMPTY"};`),
+    ...textVars.map(v => `  Observable<std::string> ${v}{""};`),
     ...conditionEntities.map(e => `  Observable<${cppTypeFor(e.cppType)}> ${e.varName}{${cppDefaultValue(e.cppType)}};`),
   ];
 

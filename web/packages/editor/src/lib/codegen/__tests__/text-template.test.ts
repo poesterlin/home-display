@@ -1,0 +1,178 @@
+/// <reference types="bun" />
+import { describe, test, expect } from "bun:test";
+import type { Project } from "@esphome-designer/schema";
+import { generateUIScreensHeader } from "../ui-screens";
+import { generateUIStateHeader } from "../ui-state";
+import { generateESPHomeYAML } from "../esphome-yaml";
+
+function makeProject(overrides: Partial<Project> = {}): Project {
+  return {
+    name: "Test",
+    display: { width: 480, height: 480 },
+    dashboardPages: [],
+    detailViews: [],
+    ...overrides,
+  };
+}
+
+describe("text component template codegen", () => {
+  test("static text emits a plain LabelWidget without bind_text_fn", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "Hello world",
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain('"Hello world"');
+    expect(out).not.toContain("bind_text_fn");
+  });
+
+  test("template with single binding emits empty static text + bind_text_fn lambda", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "Temp: {{sensor.living_room_temp}}",
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain('""');
+    expect(out).toContain("bind_text_fn");
+    expect(out).toContain('"Temp: "');
+    expect(out).toContain("state.txt_sensor_living_room_temp.ptr()");
+    expect(out).not.toContain("{{");
+  });
+
+  test("template with multiple bindings concatenates all parts", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "{{sensor.a}}: {{sensor.b}} now",
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain("bind_text_fn");
+    expect(out).toContain("state.txt_sensor_a.ptr()");
+    expect(out).toContain("state.txt_sensor_b.ptr()");
+    expect(out).toContain('": "');
+    expect(out).toContain('" now"');
+  });
+
+  test("HA subscriptions cover every binding referenced in the template", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "{{sensor.foo}} / {{sensor.bar.attributes.unit}}",
+            },
+          ],
+        },
+      ],
+    });
+    const yaml = generateESPHomeYAML(project);
+    expect(yaml).toContain('bind_ha_string("sensor.foo"');
+    expect(yaml).toContain('bind_ha_string_attr("sensor.bar", "attributes.unit"');
+  });
+
+  test("declared Observables match the bindings parsed from the template", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "Hello {{sensor.foo}}",
+            },
+          ],
+        },
+      ],
+    });
+    const state = generateUIStateHeader(project);
+    expect(state).toContain("Observable<std::string> txt_sensor_foo");
+  });
+
+  test("legacy textBinding still works alongside the modern template", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "Prefix",
+              textBinding: { entityId: "sensor.legacy" },
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain("bind_text_fn");
+    expect(out).toContain("state.txt_sensor_legacy.ptr()");
+    expect(out).toContain('"Prefix"');
+  });
+
+  test("escapes quotes and backslashes in static text segments", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: 'A "quoted" \\ thing {{sensor.x}}',
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain('"A \\"quoted\\" \\\\ thing "');
+  });
+});

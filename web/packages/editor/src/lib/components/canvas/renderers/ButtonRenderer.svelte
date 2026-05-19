@@ -78,17 +78,6 @@
         viewBox="0 0 {width} {height}"
         preserveAspectRatio="none"
       >
-        <!-- Shadow -->
-        {#if theme.style?.buttonShadow}
-          <rect
-            x={shadowOffset}
-            y={shadowOffset}
-            width={width - shadowOffset}
-            height={height - shadowOffset}
-            fill={shadowColor}
-          />
-        {/if}
-
         <!-- Main Body -->
         <rect
           x="0"
@@ -99,49 +88,6 @@
           stroke={accentColor}
           stroke-width="1"
         />
-
-        <!-- Corner Accents -->
-        {#if theme.style?.buttonCornerAccents}
-          <g stroke="white" stroke-width="1.5" fill="none">
-            <!-- Top Left -->
-            <path d="M 0 {cornerSize} L 0 0 L {cornerSize} 0" />
-            <!-- Top Right -->
-            <path
-              d="M {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0) -
-                cornerSize} 0 
-               L {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0)} 0 
-               L {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0)} {cornerSize}"
-            />
-            <!-- Bottom Left -->
-            <path
-              d="M 0 {component.size.height -
-                (theme.style.buttonShadow ? shadowOffset : 0) -
-                cornerSize} 
-               L 0 {component.size.height -
-                (theme.style.buttonShadow ? shadowOffset : 0)} 
-               L {cornerSize} {component.size.height -
-                (theme.style.buttonShadow ? shadowOffset : 0)}"
-            />
-            <!-- Bottom Right -->
-            <path
-              d="M {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0) -
-                cornerSize} {component.size.height -
-                (theme.style.buttonShadow ? shadowOffset : 0)} 
-               L {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0)} {component.size
-                .height - (theme.style.buttonShadow ? shadowOffset : 0)} 
-               L {component.size.width -
-                (theme.style.buttonShadow ? shadowOffset : 0)} {component.size
-                .height -
-                (theme.style.buttonShadow ? shadowOffset : 0) -
-                cornerSize}"
-            />
-          </g>
-        {/if}
 
         <!-- Icon and/or Label -->
         {#if hasIcon && iconPath}

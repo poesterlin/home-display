@@ -10,36 +10,6 @@
   }
 
   let { onExport, onSettings, onDebug }: Props = $props();
-
-  function handleSave() {
-    const json = projectStore.exportJSON();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectStore.project?.name.toLowerCase().replace(/\s+/g, "-") ?? "project"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function handleLoad() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const text = await file.text();
-      const success = projectStore.importJSON(text);
-      if (!success) {
-        alert("Failed to load project. Invalid format.");
-      } else {
-        historyStore.clear();
-      }
-    };
-    input.click();
-  }
 </script>
 
 <header class="toolbar">
@@ -78,9 +48,6 @@
        </svg>
        <span>Debug</span>
      </button>
-    <div class="separator"></div>
-    <button onclick={handleLoad} title="Load Project">Load</button>
-    <button onclick={handleSave} title="Save Project">Save</button>
     <div class="separator"></div>
     <button onclick={() => historyStore.undo()} disabled={!historyStore.canUndo} title="Undo (Ctrl+Z)">
       Undo

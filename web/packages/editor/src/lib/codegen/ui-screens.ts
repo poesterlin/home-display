@@ -17,11 +17,108 @@ import {
   escapeCString,
   stateVarFromEntity,
   todoItemsVarFromBinding,
+  textBindingVar,
   type ScreenDescriptor,
   type WidgetFactory,
 } from "./utils";
 import { emitConditionExpression } from "./condition-expr";
 import { getMdiUtf8CEscape } from "./mdi-icons";
+import { parseTemplate } from "../utils/template-utils";
+
+const fontMap: Record<string, string> = {
+  small: 'g_theme.label',
+  medium: 'g_theme.header',
+  large: 'g_theme.header',
+};
+
+type LabelPart =
+  | { kind: 'text'; value: string }
+  | { kind: 'binding'; varName: string };
+
+/**
+ * Walk the parsed template + legacy `textBinding` and produce a flat
+ * sequence of static text / binding parts. Empty static text segments
+ * are dropped to keep the generated lambda body compact.
+ */
+function collectLabelParts(c: TextComponent): LabelPart[] {
+  const parts: LabelPart[] = [];
+  for (const seg of parseTemplate(c.text ?? "")) {
+    if (seg.type === 'text') {
+      if (seg.value.length > 0) parts.push({ kind: 'text', value: seg.value });
+    } else {
+      parts.push({ kind: 'binding', varName: textBindingVar(seg.value) });
+    }
+  }
+  // Treat the legacy `textBinding` as an extra binding appended after
+  // the parsed template, so older projects that stored their dynamic
+  // value in `textBinding` keep rendering the same way.
+  if (c.textBinding) {
+    parts.push({ kind: 'binding', varName: textBindingVar(c.textBinding) });
+  }
+  return parts;
+}
+
+function hasAnyBinding(parts: LabelPart[]): boolean {
+  return parts.some(p => p.kind === 'binding');
+}
+
+/**
+ * Emit a `bind_text_fn` call for a text component, or an empty string
+ * if the component has no bindings at all (caller emits static text).
+ *
+ * Design notes:
+ *  - The lambda captures `state` (the reference parameter of the
+ *    enclosing `setup_ui_screens`) by reference. We can't reach for
+ *    the global `g_ui_app` directly here because `ui_app.h` includes
+ *    `ui_screens.h`, so `g_ui_app` isn't yet declared at the point
+ *    where this lambda's body is parsed.
+ *    Because `state` itself aliases `g_ui_app.state_` (a member of
+ *    the program-lifetime global), the captured reference is stable
+ *    long after `setup_ui_screens` returns.
+ *  - Instead of chaining `+` operators (which materialises one
+ *    temporary `std::string` per join), we build the result in-place
+ *    with `reserve()` + `append()`. This drops per-frame heap churn
+ *    to a single allocation, which matters because `update()` polls
+ *    the function on every redraw.
+ */
+function emitLabelBindings(c: TextComponent, idSafe: string, indent: string): string {
+  const parts = collectLabelParts(c);
+  if (!hasAnyBinding(parts)) return '';
+
+  // Heuristic capacity: every literal char + a guess for each binding.
+  // The actual std::string will still grow if needed, this just avoids
+  // the small-allocation churn for the typical short-value case.
+  const literalLen = parts
+    .filter((p): p is { kind: 'text'; value: string } => p.kind === 'text')
+    .reduce((n, p) => n + p.value.length, 0);
+  const bindingCount = parts.filter(p => p.kind === 'binding').length;
+  const reserveBytes = literalLen + bindingCount * 16;
+
+  const body: string[] = [];
+  body.push(`std::string out;`);
+  if (reserveBytes > 0) body.push(`out.reserve(${reserveBytes});`);
+  for (const p of parts) {
+    if (p.kind === 'text') {
+      body.push(`out.append("${escapeCString(p.value)}");`);
+    } else {
+      body.push(`out.append(*state.${p.varName}.ptr());`);
+    }
+  }
+  body.push(`return out;`);
+  const inner = body.map(l => `${indent}  ${l}`).join('\n');
+  return `${indent}${idSafe}->bind_text_fn([&state]() {\n${inner}\n${indent}});\n`;
+}
+
+/**
+ * The static text passed to the LabelWidget constructor. When the
+ * component has any bindings we emit an empty string so the displayed
+ * value is exclusively controlled by `bind_text_fn`; otherwise the
+ * raw text is used as-is.
+ */
+function labelStaticText(c: TextComponent): string {
+  if (hasAnyBinding(collectLabelParts(c))) return '';
+  return c.text ?? '';
+}
 
 function emitColor(c: Color): string {
   return `Color(${c.r}, ${c.g}, ${c.b})`;
@@ -202,14 +299,11 @@ function generateComponentSetup(
   switch (c.type) {
     case 'text': {
       const tc = c;
-      const text = tc.text ?? '';
       const fontSize = tc.fontSize ?? 'small';
-      const fontMap: Record<string, string> = {
-        small: 'g_theme.label',
-        medium: 'g_theme.header',
-        large: 'g_theme.header',
-      };
-      return `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(text)}", ${fontMap[fontSize]}`)};${visLine}${dirtyLine}\n`;
+      const staticText = labelStaticText(tc);
+      let out = `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(staticText)}", ${fontMap[fontSize]}`)};${visLine}${dirtyLine}\n`;
+      out += emitLabelBindings(tc, idSafe, indent);
+      return out;
     }
     case 'button': {
       const label = c.label ?? '';
@@ -444,23 +538,28 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
 
   switch (c.type) {
     case 'text': {
-      const text = c.text ?? '';
       const fontSize = c.fontSize ?? 'small';
-      const fontMap: Record<string, string> = {
-        small: 'g_theme.label',
-        medium: 'g_theme.header',
-        large: 'g_theme.header',
-      };
-      const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(text)}", ${fontMap[fontSize]}`;
+      const staticText = labelStaticText(c);
+      const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(staticText)}", ${fontMap[fontSize]}`;
+      const bodyIndent = tabBgVar ? `${indent}  ` : indent;
+      const bindLines = emitLabelBindings(c, idSafe, bodyIndent);
+      let out: string;
       if (tabBgVar) {
         const visInner = visibilityExpr ? `\n${indent}  ${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
         const dirtyInner = dirtyBoundsExpr ? `\n${indent}  ${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});` : '';
-        return `${indent}{\n${indent}  auto *${idSafe} = ${factory('LabelWidget', wargs)};\n${indent}  ${idSafe}->set_bg_color(${tabBgVar});${visInner}${dirtyInner}\n${indent}}\n`;
+        out = `${indent}{\n${indent}  auto *${idSafe} = ${factory('LabelWidget', wargs)};\n${indent}  ${idSafe}->set_bg_color(${tabBgVar});${visInner}${dirtyInner}\n`;
+      } else if (visibilityExpr || dirtyBoundsExpr) {
+        out = `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};${visLine}${dirtyLine}\n`;
+      } else {
+        out = `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};\n`;
       }
-      if (visibilityExpr || dirtyBoundsExpr) {
-        return `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};${visLine}${dirtyLine}\n`;
+
+      out += bindLines;
+
+      if (tabBgVar) {
+        out += `${indent}}\n`;
       }
-      return `${indent}${factory('LabelWidget', wargs)};\n`;
+      return out;
     }
     case 'button': {
       const label = c.label ?? '';
@@ -631,6 +730,7 @@ export function generateUIScreensHeader(project: Project): string {
 #include "ui_redraw.h"
 #include "ui_scrollable_detail.h"
 #include <memory>
+#include <string>
 #include <vector>
 #include <map>
 

@@ -11,6 +11,41 @@ esp32:
   variant: esp32s3
   framework:
     type: esp-idf
+    sdkconfig_options:
+      # Pause briefly after a panic so the Guru Meditation dump can fully
+      # flush on slow USB serial (default 0 = instant reboot can race the
+      # UART FIFO). Cheap insurance for future debugging.
+      CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS: "3"
+
+      # ---- RGB-LCD + PSRAM framebuffer hardening -------------------------
+      # The ST7701S driver streams the framebuffer out of PSRAM via DMA,
+      # with an EOF interrupt refilling a small bounce buffer. Any flash
+      # op (NVS read/write, OTA, etc.) disables the cache on both cores
+      # while it runs; PSRAM is behind that same cache, so the bounce-
+      # buffer-fill ISR can't read the framebuffer for the duration.
+      #
+      #  * RESTART_IN_VSYNC=y: when the bounce buffer underruns (because
+      #    its ISR was suspended during a cache-disabled window), the
+      #    driver re-syncs at the next VSYNC instead of leaving the
+      #    panel in an undefined state. Worst-case visible artifact is
+      #    a single dropped frame.
+      #  * DO NOT set CONFIG_LCD_RGB_ISR_IRAM_SAFE=y. With it on, the
+      #    ISR is forced to keep running during cache-disabled windows
+      #    and crashes with "Cache disabled but cached memory region
+      #    accessed" inside lcd_rgb_panel_fill_bounce_buffer -- because
+      #    IRAM-safe only helps the ISR's *code*, not the PSRAM data it
+      #    has to read.
+      #  * SPIRAM_FETCH_INSTRUCTIONS / SPIRAM_RODATA explicitly off:
+      #    keeps code+rodata in flash/IRAM so PSRAM bandwidth is fully
+      #    available to the LCD DMA. Both default off in current IDF;
+      #    pinning them defends against future default flips.
+      #
+      # CONFIG_SPI_FLASH_AUTO_SUSPEND=y would be the proper fix but the
+      # Guition board's QSPI flash chip doesn't implement the suspend
+      # command, so enabling it asserts at boot.
+      CONFIG_LCD_RGB_RESTART_IN_VSYNC: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "n"
+      CONFIG_SPIRAM_RODATA: "n"
 
 psram:
   mode: octal

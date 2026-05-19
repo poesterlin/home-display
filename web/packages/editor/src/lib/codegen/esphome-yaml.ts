@@ -1,7 +1,29 @@
-import type { Project, LightStateComponent, StateField, TodoListComponent } from "@esphome-designer/schema";
-import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding } from "./utils";
+import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent } from "@esphome-designer/schema";
+import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey } from "./utils";
 import { collectConditionEntities, type ConditionEntityType } from "./condition-expr";
 import { ICON_FONT_ID, getIconGlyphs } from "./mdi-icons";
+import { extractBindings, parseTemplate } from "../utils/template-utils";
+
+/**
+ * Collect every EntityBinding referenced by a text component. The source
+ * of truth is the `{{...}}` template embedded in `tc.text` (parsed via
+ * the shared template-utils); the legacy `tc.textBinding` field is also
+ * honoured for backward compat with older projects.
+ */
+function collectTextBindings(tc: TextComponent): EntityBinding[] {
+  const seen = new Set<string>();
+  const out: EntityBinding[] = [];
+  const push = (b: EntityBinding | undefined) => {
+    if (!b?.entityId) return;
+    const key = bindingKey(b);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(b);
+  };
+  if (tc.textBinding) push(tc.textBinding);
+  for (const b of extractBindings(parseTemplate(tc.text ?? ""))) push(b);
+  return out;
+}
 
 const BINDER_BY_TYPE: Record<string, string> = {
   'bool': 'bind_ha_bool',
@@ -40,6 +62,21 @@ function generateBindings(project: Project): string {
     claimed.add(stateVar);
     const attribute = tc.itemsBinding?.attribute ?? "all_items";
     lines.push(`          bind_ha_string_attr("${entityId}", "${attribute}", &g_ui_app.state().${stateVar});`);
+  }
+
+  for (const c of allComponents) {
+    if (c.type !== "text") continue;
+    const tc = c as TextComponent;
+    for (const b of collectTextBindings(tc)) {
+      const stateVar = textBindingVar(b);
+      if (claimed.has(stateVar)) continue;
+      claimed.add(stateVar);
+      if (b.attribute) {
+        lines.push(`          bind_ha_string_attr("${b.entityId}", "${b.attribute}", &g_ui_app.state().${stateVar});`);
+      } else {
+        lines.push(`          bind_ha_string("${b.entityId}", &g_ui_app.state().${stateVar});`);
+      }
+    }
   }
 
   for (const f of (project.state?.fields ?? []) as StateField[]) {

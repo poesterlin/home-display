@@ -390,8 +390,14 @@
           "type": "object",
           "properties": {
             "type": { "const": "text" },
-            "text": { "type": "string" },
-            "textBinding": { "$ref": "#/definitions/EntityBinding" },
+            "text": {
+              "type": "string",
+              "description": "Label text. May contain `{{entity.id}}` or `{{entity.id.attribute}}` placeholders that are resolved at runtime; the referenced bindings are derived from this string."
+            },
+            "textBinding": {
+              "$ref": "#/definitions/EntityBinding",
+              "description": "Legacy single-binding field. Prefer embedding `{{...}}` placeholders in `text`. Kept for backward compat with older projects."
+            },
             "fontSize": { "enum": ["small", "medium", "large"], "default": "medium" },
             "color": { "$ref": "#/definitions/Color" },
             "align": { "enum": ["left", "center", "right"], "default": "left" }

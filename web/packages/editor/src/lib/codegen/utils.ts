@@ -65,8 +65,28 @@ export function todoItemsVarFromBinding(binding: EntityBinding | undefined, fall
   return `${stateVarFromEntity(binding.entityId)}_${safeAttr}`;
 }
 
+export function textBindingVar(binding: EntityBinding): string {
+  let name = stateVarFromEntity(binding.entityId);
+  if (binding.attribute) {
+    const attr = binding.attribute
+      .replace(/[^a-zA-Z0-9_]/g, "_")
+      .replace(/^_+|_+$/g, "");
+    if (attr) name += `_${attr}`;
+  }
+  return `txt_${name}`;
+}
+
 export function escapeCString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+/**
+ * Stable key for de-duplicating EntityBindings (used when collecting
+ * subscriptions / state vars so the same binding referenced from
+ * multiple places only emits a single subscription).
+ */
+export function bindingKey(b: EntityBinding): string {
+  return `${b.entityId}::${b.attribute ?? ""}`;
 }
 
 export function collectAllComponents(components: Component[]): Component[] {

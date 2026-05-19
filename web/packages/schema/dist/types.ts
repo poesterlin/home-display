@@ -21,8 +21,11 @@ export type Component =
   | TabContainerComponent;
 export type TextComponent = BaseComponent & {
   type: "text";
+  /**
+   * Label text. May contain `{{entity.id}}` or `{{entity.id.attribute}}` placeholders that are resolved at runtime; the referenced bindings are derived from this string.
+   */
   text?: string;
-  textBinding?: EntityBinding;
+  textBinding?: EntityBinding1;
   fontSize?: "small" | "medium" | "large";
   color?: Color;
   align?: "left" | "center" | "right";
@@ -314,6 +317,13 @@ export interface NavigationAction {
    * Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL.
    */
   targetId?: string;
+}
+/**
+ * Legacy single-binding field. Prefer embedding `{{...}}` placeholders in `text`. Kept for backward compat with older projects.
+ */
+export interface EntityBinding1 {
+  entityId: string;
+  attribute?: string | null;
 }
 /**
  * Background color when button is in checked/active state (for toggle buttons)

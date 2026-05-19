@@ -9,15 +9,15 @@ export const RETRO_THEME: Theme = {
     foreground: { r: 255, g: 255, b: 255 },
     foregroundMuted: { r: 128, g: 128, b: 128 },
     accent: { r: 0, g: 255, b: 255 },       // Cyan
-    accentSecondary: { r: 255, g: 191, b: 0 }, // Amber
+    accentSecondary: { r: 255, g: 0, b: 255 }, // Magenta
     success: { r: 0, g: 255, b: 0 },
     warning: { r: 255, g: 191, b: 0 },
     error: { r: 255, g: 0, b: 0 },
   },
   style: {
-    buttonShadow: true,
-    buttonCornerAccents: true,
-    containerCorners: true,
+    buttonShadow: false,
+    buttonCornerAccents: false,
+    containerCorners: false,
     headerBorders: true,
   },
   values: {

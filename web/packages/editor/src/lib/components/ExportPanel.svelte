@@ -1,9 +1,27 @@
 <script lang="ts">
   import { projectStore } from "$lib/stores/project.svelte";
-  import { generateESPHomeYAML } from "$lib/codegen/esphome";
+  import {
+    generateESPHomeYAML,
+    generateUITypesHeader,
+    generateUIStateHeader,
+    generateUIScreensHeader,
+    generateFontsYAML,
+  } from "$lib/codegen/esphome";
   import { generateSecretsYAML } from "$lib/codegen/secrets";
   import { assert } from "$lib/utils";
+  import type { Project } from "@esphome-designer/schema";
   import JSZip from "jszip";
+
+  // Static ESPHome template files (base.yaml, hardware.yaml, fonts.yaml,
+  // includes/*.h, ...) bundled at build time. This is the client-side
+  // counterpart of `copyStaticTemplates` used by the server queue and
+  // MUST stay in sync with `$lib/server/esphome-templates.ts`.
+  const TEMPLATE_PREFIX = "../templates/";
+  const staticTemplates = import.meta.glob("../templates/**/*", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
 
   interface Props {
     onClose: () => void;
@@ -173,9 +191,49 @@
       const fileName = projectStore.project.name
         .toLowerCase()
         .replace(/\s+/g, "-");
-      const project = projectStore.project;
+
+      // Mirror the server queue: if we have a firmware token and the
+      // project does not already carry a firmwareUpdateUrl, inject one
+      // pointing at this server so OTA updates work out of the box.
+      const baseProject = projectStore.project;
+      const project: Project =
+        projectStore.firmwareToken && !baseProject.secrets?.firmwareUpdateUrl
+          ? {
+              ...baseProject,
+              secrets: {
+                ...baseProject.secrets,
+                firmwareUpdateUrl: `${window.location.origin}/api/firmware/${projectStore.firmwareToken}/manifest`,
+              },
+            }
+          : baseProject;
+
+      // 1. Copy bundled static templates (base.yaml, hardware.yaml,
+      //    includes/*.h, ...). fonts.yaml is held back so we can append
+      //    per-project MDI icon glyphs below.
+      let baseFontsYaml = "";
+      for (const [key, content] of Object.entries(staticTemplates)) {
+        const relativePath = key.startsWith(TEMPLATE_PREFIX)
+          ? key.slice(TEMPLATE_PREFIX.length)
+          : key;
+        if (relativePath === "fonts.yaml") {
+          baseFontsYaml = content;
+          continue;
+        }
+        zip.file(relativePath, content);
+      }
+
+      // 2. fonts.yaml augmented with project-specific MDI icons.
+      zip.file("fonts.yaml", generateFontsYAML(project, baseFontsYaml));
+
+      // 3. Generated dynamic C++ headers (mirrors the queue).
+      zip.file("includes/ui_types.h", generateUITypesHeader(project));
+      zip.file("includes/ui_state.h", generateUIStateHeader(project));
+      zip.file("includes/ui_screens.h", generateUIScreensHeader(project));
+
+      // 4. The main ESPHome config + secrets.
       zip.file(`${fileName}.yaml`, generateESPHomeYAML(project));
       zip.file("secrets.yaml", generateSecretsYAML(project));
+
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
       const a = document.createElement("a");

@@ -4,13 +4,11 @@
   import { historyStore } from "$lib/stores/history.svelte";
   import EntityPicker from "./EntityPicker.svelte";
   import IconSearcher from "./IconSearcher.svelte";
-  import ActionEditor from "./ActionEditor.svelte";
   import ConditionEditor from "./ConditionEditor.svelte";
   import ColorPicker from "./ColorPicker.svelte";
+  import LabelTemplateInput from "./LabelTemplateInput.svelte";
   import { conditionalEditorStore } from "$lib/stores/conditional-editor.svelte";
-  import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
   import { describeCondition } from "$lib/utils/condition-utils";
-  import type { ActionBinding } from "@esphome-designer/schema";
 
   // Get selected component
   const selectedComponent = $derived(
@@ -20,40 +18,50 @@
   );
 
   const selectedAutoLayoutComponent = $derived<any>(
-    selectedComponent && (selectedComponent as any).type === "auto_layout_list"
+    selectedComponent && selectedComponent.type === "auto_layout_list"
       ? (selectedComponent as any)
       : null,
   );
 
   const activeVariantId = $derived(
     selectedComponent?.type === "conditional_area"
-      ? conditionalEditorStore.getActiveVariant(selectedComponent.id, selectedComponent.variants[0]?.id)
-      : null
+      ? conditionalEditorStore.getActiveVariant(
+          selectedComponent.id,
+          selectedComponent.variants[0]?.id,
+        )
+      : null,
   );
 
   const activeVariant = $derived(
     selectedComponent?.type === "conditional_area" && activeVariantId
-      ? selectedComponent.variants.find(v => v.id === activeVariantId)
-      : null
+      ? selectedComponent.variants.find((v) => v.id === activeVariantId)
+      : null,
   );
 
   const activeTabId = $derived(
     selectedComponent?.type === "tab_container"
-      ? conditionalEditorStore.getActiveTab(selectedComponent.id, selectedComponent.defaultTabId ?? selectedComponent.tabs[0]?.id)
-      : null
+      ? conditionalEditorStore.getActiveTab(
+          selectedComponent.id,
+          selectedComponent.defaultTabId ?? selectedComponent.tabs[0]?.id,
+        )
+      : null,
   );
 
   const activeTab = $derived(
     selectedComponent?.type === "tab_container" && activeTabId
       ? selectedComponent.tabs.find((t) => t.id === activeTabId)
-      : null
+      : null,
   );
 
   let activeAutoLayoutItemId = $state<string | null>(null);
 
   const activeAutoLayoutItem = $derived(
     selectedAutoLayoutComponent
-      ? (selectedAutoLayoutComponent.items.find((item: any) => item.id === activeAutoLayoutItemId) ?? selectedAutoLayoutComponent.items[0] ?? null)
+      ? (selectedAutoLayoutComponent.items.find(
+          (item: any) => item.id === activeAutoLayoutItemId,
+        ) ??
+          selectedAutoLayoutComponent.items[0] ??
+          null)
       : null,
   );
 
@@ -63,7 +71,9 @@
       return;
     }
 
-    const selectedExists = selectedAutoLayoutComponent.items.some((item: any) => item.id === activeAutoLayoutItemId);
+    const selectedExists = selectedAutoLayoutComponent.items.some(
+      (item: any) => item.id === activeAutoLayoutItemId,
+    );
     if (!selectedExists) {
       activeAutoLayoutItemId = selectedAutoLayoutComponent.items[0]?.id ?? null;
     }
@@ -78,7 +88,6 @@
     if (!selectedComponent || !activeTabId) return;
     projectStore.updateTab(selectedComponent.id, activeTabId, updates);
   }
-
 
   function updateProperty(key: string, value: unknown) {
     if (!selectedComponent) return;
@@ -108,33 +117,50 @@
     });
   }
 
-  function updateAutoLayoutItem(itemId: string, patch: Record<string, unknown>) {
+  function updateAutoLayoutItem(
+    itemId: string,
+    patch: Record<string, unknown>,
+  ) {
     if (!selectedAutoLayoutComponent) return;
     historyStore.record("Update auto layout item");
-    (projectStore as any).updateAutoLayoutItem(selectedAutoLayoutComponent.id, itemId, patch);
+    projectStore.updateAutoLayoutItem(
+      selectedAutoLayoutComponent.id,
+      itemId,
+      patch,
+    );
   }
 
   function addAutoLayoutItem() {
     if (!selectedAutoLayoutComponent) return;
     historyStore.record("Add auto layout item");
-    const newItem = (projectStore as any).addAutoLayoutItem(selectedAutoLayoutComponent.id);
+    const newItem = projectStore.addAutoLayoutItem(
+      selectedAutoLayoutComponent.id,
+    );
     if (newItem) activeAutoLayoutItemId = newItem.id;
   }
 
   function duplicateAutoLayoutItem(itemId: string) {
     if (!selectedAutoLayoutComponent) return;
-    const item = selectedAutoLayoutComponent.items.find((entry: any) => entry.id === itemId);
+    const item = selectedAutoLayoutComponent.items.find(
+      (entry: any) => entry.id === itemId,
+    );
     if (!item) return;
     historyStore.record("Duplicate auto layout item");
-    const duplicated = (projectStore as any).addAutoLayoutItem(selectedAutoLayoutComponent.id);
+    const duplicated = projectStore.addAutoLayoutItem(
+      selectedAutoLayoutComponent.id,
+    );
     if (!duplicated) return;
-    (projectStore as any).updateAutoLayoutItem(selectedAutoLayoutComponent.id, duplicated.id, {
-      name: `${item.name} Copy`,
-      icon: item.icon,
-      color: item.color,
-      scale: item.scale,
-      condition: item.condition,
-    });
+    projectStore.updateAutoLayoutItem(
+      selectedAutoLayoutComponent.id,
+      duplicated.id,
+      {
+        name: `${item.name} Copy`,
+        icon: item.icon,
+        color: item.color,
+        scale: item.scale,
+        condition: item.condition,
+      },
+    );
     activeAutoLayoutItemId = duplicated.id;
   }
 
@@ -142,26 +168,42 @@
     if (!selectedAutoLayoutComponent) return;
     if (selectedAutoLayoutComponent.items.length <= 1) return;
     historyStore.record("Delete auto layout item");
-    (projectStore as any).deleteAutoLayoutItem(selectedAutoLayoutComponent.id, itemId);
+    projectStore.deleteAutoLayoutItem(selectedAutoLayoutComponent.id, itemId);
   }
 
   function reorderAutoLayoutItem(itemId: string, direction: "up" | "down") {
     if (!selectedAutoLayoutComponent) return;
     historyStore.record(`Move auto layout item ${direction}`);
-    (projectStore as any).reorderAutoLayoutItem(selectedAutoLayoutComponent.id, itemId, direction);
-  }
-
-  function pickLightEntityForDevice(deviceId: string): string | undefined {
-    const entities = homeAssistantStore.getEntitiesByDevice(deviceId);
-    const preferred = entities.find((entity) => entity.domain === "light");
-    if (preferred) return preferred.entity_id;
-
-    const fallback = entities.find((entity) =>
-      ["switch", "binary_sensor", "input_boolean", "fan"].includes(entity.domain),
+    projectStore.reorderAutoLayoutItem(
+      selectedAutoLayoutComponent.id,
+      itemId,
+      direction,
     );
-    return fallback?.entity_id;
   }
 
+  // function pickLightEntityForDevice(deviceId: string): string | undefined {
+  //   const entities = homeAssistantStore.getEntitiesByDevice(deviceId);
+  //   const preferred = entities.find((entity) => entity.domain === "light");
+  //   if (preferred) return preferred.entity_id;
+  //
+  //   const fallback = entities.find((entity) =>
+  //     ["switch", "binary_sensor", "input_boolean", "fan"].includes(entity.domain),
+  //   );
+  //   return fallback?.entity_id;
+  // }
+
+  function updateTextContent(text: string) {
+    if (!selectedComponent) return;
+    historyStore.record("Update text content");
+    // Bindings are derived from the `{{...}}` placeholders in `text`
+    // at codegen time, so we don't need to persist them separately.
+    // Clear the legacy `textBinding` so the new template form is the
+    // sole source of truth going forward.
+    projectStore.updateComponent(selectedComponent.id, {
+      text,
+      textBinding: undefined,
+    });
+  }
 </script>
 
 <div class="property-editor">
@@ -237,15 +279,17 @@
                 updateSize("width", parseInt(e.currentTarget.value) || 10)}
             />
           </div>
-          <div class="field">
-            <span class="field-label">H</span>
-            <input
-              type="number"
-              value={selectedComponent.size.height}
-              oninput={(e) =>
-                updateSize("height", parseInt(e.currentTarget.value) || 10)}
-            />
-          </div>
+          {#if selectedComponent?.type !== "light_state"}
+            <div class="field">
+              <span class="field-label">H</span>
+              <input
+                type="number"
+                value={selectedComponent.size.height}
+                oninput={(e) =>
+                  updateSize("height", parseInt(e.currentTarget.value) || 10)}
+              />
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -256,16 +300,16 @@
         <label class="section-label">Text</label>
         <div class="field">
           <span class="field-label">Content</span>
-          <input
-            type="text"
-            value={(selectedComponent as any).text ?? ""}
-            oninput={(e) => updateProperty("text", e.currentTarget.value)}
+          <LabelTemplateInput
+            value={selectedComponent.text ?? ""}
+            onChange={updateTextContent}
           />
         </div>
+
         <div class="field">
           <span class="field-label">Size</span>
           <select
-            value={(selectedComponent as any).fontSize ?? "medium"}
+            value={selectedComponent.fontSize ?? "medium"}
             onchange={(e) => updateProperty("fontSize", e.currentTarget.value)}
           >
             <option value="small">Small</option>
@@ -276,7 +320,7 @@
         <div class="field">
           <span class="field-label">Align</span>
           <select
-            value={(selectedComponent as any).align ?? "left"}
+            value={selectedComponent.align ?? "left"}
             onchange={(e) => updateProperty("align", e.currentTarget.value)}
           >
             <option value="left">Left</option>
@@ -290,7 +334,7 @@
         <label class="section-label">Styling</label>
         <ColorPicker
           label="Text Color"
-          value={(selectedComponent as any).color}
+          value={selectedComponent.color}
           onUpdate={(color) => updateProperty("color", color)}
         />
       </div>
@@ -303,20 +347,14 @@
           <span class="field-label">Label</span>
           <input
             type="text"
-            value={(selectedComponent as any).label ?? ""}
+            value={selectedComponent.label ?? ""}
             oninput={(e) => updateProperty("label", e.currentTarget.value)}
           />
         </div>
         <div class="field">
           <span class="field-label">Icon</span>
-          <!-- <input
-            type="text"
-            value={(selectedComponent as any).icon ?? ""}
-            placeholder="mdi:icon-name"
-            oninput={(e) => updateProperty("icon", e.currentTarget.value)}
-          /> -->
-           <IconSearcher
-            value={(selectedComponent as any).icon ?? ""}
+          <IconSearcher
+            value={selectedComponent.icon ?? ""}
             onSelect={(icon) => updateProperty("icon", icon)}
           />
         </div>
@@ -325,138 +363,9 @@
       <div class="property-section">
         <label class="section-label">Styling</label>
         <ColorPicker
-          label="Background"
-          value={(selectedComponent as any).backgroundColor}
-          onUpdate={(color) => updateProperty("backgroundColor", color)}
-        />
-        <ColorPicker
-          label="Foreground"
-          value={(selectedComponent as any).foregroundColor}
-          onUpdate={(color) => updateProperty("foregroundColor", color)}
-        />
-        <ColorPicker
           label="Border"
-          value={(selectedComponent as any).borderColor}
+          value={selectedComponent.borderColor}
           onUpdate={(color) => updateProperty("borderColor", color)}
-        />
-      </div>
-    {/if}
-
-    {#if selectedComponent.type === "slider"}
-      <div class="property-section">
-        <label class="section-label">Slider</label>
-        <div class="field-row">
-          <div class="field">
-            <span class="field-label">Min</span>
-            <input
-              type="number"
-              value={(selectedComponent as any).min ?? 0}
-              oninput={(e) =>
-                updateProperty("min", parseFloat(e.currentTarget.value) || 0)}
-            />
-          </div>
-          <div class="field">
-            <span class="field-label">Max</span>
-            <input
-              type="number"
-              value={(selectedComponent as any).max ?? 100}
-              oninput={(e) =>
-                updateProperty("max", parseFloat(e.currentTarget.value) || 100)}
-            />
-          </div>
-        </div>
-        <div class="field">
-          <span class="field-label">Orientation</span>
-          <select
-            value={(selectedComponent as any).orientation ?? "horizontal"}
-            onchange={(e) =>
-              updateProperty("orientation", e.currentTarget.value)}
-          >
-            <option value="horizontal">Horizontal</option>
-            <option value="vertical">Vertical</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="property-section">
-        <label class="section-label">Styling</label>
-        <ColorPicker
-          label="Track"
-          value={(selectedComponent as any).trackColor}
-          onUpdate={(color) => updateProperty("trackColor", color)}
-        />
-        <ColorPicker
-          label="Fill"
-          value={(selectedComponent as any).fillColor}
-          onUpdate={(color) => updateProperty("fillColor", color)}
-        />
-        <ColorPicker
-          label="Handle"
-          value={(selectedComponent as any).handleColor}
-          onUpdate={(color) => updateProperty("handleColor", color)}
-        />
-      </div>
-
-      <div class="property-section">
-        <label class="section-label">Slider Actions</label>
-        <ActionEditor
-          label="On Change"
-          action={(selectedComponent as any).onChange as ActionBinding | undefined}
-          onUpdate={(action) => updateProperty("onChange", action)}
-        />
-      </div>
-    {/if}
-
-    {#if selectedComponent.type === "gauge"}
-      <div class="property-section">
-        <label class="section-label">Gauge</label>
-        <div class="field-row">
-          <div class="field">
-            <span class="field-label">Min</span>
-            <input
-              type="number"
-              value={(selectedComponent as any).min ?? 0}
-              oninput={(e) =>
-                updateProperty("min", parseFloat(e.currentTarget.value) || 0)}
-            />
-          </div>
-          <div class="field">
-            <span class="field-label">Max</span>
-            <input
-              type="number"
-              value={(selectedComponent as any).max ?? 100}
-              oninput={(e) =>
-                updateProperty("max", parseFloat(e.currentTarget.value) || 100)}
-            />
-          </div>
-        </div>
-        <div class="field">
-          <span class="field-label">Unit</span>
-          <input
-            type="text"
-            value={(selectedComponent as any).unit ?? ""}
-            placeholder="e.g. %"
-            oninput={(e) => updateProperty("unit", e.currentTarget.value)}
-          />
-        </div>
-      </div>
-
-      <div class="property-section">
-        <label class="section-label">Styling</label>
-        <ColorPicker
-          label="Background"
-          value={(selectedComponent as any).backgroundColor}
-          onUpdate={(color) => updateProperty("backgroundColor", color)}
-        />
-        <ColorPicker
-          label="Needle"
-          value={(selectedComponent as any).needleColor}
-          onUpdate={(color) => updateProperty("needleColor", color)}
-        />
-        <ColorPicker
-          label="Value"
-          value={(selectedComponent as any).valueColor}
-          onUpdate={(color) => updateProperty("valueColor", color)}
         />
       </div>
     {/if}
@@ -467,7 +376,7 @@
         <div class="field">
           <span class="field-label">Icon</span>
           <IconSearcher
-            value={(selectedComponent as any).icon ?? ""}
+            value={selectedComponent.icon ?? ""}
             onSelect={(icon) => updateProperty("icon", icon)}
           />
         </div>
@@ -478,7 +387,7 @@
             step="0.1"
             min="0.1"
             max="5"
-            value={(selectedComponent as any).scale ?? 1}
+            value={selectedComponent.scale ?? 1}
             oninput={(e) =>
               updateProperty("scale", parseFloat(e.currentTarget.value) || 1)}
           />
@@ -489,7 +398,7 @@
         <label class="section-label">Styling</label>
         <ColorPicker
           label="Color"
-          value={(selectedComponent as any).color}
+          value={selectedComponent.color}
           onUpdate={(color) => updateProperty("color", color)}
         />
       </div>
@@ -501,7 +410,7 @@
         <div class="field">
           <span class="field-label">Type</span>
           <select
-            value={(selectedComponent as any).iconType ?? "bulb"}
+            value={selectedComponent.iconType ?? "bulb"}
             onchange={(e) => updateProperty("iconType", e.currentTarget.value)}
           >
             <option value="bulb">Bulb</option>
@@ -515,71 +424,8 @@
         <label class="section-label">Styling</label>
         <ColorPicker
           label="Color"
-          value={(selectedComponent as any).color}
+          value={selectedComponent.color}
           onUpdate={(color) => updateProperty("color", color)}
-        />
-      </div>
-    {/if}
-
-    {#if selectedComponent.type === "image"}
-      <div class="property-section">
-        <label class="section-label">Image</label>
-        <div class="field">
-          <span class="field-label">File</span>
-          <input
-            type="text"
-            value={(selectedComponent as any).file ?? ""}
-            oninput={(e) => updateProperty("file", e.currentTarget.value)}
-          />
-        </div>
-        <div class="field">
-          <span class="field-label">Type</span>
-          <select
-            value={(selectedComponent as any).image_type ?? "BINARY"}
-            onchange={(e) => updateProperty("image_type", e.currentTarget.value)}
-          >
-            <option value="BINARY">Binary</option>
-            <option value="GRAYSCALE">Grayscale</option>
-            <option value="RGB565">RGB565</option>
-            <option value="RGB">RGB</option>
-          </select>
-        </div>
-      </div>
-      {#if (selectedComponent as any).image_type === "BINARY"}
-        <div class="property-section">
-          <label class="section-label">Binary Image Styling</label>
-          <ColorPicker
-            label="Foreground"
-            value={(selectedComponent as any).foregroundColor}
-            onUpdate={(color) => updateProperty("foregroundColor", color)}
-          />
-          <ColorPicker
-            label="Background"
-            value={(selectedComponent as any).backgroundColor}
-            onUpdate={(color) => updateProperty("backgroundColor", color)}
-          />
-        </div>
-      {/if}
-    {/if}
-
-    {#if selectedComponent.type === "container"}
-      <div class="property-section">
-        <label class="section-label">Container</label>
-        <div class="field">
-          <span class="field-label">Label</span>
-          <input
-            type="text"
-            value={(selectedComponent as any).label ?? ""}
-            oninput={(e) => updateProperty("label", e.currentTarget.value)}
-          />
-        </div>
-      </div>
-      <div class="property-section">
-        <label class="section-label">Styling</label>
-        <ColorPicker
-          label="Background"
-          value={(selectedComponent as any).backgroundColor}
-          onUpdate={(color) => updateProperty("backgroundColor", color)}
         />
       </div>
     {/if}
@@ -611,7 +457,10 @@
             oninput={(e) =>
               updateProperty(
                 "rowHeight",
-                Math.max(20, Math.min(80, parseInt(e.currentTarget.value) || 30)),
+                Math.max(
+                  20,
+                  Math.min(80, parseInt(e.currentTarget.value) || 30),
+                ),
               )}
           />
         </div>
@@ -620,7 +469,8 @@
           <input
             type="checkbox"
             checked={selectedComponent.scrollable === true}
-            onchange={(e) => updateProperty("scrollable", e.currentTarget.checked)}
+            onchange={(e) =>
+              updateProperty("scrollable", e.currentTarget.checked)}
           />
         </div>
         <div class="field">
@@ -628,7 +478,8 @@
           <input
             type="checkbox"
             checked={selectedComponent.checkable === true}
-            onchange={(e) => updateProperty("checkable", e.currentTarget.checked)}
+            onchange={(e) =>
+              updateProperty("checkable", e.currentTarget.checked)}
           />
         </div>
         {#if selectedComponent.checkable === true}
@@ -641,7 +492,8 @@
                   ? { entityId: selectedComponent.todoEntityId }
                   : undefined,
               }}
-              onUpdate={(binding) => updateProperty("todoEntityId", binding?.entityId)}
+              onUpdate={(binding) =>
+                updateProperty("todoEntityId", binding?.entityId)}
             />
           </div>
         {/if}
@@ -682,7 +534,8 @@
           <input
             type="checkbox"
             checked={selectedComponent.showIcon !== false}
-            onchange={(e) => updateProperty("showIcon", e.currentTarget.checked)}
+            onchange={(e) =>
+              updateProperty("showIcon", e.currentTarget.checked)}
           />
         </div>
         {#if selectedComponent.showIcon !== false}
@@ -699,56 +552,11 @@
           <input
             type="checkbox"
             checked={selectedComponent.showBrightnessControl === true}
-            onchange={(e) => updateProperty("showBrightnessControl", e.currentTarget.checked)}
+            onchange={(e) =>
+              updateProperty("showBrightnessControl", e.currentTarget.checked)}
           />
         </div>
       </div>
-
-      <div class="property-section">
-        <label class="section-label">Binding</label>
-        <div class="field-group">
-          <label class="group-label">Entity Target</label>
-          <EntityPicker
-            component={selectedComponent}
-            onUpdate={(binding) => {
-              updateProperty("stateBinding", binding);
-              if (binding) updateProperty("targetDevice", undefined);
-            }}
-          />
-        </div>
-        <!-- <div class="field-group">
-          <label class="group-label">Device Target</label>
-          <EntityPicker
-            component={selectedComponent}
-            deviceOnly={true}
-            onDeviceSelect={(device) => {
-              updateProperty("targetDevice", device);
-              if (!device) {
-                updateProperty("stateBinding", undefined);
-                return;
-              }
-              const autoEntityId = pickLightEntityForDevice(device.deviceId);
-              if (autoEntityId) {
-                updateProperty("stateBinding", { entityId: autoEntityId });
-              }
-            }}
-          />
-        </div> -->
-      </div>
-
-      <!-- <div class="property-section">
-        <label class="section-label">Styling</label>
-        <ColorPicker
-          label="On Color"
-          value={selectedComponent.onColor}
-          onUpdate={(color) => updateProperty("onColor", color)}
-        />
-        <ColorPicker
-          label="Off Color"
-          value={selectedComponent.offColor}
-          onUpdate={(color) => updateProperty("offColor", color)}
-        />
-      </div> -->
     {/if}
 
     {#if selectedAutoLayoutComponent}
@@ -771,7 +579,11 @@
             min="0"
             max="64"
             value={selectedAutoLayoutComponent.gap ?? 6}
-            oninput={(e) => updateProperty("gap", Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)))}
+            oninput={(e) =>
+              updateProperty(
+                "gap",
+                Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)),
+              )}
           />
         </div>
         <div class="field">
@@ -781,14 +593,19 @@
             min="0"
             max="64"
             value={selectedAutoLayoutComponent.padding ?? 0}
-            oninput={(e) => updateProperty("padding", Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)))}
+            oninput={(e) =>
+              updateProperty(
+                "padding",
+                Math.max(0, Math.min(64, parseInt(e.currentTarget.value) || 0)),
+              )}
           />
         </div>
         <div class="field">
           <span class="field-label">Cross Align</span>
           <select
             value={selectedAutoLayoutComponent.crossAxisAlign ?? "center"}
-            onchange={(e) => updateProperty("crossAxisAlign", e.currentTarget.value)}
+            onchange={(e) =>
+              updateProperty("crossAxisAlign", e.currentTarget.value)}
           >
             <option value="start">Start</option>
             <option value="center">Center</option>
@@ -800,7 +617,8 @@
           <span class="field-label">Main Align</span>
           <select
             value={selectedAutoLayoutComponent.mainAxisJustify ?? "start"}
-            onchange={(e) => updateProperty("mainAxisJustify", e.currentTarget.value)}
+            onchange={(e) =>
+              updateProperty("mainAxisJustify", e.currentTarget.value)}
           >
             <option value="start">Start</option>
             <option value="center">Center</option>
@@ -818,12 +636,16 @@
               class="variant-pill"
               class:active={item.id === activeAutoLayoutItem?.id}
               onclick={() => (activeAutoLayoutItemId = item.id)}
-              title={item.condition ? describeCondition(item.condition) : "Always visible"}
+              title={item.condition
+                ? describeCondition(item.condition)
+                : "Always visible"}
             >
               {index + 1}. {item.name}
             </button>
           {/each}
-          <button class="variant-pill add-pill" onclick={addAutoLayoutItem}>+</button>
+          <button class="variant-pill add-pill" onclick={addAutoLayoutItem}
+            >+</button
+          >
         </div>
       </div>
 
@@ -835,14 +657,18 @@
             <input
               type="text"
               value={activeAutoLayoutItem.name}
-              oninput={(e) => updateAutoLayoutItem(activeAutoLayoutItem.id, { name: e.currentTarget.value })}
+              oninput={(e) =>
+                updateAutoLayoutItem(activeAutoLayoutItem.id, {
+                  name: e.currentTarget.value,
+                })}
             />
           </div>
           <div class="field">
             <span class="field-label">Icon</span>
             <IconSearcher
               value={activeAutoLayoutItem.icon ?? ""}
-              onSelect={(icon) => updateAutoLayoutItem(activeAutoLayoutItem.id, { icon })}
+              onSelect={(icon) =>
+                updateAutoLayoutItem(activeAutoLayoutItem.id, { icon })}
             />
           </div>
           <div class="field">
@@ -853,32 +679,54 @@
               min="0.1"
               max="5"
               value={activeAutoLayoutItem.scale ?? 1}
-              oninput={(e) => updateAutoLayoutItem(activeAutoLayoutItem.id, { scale: Math.max(0.1, Math.min(5, parseFloat(e.currentTarget.value) || 1)) })}
+              oninput={(e) =>
+                updateAutoLayoutItem(activeAutoLayoutItem.id, {
+                  scale: Math.max(
+                    0.1,
+                    Math.min(5, parseFloat(e.currentTarget.value) || 1),
+                  ),
+                })}
             />
           </div>
           <ColorPicker
             label="Color"
             value={activeAutoLayoutItem.color}
-            onUpdate={(color) => updateAutoLayoutItem(activeAutoLayoutItem.id, { color })}
+            onUpdate={(color) =>
+              updateAutoLayoutItem(activeAutoLayoutItem.id, { color })}
           />
 
           <div class="field-group">
             <label class="group-label">Condition</label>
             <ConditionEditor
               condition={activeAutoLayoutItem.condition}
-              onUpdate={(condition) => updateAutoLayoutItem(activeAutoLayoutItem.id, { condition })}
+              onUpdate={(condition) =>
+                updateAutoLayoutItem(activeAutoLayoutItem.id, { condition })}
             />
           </div>
 
           <div class="variant-tabs-row auto-item-actions">
-            <button class="variant-pill" onclick={() => reorderAutoLayoutItem(activeAutoLayoutItem.id, "up")}>Up</button>
-            <button class="variant-pill" onclick={() => reorderAutoLayoutItem(activeAutoLayoutItem.id, "down")}>Down</button>
-            <button class="variant-pill" onclick={() => duplicateAutoLayoutItem(activeAutoLayoutItem.id)}>Duplicate</button>
+            <button
+              class="variant-pill"
+              onclick={() =>
+                reorderAutoLayoutItem(activeAutoLayoutItem.id, "up")}>Up</button
+            >
+            <button
+              class="variant-pill"
+              onclick={() =>
+                reorderAutoLayoutItem(activeAutoLayoutItem.id, "down")}
+              >Down</button
+            >
+            <button
+              class="variant-pill"
+              onclick={() => duplicateAutoLayoutItem(activeAutoLayoutItem.id)}
+              >Duplicate</button
+            >
             <button
               class="variant-pill"
               onclick={() => deleteAutoLayoutItem(activeAutoLayoutItem.id)}
               disabled={selectedAutoLayoutComponent.items.length <= 1}
-            >Delete</button>
+              >Delete</button
+            >
           </div>
         </div>
       {/if}
@@ -892,7 +740,11 @@
             <button
               class="variant-pill"
               class:active={variant.id === activeVariantId}
-              onclick={() => conditionalEditorStore.setActiveVariant(selectedComponent.id, variant.id)}
+              onclick={() =>
+                conditionalEditorStore.setActiveVariant(
+                  selectedComponent.id,
+                  variant.id,
+                )}
               title={describeCondition(variant.condition)}
             >
               {variant.name}
@@ -901,8 +753,8 @@
           <button
             class="variant-pill add-pill"
             onclick={() => projectStore.addVariant(selectedComponent.id)}
-            title="Add variant"
-          >+</button>
+            title="Add variant">+</button
+          >
         </div>
       </div>
 
@@ -917,10 +769,14 @@
             />
             <button
               class="delete-variant-btn"
-              onclick={() => projectStore.deleteVariant(selectedComponent.id, activeVariant.id)}
+              onclick={() =>
+                projectStore.deleteVariant(
+                  selectedComponent.id,
+                  activeVariant.id,
+                )}
               disabled={selectedComponent.variants.length <= 1}
-              title="Delete variant"
-            >×</button>
+              title="Delete variant">×</button
+            >
           </div>
 
           <div class="field-group">
@@ -937,7 +793,10 @@
               <input
                 type="number"
                 value={activeVariant.priority ?? 0}
-                oninput={(e) => updateVariant({ priority: parseInt(e.currentTarget.value) || 0 })}
+                oninput={(e) =>
+                  updateVariant({
+                    priority: parseInt(e.currentTarget.value) || 0,
+                  })}
               />
             </div>
           {/if}
@@ -950,19 +809,21 @@
           <span class="field-label">Mode</span>
           <select
             value={selectedComponent.evaluationMode ?? "first_match"}
-            onchange={(e) => updateProperty("evaluationMode", e.currentTarget.value)}
+            onchange={(e) =>
+              updateProperty("evaluationMode", e.currentTarget.value)}
           >
             <option value="first_match">First Match</option>
             <option value="priority">By Priority</option>
           </select>
         </div>
         <div class="field">
-           <span class="field-label">Clip</span>
-           <input
-             type="checkbox"
-             checked={selectedComponent.clipContent !== false}
-             onchange={(e) => updateProperty("clipContent", e.currentTarget.checked)}
-           />
+          <span class="field-label">Clip</span>
+          <input
+            type="checkbox"
+            checked={selectedComponent.clipContent !== false}
+            onchange={(e) =>
+              updateProperty("clipContent", e.currentTarget.checked)}
+          />
         </div>
       </div>
     {/if}
@@ -975,7 +836,11 @@
             <button
               class="variant-pill"
               class:active={tab.id === activeTabId}
-              onclick={() => conditionalEditorStore.setActiveTab(selectedComponent.id, tab.id)}
+              onclick={() =>
+                conditionalEditorStore.setActiveTab(
+                  selectedComponent.id,
+                  tab.id,
+                )}
               title={tab.name}
             >
               {tab.name}
@@ -984,8 +849,8 @@
           <button
             class="variant-pill add-pill"
             onclick={() => projectStore.addTab(selectedComponent.id)}
-            title="Add tab"
-          >+</button>
+            title="Add tab">+</button
+          >
         </div>
       </div>
 
@@ -1000,17 +865,20 @@
             />
             <button
               class="delete-variant-btn"
-              onclick={() => projectStore.deleteTab(selectedComponent.id, activeTab.id)}
+              onclick={() =>
+                projectStore.deleteTab(selectedComponent.id, activeTab.id)}
               disabled={selectedComponent.tabs.length <= 1}
-              title="Delete tab"
-            >x</button>
+              title="Delete tab">x</button
+            >
           </div>
 
           <div class="field">
             <span class="field-label">Default</span>
             <input
               type="checkbox"
-              checked={selectedComponent.defaultTabId === activeTab.id || (!selectedComponent.defaultTabId && selectedComponent.tabs[0]?.id === activeTab.id)}
+              checked={selectedComponent.defaultTabId === activeTab.id ||
+                (!selectedComponent.defaultTabId &&
+                  selectedComponent.tabs[0]?.id === activeTab.id)}
               onchange={(e) =>
                 updateProperty(
                   "defaultTabId",
@@ -1028,42 +896,30 @@
           <input
             type="checkbox"
             checked={selectedComponent.clipContent !== false}
-            onchange={(e) => updateProperty("clipContent", e.currentTarget.checked)}
+            onchange={(e) =>
+              updateProperty("clipContent", e.currentTarget.checked)}
           />
         </div>
       </div>
     {/if}
 
     <!-- Entity Binding (only for components that display entity values) -->
-    {#if selectedComponent.type === "text" || selectedComponent.type === "slider" || selectedComponent.type === "gauge" || selectedComponent.type === "procedural_icon" || selectedComponent.type === "todo_list"}
+    {#if selectedComponent.type === "text" || selectedComponent.type === "todo_list" || selectedComponent.type === "light_state"}
       <div class="property-section">
         <label class="section-label">Entity Binding</label>
         <EntityPicker
           component={selectedComponent}
-          numericOnly={selectedComponent.type === "slider" || selectedComponent.type === "gauge"}
           onUpdate={(binding) => {
             if (selectedComponent.type === "text") {
               updateProperty("textBinding", binding);
-            } else if (selectedComponent.type === "procedural_icon") {
-              updateProperty("stateBinding", binding);
             } else if (selectedComponent.type === "todo_list") {
               updateProperty("itemsBinding", binding);
+            } else if (selectedComponent.type === "light_state") {
+              updateProperty("stateBinding", binding);
             } else {
               updateProperty("valueBinding", binding);
             }
           }}
-        />
-      </div>
-    {/if}
-
-    <!-- Actions section for components with configurable tap actions -->
-    {#if selectedComponent.type !== "slider" && selectedComponent.type !== "light_state"}
-      <div class="property-section">
-        <label class="section-label">Actions</label>
-        <ActionEditor
-          label="On Tap"
-          action={(selectedComponent as any).onTap as ActionBinding | undefined}
-          onUpdate={(action) => updateProperty("onTap", action)}
         />
       </div>
     {/if}
@@ -1091,7 +947,9 @@
             <input
               type="number"
               min={20}
-              max={projectStore.display?.height ? Math.floor(projectStore.display.height / 2) : 160}
+              max={projectStore.display?.height
+                ? Math.floor(projectStore.display.height / 2)
+                : 160}
               step={1}
               value={projectStore.pageHeader.height}
               oninput={(e) => {
@@ -1102,11 +960,6 @@
               }}
             />
           </div>
-          <ColorPicker
-            label="Background"
-            value={projectStore.pageHeader.backgroundColor}
-            onUpdate={(color) => projectStore.updatePageHeader({ backgroundColor: color })}
-          />
         {/if}
       </div>
     {/if}
@@ -1226,7 +1079,8 @@
     border-color: var(--color-accent-secondary);
     color: var(--color-text-primary);
     font-weight: 600;
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent-secondary) 30%, transparent);
+    box-shadow: 0 0 0 1px
+      color-mix(in srgb, var(--color-accent-secondary) 30%, transparent);
   }
 
   .auto-item-actions {
@@ -1234,7 +1088,11 @@
   }
 
   .auto-item-actions .variant-pill:hover {
-    background: color-mix(in srgb, var(--color-accent) 24%, var(--color-bg-primary));
+    background: color-mix(
+      in srgb,
+      var(--color-accent) 24%,
+      var(--color-bg-primary)
+    );
     border-color: var(--color-accent);
     color: white;
   }
@@ -1245,7 +1103,11 @@
   }
 
   .auto-item-actions .variant-pill:last-child:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-error) 24%, var(--color-bg-primary));
+    background: color-mix(
+      in srgb,
+      var(--color-error) 24%,
+      var(--color-bg-primary)
+    );
     border-color: var(--color-error);
     color: white;
   }
