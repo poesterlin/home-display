@@ -8,14 +8,6 @@ function detailScreenId(id: string, title: string): string {
 export function generateUITypesHeader(project: Project): string {
   const screenIds: string[] = ['Home'];
 
-  for (const [index, page] of project.dashboardPages.entries()) {
-    if (index === 0) continue;
-    const id = toCppIdentifier(page.name);
-    if (id && !screenIds.includes(id)) {
-      screenIds.push(id);
-    }
-  }
-
   for (const view of project.detailViews) {
     const id = detailScreenId(view.id, view.title);
     if (id && !screenIds.includes(id)) {

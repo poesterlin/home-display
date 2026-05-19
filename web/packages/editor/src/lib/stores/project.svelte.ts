@@ -733,6 +733,7 @@ function createProjectStore() {
       const saved = await res.json();
 
       project = newProject;
+      this.enablePageHeader();
       serverProjectId = saved.id;
       firmwareToken = saved.firmwareToken;
       currentDashboardPageId = newProject.dashboardPages[0].id;

@@ -35,18 +35,16 @@
   );
   const serviceName = $derived(serviceAction?.service ?? "");
   const serviceTargetEntity = $derived(serviceAction?.target?.entityId ?? "");
-  const serviceTargetDevice = $derived(serviceAction?.target?.deviceId ?? "");
 
   // Build a clean service action, only including optional fields when populated
   function buildServiceAction(
     service: string,
-    target?: { entityId?: string; deviceId?: string }
+    target?: { entityId?: string }
   ): ServiceAction {
     const action: ServiceAction = { type: "SERVICE_CALL", service };
-    if (target?.entityId || target?.deviceId) {
+    if (target?.entityId) {
       action.target = {};
       if (target.entityId) action.target.entityId = target.entityId;
-      if (target.deviceId) action.target.deviceId = target.deviceId;
     }
     return action;
   }
@@ -70,16 +68,12 @@
   }
 
   function handleServiceChange(service: string) {
-    const target = serviceTargetEntity ? { entityId: serviceTargetEntity } : serviceTargetDevice ? { deviceId: serviceTargetDevice } : undefined;
+    const target = serviceTargetEntity ? { entityId: serviceTargetEntity } : undefined;
     onUpdate(buildServiceAction(service, target));
   }
 
   function handleEntityTargetChange(entityId: string | undefined) {
     onUpdate(buildServiceAction(serviceName, entityId ? { entityId } : undefined));
-  }
-
-  function handleDeviceTargetChange(device: { deviceId: string; deviceName: string } | undefined) {
-    onUpdate(buildServiceAction(serviceName, device ? { deviceId: device.deviceId } : undefined));
   }
 
   // Get services grouped by domain
@@ -166,19 +160,19 @@
       <span class="field-label">Target</span>
       <EntityPicker
         component={{
-          targetDevice: serviceTargetDevice ? { deviceId: serviceTargetDevice } : undefined,
+          type: "light_state",
+          stateBinding: serviceTargetEntity ? { entityId: serviceTargetEntity } : undefined,
         }}
-        deviceOnly={true}
-        onDeviceSelect={handleDeviceTargetChange}
+        onUpdate={(binding) => handleEntityTargetChange(binding?.entityId)}
       />
     </div>
 
-    {#if serviceName && serviceTargetDevice}
+    {#if serviceName && serviceTargetEntity}
       <div class="preview">
         <span class="preview-title">Preview:</span>
         <code class="preview-service">{serviceName}</code>
         <span class="preview-arrow">→</span>
-        <code class="preview-target">device</code>
+        <code class="preview-target">{serviceTargetEntity}</code>
       </div>
     {/if}
   {/if}

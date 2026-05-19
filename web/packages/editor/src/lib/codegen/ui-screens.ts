@@ -17,11 +17,6 @@ import {
 
 const TAB_BAR_HEIGHT = 36;
 
-function dashboardScreenId(name: string, index: number): string {
-  if (index === 0) return 'Home';
-  return toCppIdentifier(name) || `Page${index + 1}`;
-}
-
 function detailScreenId(id: string, title: string): string {
   return 'Detail' + (toCppIdentifier(id) || toCppIdentifier(title) || 'View');
 }
@@ -29,12 +24,8 @@ function detailScreenId(id: string, title: string): string {
 function collectScreens(project: Project): ScreenDescriptor[] {
   const screens: ScreenDescriptor[] = [];
   const seen = new Set<string>();
-  for (const [index, page] of project.dashboardPages.entries()) {
-    const cppName = dashboardScreenId(page.name, index);
-    if (seen.has(cppName)) continue;
-    seen.add(cppName);
-    screens.push({ cppName, name: page.name || cppName });
-  }
+  seen.add('Home');
+  screens.push({ cppName: 'Home', name: 'Home' });
   for (const view of project.detailViews) {
     const cppName = detailScreenId(view.id, view.title);
     if (seen.has(cppName)) continue;
@@ -76,7 +67,7 @@ function emitTapAction(action: OnTapAction | undefined): string {
 }
 
 function generateLightWidget(c: LightStateComponent, stateVar: string,
-    factory: WidgetFactory, indent: string, offX = 0, offY = 0): string {
+    factory: WidgetFactory, indent: string, offX = 0, offY = 0, visibilityExpr?: string): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
   const w = c.size?.width ?? 200;
@@ -85,22 +76,39 @@ function generateLightWidget(c: LightStateComponent, stateVar: string,
   const onText = c.onText ?? 'ON';
   const offText = c.offText ?? 'OFF';
   const callback = emitTapAction(c.onTap);
+  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
 
   let out = '';
-  out += `${indent}${factory('RectWidget', `UiRect{${x}, ${y}, ${w}, 20}, g_theme.info_bg`)};\n`;
-  out += `${indent}{\n`;
-  out += `${indent}  auto *lbl = ${factory('LabelWidget', `UiRect{${x}, ${y}, ${w}, 20}, "", g_theme.label`)};\n`;
-  out += `${indent}  lbl->bind(state.${stateVar}.ptr(), "${onText}", "${offText}");\n`;
-  out += `${indent}}\n`;
+  out += `${indent}auto *light_bg_${idSafe} = ${factory('RectWidget', `UiRect{${x}, ${y}, ${w}, 20}, g_theme.info_bg`)};\n`;
+  if (visibilityExpr) {
+    out += `${indent}light_bg_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  out += `${indent}auto *light_lbl_${idSafe} = ${factory('LabelWidget', `UiRect{${x}, ${y}, ${w}, 20}, "", g_theme.label`)};\n`;
+  out += `${indent}light_lbl_${idSafe}->bind(state.${stateVar}.ptr(), "${onText}", "${offText}");\n`;
+  if (visibilityExpr) {
+    out += `${indent}light_lbl_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
   if (callback) {
-    out += `${indent}${factory('ButtonWidget', `UiRect{${x + 10}, ${y + 30}, ${w - 20}, ${h - 30}}, "${escapeCString(label)}", ${callback}, g_theme.primary`)};\n`;
+    out += `${indent}auto *light_btn_${idSafe} = ${factory('ButtonWidget', `UiRect{${x + 10}, ${y + 30}, ${w - 20}, ${h - 30}}, "${escapeCString(label)}", ${callback}, g_theme.primary`)};\n`;
+    if (visibilityExpr) {
+      out += `${indent}light_btn_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+    }
   }
   return out;
 }
 
-function generateComponentSetup(c: Component, screenVar: string, indent: string): string {
+function generateComponentSetup(
+    c: Component,
+    screenVar: string,
+    indent: string,
+    visibilityExpr?: string,
+    offsetX = 0,
+    offsetY = 0,
+): string {
   const factory: WidgetFactory = (typeName, args) =>
     `${screenVar}->emplace_widget<${typeName}>(${args})`;
+  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const visLine = visibilityExpr ? `\n${indent}${idSafe}->set_visibility_condition(${visibilityExpr});` : '';
 
   switch (c.type) {
     case 'text': {
@@ -112,27 +120,34 @@ function generateComponentSetup(c: Component, screenVar: string, indent: string)
         medium: 'g_theme.header',
         large: 'g_theme.header',
       };
-      return `${indent}${factory('LabelWidget', `UiRect{${c.position.x}, ${c.position.y}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(text)}", ${fontMap[fontSize]}`)};\n`;
+      return `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(text)}", ${fontMap[fontSize]}`)};${visLine}\n`;
     }
     case 'button': {
       const label = c.label ?? '';
-      const callback = emitTapAction(c.pressAction);
-      return `${indent}${factory('ButtonWidget', `UiRect{${c.position.x}, ${c.position.y}, ${c.size?.width ?? 80}, ${c.size?.height ?? 36}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};\n`;
+      const callback = emitTapAction(c.onTap ?? c.pressAction);
+      return `${indent}auto *${idSafe} = ${factory('ButtonWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 80}, ${c.size?.height ?? 36}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};${visLine}\n`;
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
-      return generateLightWidget(c, stateVar, factory, indent);
+      return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr);
     }
     case 'tab_container':
-      return generateTabContainerWidget(c, screenVar, indent);
+      return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
     default:
       return `${indent}// TODO: component type '${c.type}' (id: ${c.id})\n`;
   }
 }
 
-function generateTabContainerWidget(c: TabContainerComponent, screenVar: string, indent: string): string {
-  const x = c.position.x;
-  const y = c.position.y;
+function generateTabContainerWidget(
+    c: TabContainerComponent,
+    screenVar: string,
+    indent: string,
+    visibilityExpr?: string,
+    offX = 0,
+    offY = 0,
+): string {
+  const x = c.position.x + offX;
+  const y = c.position.y + offY;
   const w = c.size?.width ?? 200;
   const h = c.size?.height ?? 200;
   const clip = c.clipContent ?? false;
@@ -140,8 +155,11 @@ function generateTabContainerWidget(c: TabContainerComponent, screenVar: string,
   const bgVar = `${varName}_bg`;
 
   let out = '';
-  out += `${indent}auto *${varName} = ${screenVar}->emplace_widget<TabContainerWidget>(UiRect{${x}, ${y}, ${w}, ${h}}, Color(0,0,0), g_theme.primary, ${clip});\n`;
-  out += `${indent}const Color ${bgVar}(0, 0, 0);\n`;
+  out += `${indent}auto *${varName} = ${screenVar}->emplace_widget<TabContainerWidget>(UiRect{${x}, ${y}, ${w}, ${h}}, g_theme.info_bg, g_theme.primary, ${clip});\n`;
+  if (visibilityExpr) {
+    out += `${indent}${varName}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  out += `${indent}const Color ${bgVar} = g_theme.info_bg;\n`;
 
   for (const tab of c.tabs) {
     out += `${indent}${varName}->add_tab("${escapeCString(tab.name)}");\n`;
@@ -190,7 +208,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
     }
     case 'button': {
       const label = c.label ?? '';
-      const callback = emitTapAction(c.pressAction);
+      const callback = emitTapAction(c.onTap ?? c.pressAction);
       return `${indent}${factory('ButtonWidget', `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(label)}", ${callback || '[](){}'}, g_theme.primary`)};\n`;
     }
     case 'light_state': {
@@ -218,17 +236,23 @@ export function generateUIScreensHeader(project: Project): string {
     current_ = screens_.at(UiScreenId::${firstScreen});`
 
   let setupBody = '';
-  for (const [index, page] of project.dashboardPages.entries()) {
-    const cppName = dashboardScreenId(page.name, index);
-    const screenVar = cppName.toLowerCase();
-    if (page.components.length === 0) continue;
-    setupBody += `  auto *${screenVar} = screens.get_screen(UiScreenId::${cppName});\n`;
-    setupBody += `  // Page: ${page.name}\n`;
-    for (const c of page.components) {
-      setupBody += generateComponentSetup(c, screenVar, '  ');
-      setupBody += '\n';
+  if (project.dashboardPages.length > 0) {
+    const dashboardOffsetY = project.pageHeader?.height ?? 0;
+    setupBody += `  auto *home = screens.get_screen(UiScreenId::Home);\n`;
+    if (project.pageHeader) {
+      setupBody += `  home->emplace_widget<HeaderWidget>(g_theme.header.font, g_theme.label.font, nullptr, nullptr);\n`;
     }
-    setupBody += '\n';
+    for (const [index, page] of project.dashboardPages.entries()) {
+      setupBody += `  {\n`;
+      setupBody += `    auto p${index} = [&state]() { return state.home_page_index == ${index}; };\n`;
+      setupBody += `    // Page: ${page.name}\n`;
+      for (const c of page.components) {
+        setupBody += generateComponentSetup(c, 'home', '    ', `p${index}`, 0, dashboardOffsetY);
+        setupBody += '\n';
+      }
+      setupBody += `  }\n\n`;
+    }
+    setupBody += `  home->emplace_widget<PageIndicatorWidget>(460);\n\n`;
   }
 
   for (const view of project.detailViews) {
