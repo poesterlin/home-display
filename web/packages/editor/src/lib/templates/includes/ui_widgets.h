@@ -1068,11 +1068,17 @@ class NotificationOverlayWidget : public Widget {
       if (visible_now) mark_dirty();
       return;
     }
-    if (*body_ != last_body_) last_body_ = *body_;
-    if (dismissed_ != nullptr && *dismissed_ != last_dismissed_) last_dismissed_ = *dismissed_;
+    bool changed = false;
+    if (*body_ != last_body_) { last_body_ = *body_; changed = true; }
+    if (dismissed_ != nullptr && *dismissed_ != last_dismissed_) {
+      last_dismissed_ = *dismissed_;
+      changed = true;
+    }
     if (was_visible_ != visible_now) {
       UiInvalidation::request_full();
       was_visible_ = visible_now;
+    } else if (changed && visible_now) {
+      mark_dirty();
     }
   }
 
@@ -1095,60 +1101,72 @@ class NotificationOverlayWidget : public Widget {
     (void)state;
     if (!is_visible_state()) return;
 
-    // Semi-transparent backdrop
     ui_fast_filled_rectangle(it, 0, 0, display_w_, display_h_, Color(0, 0, 0));
 
-    const int panel_w = (display_w_ * 3) / 4;
-    const int panel_h = (display_h_ * 2) / 3;
+    const int panel_w = (display_w_ * 5) / 6;
+    const int panel_h = (display_h_ * 3) / 5;
     const int panel_x = (display_w_ - panel_w) / 2;
     const int panel_y = (display_h_ - panel_h) / 2;
 
-    // Severity-based accent colour
     const Color accent = severity_color();
-    const Color panel_bg(20, 20, 20);
+    const Color accent_dim = severity_dim_color();
+    const Color panel_bg(16, 18, 22);
+    const Color header_bg(24, 28, 34);
+    const Color text_primary(245, 248, 255);
+    const Color text_secondary(180, 188, 202);
 
-    // Panel background
+    // Shadow and card shell.
+    ui_fast_filled_rectangle(it, panel_x + 6, panel_y + 7, panel_w, panel_h, Color(3, 4, 6));
+    ui_fast_filled_rectangle(it, panel_x, panel_y, panel_w, panel_h, panel_bg);
     it.rectangle(panel_x, panel_y, panel_w, panel_h, accent);
-    ui_fast_filled_rectangle(it, panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, panel_bg);
+    it.rectangle(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, accent_dim);
+    ui_fast_filled_rectangle(it, panel_x + 2, panel_y + 2, panel_w - 4, 58, header_bg);
+    ui_fast_filled_rectangle(it, panel_x + 2, panel_y + 58, panel_w - 4, 3, accent);
 
-    // Title
-    const std::string &display_title = (title_ != nullptr && !title_->empty()) ? *title_ : std::string("Notification");
-    if (g_theme.header.font != nullptr) {
-      const int title_x = panel_x + panel_w / 2;
-      const int title_y = panel_y + 14;
-      ui_print_truncated(it, title_x, title_y, g_theme.header.font,
-                         accent, TextAlign::CENTER, display_title, panel_w - 16);
+    const int icon_cx = panel_x + 36;
+    const int icon_cy = panel_y + 30;
+    it.filled_circle(icon_cx, icon_cy, 18, accent_dim);
+    it.circle(icon_cx, icon_cy, 18, accent);
+    const char *icon = severity_icon();
+    if (g_theme.icon.font != nullptr) {
+      it.printf(icon_cx, icon_cy + 1, g_theme.icon.font, accent,
+                TextAlign::CENTER, "%s", icon);
+    } else if (g_theme.header.font != nullptr) {
+      it.printf(icon_cx, icon_cy, g_theme.header.font, accent,
+                TextAlign::CENTER, "!");
     }
 
-    // Body
+    const std::string display_title =
+        (title_ != nullptr && !title_->empty()) ? *title_ : std::string("Notification");
+    if (g_theme.header.font != nullptr) {
+      ui_print_truncated(it, panel_x + 66, panel_y + 13, g_theme.header.font,
+                         text_primary, TextAlign::TOP_LEFT, display_title, panel_w - 86);
+    }
+    if (g_theme.label.font != nullptr) {
+      it.printf(panel_x + 66, panel_y + 38, g_theme.label.font, text_secondary,
+                TextAlign::TOP_LEFT, "%s", severity_label());
+    }
+
     if (g_theme.label.font != nullptr && body_ != nullptr) {
-      const int body_y = panel_y + 50;
+      const int body_y = panel_y + 78;
       const int body_w = panel_w - 24;
-      const int body_h = panel_h - 120;
-      const int max_body_h = std::min(body_h, 100);
+      const int body_h = panel_h - 140;
+      const int max_body_h = body_h > 0 ? body_h : 0;
       int tx, ty, tw, th;
       const std::string &body_text = *body_;
-      const int wrap_width = body_w;
-      // Conservative wrap: measure the full body to decide if it fits
-      // on one line; if not, flow it into a multi-line block with the
-      // same truncation guard on the last visible line.
       it.get_text_bounds(panel_x + 12, body_y, body_text.c_str(),
                          g_theme.label.font, TextAlign::TOP_LEFT, &tx, &ty, &tw, &th);
       if (tw <= body_w) {
-        // Single-line body fits comfortably
         ui_print_truncated(it, panel_x + 12, body_y, g_theme.label.font,
-                           Color(255, 255, 255), TextAlign::TOP_LEFT, body_text, body_w);
+                           text_primary, TextAlign::TOP_LEFT, body_text, body_w);
       } else {
-        // Multi-line wrap: print line by line and truncate the last
-        // visible line if it overflows.
         int line_y = body_y;
         int remaining = body_text.size();
         int offset = 0;
         const int line_height = 22;
-        while (remaining > 0 && line_y + line_height < panel_y + body_y + max_body_h) {
+        while (remaining > 0 && line_y + line_height <= body_y + max_body_h) {
           int best_w = 0;
           int best_len = 0;
-          // Build up to the widest prefix that still fits in body_w.
           for (int len = 1; len <= remaining; len++) {
             std::string sub = body_text.substr(offset, len);
             it.get_text_bounds(panel_x + 12, line_y, sub.c_str(),
@@ -1160,13 +1178,11 @@ class NotificationOverlayWidget : public Widget {
           std::string line = body_text.substr(offset, best_len);
           const bool is_last = offset + best_len >= remaining;
           if (is_last) {
-            // Last line -- truncate with dots if still too wide.
             ui_print_truncated(it, panel_x + 12, line_y, g_theme.label.font,
-                               Color(255, 255, 255), TextAlign::TOP_LEFT,
-                               body_text.substr(offset), body_w);
+                               text_primary, TextAlign::TOP_LEFT, body_text.substr(offset), body_w);
           } else {
             it.printf(panel_x + 12, line_y, g_theme.label.font,
-                      Color(255, 255, 255), TextAlign::TOP_LEFT, "%s", line.c_str());
+                      text_primary, TextAlign::TOP_LEFT, "%s", line.c_str());
           }
           offset += best_len;
           remaining -= best_len;
@@ -1175,16 +1191,15 @@ class NotificationOverlayWidget : public Widget {
       }
     }
 
-    // Dismiss button
-    const int btn_w = panel_w - 40;
-    const int btn_h = 36;
+    const int btn_w = panel_w - 48;
+    const int btn_h = 40;
     const int btn_x = panel_x + (panel_w - btn_w) / 2;
-    const int btn_y = panel_y + panel_h - btn_h - 12;
+    const int btn_y = panel_y + panel_h - btn_h - 16;
+    ui_fast_filled_rectangle(it, btn_x, btn_y, btn_w, btn_h, accent_dim);
     it.rectangle(btn_x, btn_y, btn_w, btn_h, accent);
-    ui_fast_filled_rectangle(it, btn_x + 1, btn_y + 1, btn_w - 2, btn_h - 2, Color(40, 40, 40));
     if (g_theme.label.font != nullptr) {
       it.printf(btn_x + btn_w / 2, btn_y + btn_h / 2, g_theme.label.font,
-                Color(255, 255, 255), TextAlign::CENTER, "Dismiss");
+                text_primary, TextAlign::CENTER, "Dismiss");
     }
 
     last_body_ = body_ != nullptr ? *body_ : std::string();
@@ -1201,21 +1216,52 @@ class NotificationOverlayWidget : public Widget {
   Color severity_color() const {
     if (severity_ == nullptr || severity_->empty()) return Color(0, 200, 255);
     const std::string s = *severity_;
-    if (s == "error") return Color(255, 60, 60);
-    if (s == "warning") return Color(255, 180, 0);
+    if (s == "error" || s == "alert") return Color(255, 60, 60);
+    if (s == "warning" || s == "warn") return Color(255, 180, 0);
     if (s == "info") return Color(80, 200, 255);
+    if (s == "question") return Color(160, 80, 255);
     return Color(0, 200, 255);
   }
 
+  Color severity_dim_color() const {
+    if (severity_ == nullptr || severity_->empty()) return Color(0, 44, 56);
+    const std::string s = *severity_;
+    if (s == "error" || s == "alert") return Color(72, 18, 22);
+    if (s == "warning" || s == "warn") return Color(72, 48, 6);
+    if (s == "info") return Color(12, 52, 72);
+    if (s == "question") return Color(42, 24, 72);
+    return Color(0, 44, 56);
+  }
+
+  const char *severity_icon() const {
+    if (severity_ == nullptr || severity_->empty()) return "\xF3\xB0\x8B\xBC";
+    const std::string s = *severity_;
+    if (s == "error" || s == "alert") return "\xF3\xB0\x80\xA8";
+    if (s == "warning" || s == "warn") return "\xF3\xB0\x80\xA6";
+    if (s == "question") return "\xF3\xB0\x8B\x97";
+    return "\xF3\xB0\x8B\xBC";
+  }
+
+  const char *severity_label() const {
+    if (severity_ == nullptr || severity_->empty()) return "INFO";
+    const std::string s = *severity_;
+    if (s == "error") return "ERROR";
+    if (s == "alert") return "ALERT";
+    if (s == "warning" || s == "warn") return "WARNING";
+    if (s == "question") return "QUESTION";
+    if (s == "info") return "INFO";
+    return "NOTIFICATION";
+  }
+
   bool hit_test_dismiss(int tx, int ty) const {
-    const int panel_w = (display_w_ * 3) / 4;
-    const int panel_h = (display_h_ * 2) / 3;
+    const int panel_w = (display_w_ * 5) / 6;
+    const int panel_h = (display_h_ * 3) / 5;
     const int panel_x = (display_w_ - panel_w) / 2;
     const int panel_y = (display_h_ - panel_h) / 2;
-    const int btn_w = panel_w - 40;
-    const int btn_h = 36;
+    const int btn_w = panel_w - 48;
+    const int btn_h = 40;
     const int btn_x = panel_x + (panel_w - btn_w) / 2;
-    const int btn_y = panel_y + panel_h - btn_h - 12;
+    const int btn_y = panel_y + panel_h - btn_h - 16;
     return tx >= btn_x - 10 && tx <= btn_x + btn_w + 10 &&
            ty >= btn_y - 10 && ty <= btn_y + btn_h + 10;
   }

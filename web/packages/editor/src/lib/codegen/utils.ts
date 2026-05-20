@@ -120,6 +120,13 @@ export type WidgetFactory = (typeName: string, args: string) => string;
 // reference the same font id.
 export const DEFAULT_ICON_FONT_SIZE = 24;
 
+export const NOTIFICATION_OVERLAY_ICON_NAMES = [
+  "information",
+  "alert",
+  "alert-circle",
+  "help-circle",
+] as const;
+
 /**
  * Normalize an MDI icon name by stripping a leading `mdi:` prefix and
  * trimming whitespace. Returns an empty string if the input is falsy.
@@ -178,6 +185,11 @@ export function collectProjectIconNames(project: Project): Set<string> {
   }
   if (project.pageHeader?.components) {
     visit(project.pageHeader.components);
+  }
+  if (project.notificationOverlay != null && project.notificationOverlay.enabled !== false) {
+    for (const icon of NOTIFICATION_OVERLAY_ICON_NAMES) {
+      addIcon(icon);
+    }
   }
 
   return icons;

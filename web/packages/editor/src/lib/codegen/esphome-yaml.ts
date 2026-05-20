@@ -134,7 +134,7 @@ function generateNotificationSubscriptions(project: Project): string {
     lines.push('            call.play();');
     lines.push('          };');
     lines.push('');
-    lines.push('          g_ui_app.dismiss_notification = []() {');
+    lines.push('          g_ui_app.dismiss_notification = [&clear_text_entity]() {');
     for (const l of clearLines) {
       lines.push(l);
     }

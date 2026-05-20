@@ -4,6 +4,7 @@ import type { Project } from "@esphome-designer/schema";
 import { generateUIScreensHeader } from "../ui-screens";
 import { generateUIStateHeader } from "../ui-state";
 import { generateESPHomeYAML } from "../esphome-yaml";
+import { generateFontsYAML } from "../mdi-icons";
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {
@@ -103,7 +104,7 @@ describe("notification overlay HA subscriptions", () => {
     expect(out).toContain('call.add_data("value", "")');
     expect(out).toContain('clear_text_entity("input_text.notification_title")');
     expect(out).toContain('clear_text_entity("input_text.notification_body")');
-    expect(out).toContain("g_ui_app.dismiss_notification = []()");
+    expect(out).toContain("g_ui_app.dismiss_notification = [&clear_text_entity]()");
   });
 
   test("dismiss notification helper clears only the configured entities", () => {
@@ -241,5 +242,36 @@ describe("notification overlay title fallback", () => {
     const out = generateUIScreensHeader(project);
     expect(out).toContain("state.notification_title.ptr()");
     expect(out).toContain("state.notification_body.ptr()");
+  });
+});
+
+describe("notification overlay icon font glyphs", () => {
+  test("adds severity icons to generated MDI font when overlay is enabled", () => {
+    const project = makeProject({
+      notificationOverlay: {
+        enabled: true,
+        bodyEntityId: "input_text.notification_body",
+        severityEntityId: "input_select.notification_severity",
+      },
+    });
+
+    const out = generateFontsYAML(project, "font:\n");
+    expect(out).toContain("# information");
+    expect(out).toContain("# alert");
+    expect(out).toContain("# alert-circle");
+    expect(out).toContain("# help-circle");
+  });
+
+  test("does not add notification icons when overlay is disabled", () => {
+    const project = makeProject({
+      notificationOverlay: {
+        enabled: false,
+        bodyEntityId: "input_text.notification_body",
+      },
+    });
+
+    const out = generateFontsYAML(project, "font:\n");
+    expect(out).not.toContain("# information");
+    expect(out).not.toContain("# alert-circle");
   });
 });

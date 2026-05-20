@@ -847,12 +847,13 @@ ${overlayPreTouch}    if (current_id_ == UiScreenId::Home &&
   }
 
   Screen* current() { return current_; }
+${overlayMember}
 
  private:
   UiScreenId current_id_ = UiScreenId::${firstScreen};
   Screen *current_ = nullptr;
   std::map<UiScreenId, Screen*> screens_;
-  std::vector<std::unique_ptr<GenericScreen>> owned_screens_;${overlayMember}
+  std::vector<std::unique_ptr<GenericScreen>> owned_screens_;
 };
 
 struct EntityAction {
