@@ -3,6 +3,7 @@
 #include "esphome.h"
 #include "ui_invalidation.h"
 #include "ui_types.h"
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -82,6 +83,26 @@ inline int ui_text_right_edge(display::Display &it, int x, int y,
   return tx + tw;
 }
 
+inline bool ui_text_align_is_center(TextAlign align) {
+  return align == TextAlign::TOP_CENTER || align == TextAlign::CENTER ||
+         align == TextAlign::BASELINE_CENTER || align == TextAlign::BOTTOM_CENTER;
+}
+
+inline bool ui_text_align_is_right(TextAlign align) {
+  return align == TextAlign::TOP_RIGHT || align == TextAlign::CENTER_RIGHT ||
+         align == TextAlign::BASELINE_RIGHT || align == TextAlign::BOTTOM_RIGHT;
+}
+
+// When text is truncated, the painted dot indicator is part of the visual
+// label. Shift non-left anchors so text + dots stay aligned as one unit.
+inline int ui_anchor_x_for_truncation(int x, TextAlign align, bool truncated) {
+  if (!truncated) return x;
+  const int dot_pad = UI_TRUNC_DOTS_W + 2;
+  if (ui_text_align_is_right(align)) return x - dot_pad;
+  if (ui_text_align_is_center(align)) return x - (dot_pad / 2);
+  return x;
+}
+
 // Get the stable baseline of the font for the given alignment and y coordinate.
 // By measuring a character without descenders (like "A"), we get a baseline
 // that doesn't bounce up and down depending on whether the text has descenders.
@@ -102,11 +123,12 @@ inline void ui_print_truncated(display::Display &it, int x, int y,
   bool truncated = false;
   std::string disp = ui_truncate_to_width(it, font, text, max_w, &truncated);
   if (font == nullptr) return;
-  it.printf(x, y, font, color, align, "%s", disp.c_str());
+  const int draw_x = ui_anchor_x_for_truncation(x, align, truncated);
+  it.printf(draw_x, y, font, color, align, "%s", disp.c_str());
   if (!truncated || disp.empty()) return;
   int tx, ty, tw, th;
-  it.get_text_bounds(x, y, disp.c_str(), font, align, &tx, &ty, &tw, &th);
-  int baseline_y = ui_get_baseline(it, x, y, font, align);
+  it.get_text_bounds(draw_x, y, disp.c_str(), font, align, &tx, &ty, &tw, &th);
+  int baseline_y = ui_get_baseline(it, draw_x, y, font, align);
   ui_draw_truncation_dots(it, tx + tw, baseline_y, color);
 }
 
@@ -260,6 +282,10 @@ class LabelWidget : public Widget {
   }
 
   void set_bg_color(Color c) { bg_color_ = c; }
+  void set_align(TextAlign a) {
+    align_ = a;
+    has_align_override_ = true;
+  }
 
   UiRect bounds() const override { return rect_; }
 
@@ -329,7 +355,8 @@ class LabelWidget : public Widget {
 
     auto *f = style_->font;
     auto cl = style_->color;
-    auto a = style_->align;
+    auto a = text_align();
+    const int x = text_anchor_x(a);
 
     // All string render paths truncate to rect_.w with an ellipsis so the
     // label never bleeds outside its bounds, no matter what HA streams in.
@@ -342,46 +369,62 @@ class LabelWidget : public Widget {
       const bool truncated = *bound_bool_ ? on_trunc : off_trunc;
       const std::string &display = *bound_bool_ ? on_disp : off_disp;
       const std::string &alt = *bound_bool_ ? off_disp : on_disp;
+      const bool alt_truncated = *bound_bool_ ? off_trunc : on_trunc;
+      const int draw_x = ui_anchor_x_for_truncation(x, a, truncated);
+      const int alt_x = ui_anchor_x_for_truncation(x, a, alt_truncated);
       int tx, ty, tw, th, ax, ay, aw, ah;
-      it.get_text_bounds(rect_.x, rect_.y, display.c_str(), f, a, &tx, &ty, &tw, &th);
-      it.get_text_bounds(rect_.x, rect_.y, alt.c_str(), f, a, &ax, &ay, &aw, &ah);
+      it.get_text_bounds(draw_x, rect_.y, display.c_str(), f, a, &tx, &ty, &tw, &th);
+      it.get_text_bounds(alt_x, rect_.y, alt.c_str(), f, a, &ax, &ay, &aw, &ah);
       // Pad the bg rect by the indicator width on whichever side might
       // gain dots, so flipping on->off doesn't leave stale pixels.
-      const int dot_pad = (on_trunc || off_trunc) ? (UI_TRUNC_DOTS_W + 2) : 0;
-      int cw = (tw > aw) ? tw : aw;
-      ui_fast_filled_rectangle(it, tx - 2, ty, cw + 4 + dot_pad, th, bg_color_);
-      it.printf(rect_.x, rect_.y, f, cl, a, "%s", display.c_str());
+      const int dot_pad = UI_TRUNC_DOTS_W + 2;
+      const int left = (tx < ax ? tx : ax) - 2;
+      const int right = std::max(tx + tw + (truncated ? dot_pad : 0),
+                                 ax + aw + (alt_truncated ? dot_pad : 0)) + 2;
+      ui_fast_filled_rectangle(it, left, ty, right - left, th, bg_color_);
+      it.printf(draw_x, rect_.y, f, cl, a, "%s", display.c_str());
       if (truncated && !display.empty()) {
-        int baseline_y = ui_get_baseline(it, rect_.x, rect_.y, f, a);
+        int baseline_y = ui_get_baseline(it, draw_x, rect_.y, f, a);
         ui_draw_truncation_dots(it, tx + tw, baseline_y, cl);
       }
       last_bool_ = *bound_bool_;
       bool_baseline_set_ = true;
     } else if (text_fn_) {
       ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
-      ui_print_truncated(it, rect_.x, rect_.y, f, cl, a, last_text_, max_text_w);
+      ui_print_truncated(it, x, rect_.y, f, cl, a, last_text_, max_text_w);
     } else if (printer_) {
       ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
       // printer_ wraps a templated bound value; we can't easily intercept
       // the formatted result, but in practice these are short numeric
       // labels (gauges, percentages) that fit by construction.
-      printer_(it, rect_.x, rect_.y, f, cl, a);
+      printer_(it, x, rect_.y, f, cl, a);
     } else {
       bool truncated = false;
       std::string disp = ui_truncate_to_width(it, f, text_ ? text_ : "", max_text_w, &truncated);
+      const int draw_x = ui_anchor_x_for_truncation(x, a, truncated);
       int tx, ty, tw, th;
-      it.get_text_bounds(rect_.x, rect_.y, disp.c_str(), f, a, &tx, &ty, &tw, &th);
+      it.get_text_bounds(draw_x, rect_.y, disp.c_str(), f, a, &tx, &ty, &tw, &th);
       const int dot_pad = truncated ? (UI_TRUNC_DOTS_W + 2) : 0;
       ui_fast_filled_rectangle(it, tx - 2, ty, tw + 4 + dot_pad, th, bg_color_);
-      it.printf(rect_.x, rect_.y, f, cl, a, "%s", disp.c_str());
+      it.printf(draw_x, rect_.y, f, cl, a, "%s", disp.c_str());
       if (truncated && !disp.empty()) {
-        int baseline_y = ui_get_baseline(it, rect_.x, rect_.y, f, a);
+        int baseline_y = ui_get_baseline(it, draw_x, rect_.y, f, a);
         ui_draw_truncation_dots(it, tx + tw, baseline_y, cl);
       }
     }
   }
 
  private:
+  TextAlign text_align() const {
+    return has_align_override_ ? align_ : style_->align;
+  }
+
+  int text_anchor_x(TextAlign align) const {
+    if (ui_text_align_is_right(align)) return rect_.x + rect_.w;
+    if (ui_text_align_is_center(align)) return rect_.x + (rect_.w / 2);
+    return rect_.x;
+  }
+
   UiRect rect_;
   const char *text_;
   const Theme::TextStyle *style_ = nullptr;
@@ -392,6 +435,8 @@ class LabelWidget : public Widget {
   std::function<std::string()> text_fn_;
   std::string last_text_;
   Color bg_color_{0, 0, 0};
+  TextAlign align_ = TextAlign::TOP_LEFT;
+  bool has_align_override_ = false;
   bool last_bool_ = false;
   bool bool_baseline_set_ = false;
 };

@@ -31,6 +31,12 @@ const fontMap: Record<string, string> = {
   large: 'g_theme.header',
 };
 
+const textAlignMap: Record<NonNullable<TextComponent['align']>, string> = {
+  left: 'TextAlign::TOP_LEFT',
+  center: 'TextAlign::TOP_CENTER',
+  right: 'TextAlign::TOP_RIGHT',
+};
+
 type LabelPart =
   | { kind: 'text'; value: string }
   | { kind: 'binding'; varName: string };
@@ -118,6 +124,12 @@ function emitLabelBindings(c: TextComponent, idSafe: string, indent: string): st
 function labelStaticText(c: TextComponent): string {
   if (hasAnyBinding(collectLabelParts(c))) return '';
   return c.text ?? '';
+}
+
+function emitLabelAlign(c: TextComponent, idSafe: string, indent: string): string {
+  const align = c.align ?? 'left';
+  if (align === 'left') return '';
+  return `${indent}${idSafe}->set_align(${textAlignMap[align]});\n`;
 }
 
 function emitColor(c: Color): string {
@@ -302,6 +314,7 @@ function generateComponentSetup(
       const fontSize = tc.fontSize ?? 'small';
       const staticText = labelStaticText(tc);
       let out = `${indent}auto *${idSafe} = ${factory('LabelWidget', `UiRect{${c.position.x + offsetX}, ${c.position.y + offsetY}, ${c.size?.width ?? 100}, ${c.size?.height ?? 40}}, "${escapeCString(staticText)}", ${fontMap[fontSize]}`)};${visLine}${dirtyLine}\n`;
+      out += emitLabelAlign(tc, idSafe, indent);
       out += emitLabelBindings(tc, idSafe, indent);
       return out;
     }
@@ -542,6 +555,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       const staticText = labelStaticText(c);
       const wargs = `UiRect{${x}, ${y}, ${w}, ${h}}, "${escapeCString(staticText)}", ${fontMap[fontSize]}`;
       const bodyIndent = tabBgVar ? `${indent}  ` : indent;
+      const alignLine = emitLabelAlign(c, idSafe, bodyIndent);
       const bindLines = emitLabelBindings(c, idSafe, bodyIndent);
       let out: string;
       if (tabBgVar) {
@@ -554,6 +568,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
         out = `${indent}auto *${idSafe} = ${factory('LabelWidget', wargs)};\n`;
       }
 
+      out += alignLine;
       out += bindLines;
 
       if (tabBgVar) {

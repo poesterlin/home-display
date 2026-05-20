@@ -38,6 +38,44 @@ describe("text component template codegen", () => {
     expect(out).not.toContain("bind_text_fn");
   });
 
+  test("text alignment is emitted for centered and right-aligned labels", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "center_lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "Center",
+              align: "center",
+            },
+            {
+              id: "right_lbl",
+              type: "text",
+              position: { x: 10, y: 40 },
+              text: "Right",
+              align: "right",
+            },
+            {
+              id: "left_lbl",
+              type: "text",
+              position: { x: 10, y: 70 },
+              text: "Left",
+              align: "left",
+            },
+          ],
+        },
+      ],
+    });
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain("center_lbl->set_align(TextAlign::TOP_CENTER);");
+    expect(out).toContain("right_lbl->set_align(TextAlign::TOP_RIGHT);");
+    expect(out).not.toContain("left_lbl->set_align");
+  });
+
   test("template with single binding emits empty static text + bind_text_fn lambda", () => {
     const project = makeProject({
       dashboardPages: [
