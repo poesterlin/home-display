@@ -542,7 +542,21 @@
           "type": "object",
           "properties": {
             "type": { "const": "image" },
+            "imageSource": {
+              "enum": ["static", "ha"],
+              "default": "static",
+              "description": "Whether the image comes from a static ESPHome image entry or a Home Assistant image/camera entity."
+            },
             "file": { "type": "string" },
+            "imageBinding": {
+              "$ref": "#/definitions/EntityBinding",
+              "description": "Home Assistant image/camera entity. The entity_picture attribute is used by default and loaded with online_image."
+            },
+            "onlineFormat": {
+              "enum": ["png", "jpeg", "bmp"],
+              "default": "png",
+              "description": "Encoded format expected from the online image URL when imageBinding is used."
+            },
             "image_type": { "enum": ["BINARY", "GRAYSCALE", "RGB565", "RGB"], "description": "Specifies how to encode image internally." },
             "resize": { "type": "string", "pattern": "^\\d+x\\d+$" },
             "transparency": { "enum": ["opaque", "chroma_key", "alpha_channel"] },
@@ -775,6 +789,10 @@
         "firmwareUpdateUrl": {
           "type": "string",
           "description": "Firmware update URL for OTA via HTTP (auto-populated from server)"
+        },
+        "homeAssistantBaseUrl": {
+          "type": "string",
+          "description": "Base URL ESPHome can use to fetch relative Home Assistant entity_picture URLs"
         }
       },
       "additionalProperties": false

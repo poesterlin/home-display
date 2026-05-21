@@ -1,5 +1,5 @@
-import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent } from "@esphome-designer/schema";
-import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey } from "./utils";
+import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent, ImageComponent } from "@esphome-designer/schema";
+import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey, imageIdFromComponentId, escapeCString } from "./utils";
 import { collectConditionEntities, type ConditionEntityType } from "./condition-expr";
 import { ICON_FONT_ID, getIconGlyphs } from "./mdi-icons";
 import { extractBindings, parseTemplate } from "../utils/template-utils";
@@ -25,6 +25,66 @@ function collectTextBindings(tc: TextComponent): EntityBinding[] {
   return out;
 }
 
+function collectProjectComponents(project: Project) {
+  return collectAllComponents([
+    ...project.dashboardPages.flatMap(p => p.components),
+    ...project.detailViews.flatMap(v => v.components),
+  ]);
+}
+
+function collectImageComponents(project: Project): ImageComponent[] {
+  return collectProjectComponents(project)
+    .filter((c): c is ImageComponent => c.type === "image");
+}
+
+function imageResize(c: ImageComponent): string {
+  return c.resize ?? `${c.size?.width ?? 100}x${c.size?.height ?? 100}`;
+}
+
+function isHomeAssistantImage(c: ImageComponent): boolean {
+  return c.imageSource === "ha" || (c.imageSource == null && !!c.imageBinding?.entityId);
+}
+
+function generateStaticImagesYAML(project: Project): string {
+  const lines: string[] = [];
+  for (const c of collectImageComponents(project)) {
+    if (isHomeAssistantImage(c)) continue;
+    lines.push(`  - file: "${escapeCString(c.file)}"`);
+    lines.push(`    id: ${imageIdFromComponentId(c.id)}`);
+    lines.push(`    type: ${c.image_type}`);
+    lines.push(`    resize: ${imageResize(c)}`);
+    if (c.transparency) lines.push(`    transparency: ${c.transparency}`);
+    if (c.invert_alpha != null) lines.push(`    invert_alpha: ${c.invert_alpha}`);
+    if (c.dither) lines.push(`    dither: ${c.dither}`);
+    if (c.byte_order) lines.push(`    byte_order: ${c.byte_order}`);
+  }
+  return lines.length > 0 ? `\nimage:\n${lines.join('\n')}\n` : '';
+}
+
+function generateOnlineImagesYAML(project: Project): string {
+  const lines: string[] = [];
+  for (const c of collectImageComponents(project)) {
+    if (!isHomeAssistantImage(c) || !c.imageBinding?.entityId) continue;
+    lines.push(`  - url: "http://127.0.0.1/"`);
+    lines.push(`    id: ${imageIdFromComponentId(c.id)}`);
+    lines.push(`    format: ${c.onlineFormat ?? "png"}`);
+    lines.push(`    type: ${c.image_type}`);
+    lines.push(`    resize: ${imageResize(c)}`);
+    if (c.transparency) lines.push(`    transparency: ${c.transparency}`);
+    if (c.byte_order) lines.push(`    byte_order: ${c.byte_order}`);
+    lines.push(`    on_download_finished:`);
+    lines.push(`      then:`);
+    lines.push(`        - lambda: |-`);
+    lines.push(`            UiRedraw::request_full();`);
+    lines.push(`            UiRedraw::trigger_display_update();`);
+  }
+  return lines.length > 0 ? `\nonline_image:\n${lines.join('\n')}\n` : '';
+}
+
+function hasOnlineImages(project: Project): boolean {
+  return collectImageComponents(project).some(c => isHomeAssistantImage(c) && !!c.imageBinding?.entityId);
+}
+
 const BINDER_BY_TYPE: Record<string, string> = {
   'bool': 'bind_ha_bool',
   'int': 'bind_ha_int',
@@ -36,10 +96,7 @@ function generateBindings(project: Project): string {
   const lines: string[] = [];
   const claimed = new Set<string>();
 
-  const allComponents = collectAllComponents([
-    ...project.dashboardPages.flatMap(p => p.components),
-    ...project.detailViews.flatMap(v => v.components),
-  ]);
+  const allComponents = collectProjectComponents(project);
 
   for (const c of allComponents) {
     if (c.type !== 'light_state') continue;
@@ -77,6 +134,19 @@ function generateBindings(project: Project): string {
         lines.push(`          bind_ha_string("${b.entityId}", &g_ui_app.state().${stateVar});`);
       }
     }
+  }
+
+  for (const c of allComponents) {
+    if (c.type !== "image") continue;
+    const ic = c as ImageComponent;
+    if (!isHomeAssistantImage(ic)) continue;
+    const entityId = ic.imageBinding?.entityId;
+    if (!entityId) continue;
+    const attribute = ic.imageBinding?.attribute ?? "entity_picture";
+    const key = `${entityId}::${attribute}::${imageIdFromComponentId(ic.id)}`;
+    if (claimed.has(key)) continue;
+    claimed.add(key);
+    lines.push(`          bind_ha_image_url("${entityId}", "${attribute}", id(${imageIdFromComponentId(ic.id)}));`);
   }
 
   for (const f of (project.state?.fields ?? []) as StateField[]) {
@@ -146,6 +216,7 @@ function generateNotificationSubscriptions(project: Project): string {
 export function generateESPHomeYAML(project: Project, _firmwareVersion?: string): string {
   const deviceName = sanitizeDeviceName(project.name);
   const friendlyName = project.name;
+  const onlineImagesEnabled = hasOnlineImages(project);
   const bindings = generateBindings(project);
   const notificationSubs = generateNotificationSubscriptions(project);
   const notificationBindings = notificationSubs ? `\n${notificationSubs}` : '';
@@ -153,15 +224,47 @@ export function generateESPHomeYAML(project: Project, _firmwareVersion?: string)
   const iconFontAssignment = iconGlyphs.size > 0
     ? `\n          g_theme.icon.font = id(${ICON_FONT_ID});`
     : '';
+  const homeAssistantBaseUrlSubstitution = onlineImagesEnabled
+    ? `\n  home_assistant_base_url: !secret home_assistant_base_url`
+    : '';
+  const imageYaml = generateStaticImagesYAML(project);
+  const onlineImageYaml = generateOnlineImagesYAML(project);
+  const httpRequestYaml = onlineImagesEnabled
+    ? `\nhttp_request:\n  verify_ssl: false\n  timeout: 10s\n`
+    : '';
+  const haBaseUrlLocal = onlineImagesEnabled
+    ? `\n          const std::string ha_base_url = "\${home_assistant_base_url}";\n`
+    : '';
+  const imageBindingHelper = onlineImagesEnabled
+    ? `
+          auto bind_ha_image_url = [ha_base_url](const std::string& entity_id, const std::string& attribute, auto *target) {
+            auto *api = esphome::api::global_api_server;
+            if (api == nullptr) return;
+            api->subscribe_home_assistant_state(
+                entity_id, esphome::optional<std::string>(attribute),
+                [target, ha_base_url](esphome::StringRef state) {
+                  std::string url(state.c_str(), state.size());
+                  if (url.empty() || url == "unknown" || url == "unavailable") return;
+                  if (!ha_base_url.empty() && url.rfind("/", 0) == 0) {
+                    url = ha_base_url + url;
+                  }
+                  target->set_url(url);
+                  target->update();
+                  UiRedraw::trigger_display_update();
+                });
+          };
+`
+    : '';
 
   return `substitutions:
   device_name: ${deviceName}
-  friendly_name: "${friendlyName}"
+  friendly_name: "${friendlyName}"${homeAssistantBaseUrlSubstitution}
 
 packages:
   base: !include base.yaml
   fonts: !include fonts.yaml
   hardware: !include hardware.yaml
+${imageYaml}${onlineImageYaml}${httpRequestYaml}
 
 esphome:
   on_boot:
@@ -187,6 +290,7 @@ esphome:
           UiRedraw::set_display_updater([]() { id(main_display).update(); });
           UiRedraw::request_full();
           id(main_display).update();
+${haBaseUrlLocal}
 
           auto bind_ha_bool = [](const std::string& entity_id, Observable<bool>* target) {
             auto *api = esphome::api::global_api_server;
@@ -242,6 +346,7 @@ esphome:
                   UiRedraw::trigger_display_update();
                 });
           };
+${imageBindingHelper}
 
           auto bind_ha_float = [](const std::string& entity_id, Observable<float>* target) {
             auto *api = esphome::api::global_api_server;

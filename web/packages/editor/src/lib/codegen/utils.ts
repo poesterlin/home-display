@@ -54,6 +54,11 @@ export function stateVarFromEntity(entityId: string): string {
   return entityId.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 }
 
+export function imageIdFromComponentId(id: string): string {
+  const safe = stateVarFromEntity(id).toLowerCase();
+  return `img_${safe || "image"}`;
+}
+
 export function todoItemsVarFromBinding(binding: EntityBinding | undefined, fallbackId: string): string {
   if (!binding?.entityId) {
     return `todo_${stateVarFromEntity(fallbackId)}_all_items`;

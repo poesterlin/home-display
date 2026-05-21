@@ -94,7 +94,16 @@ export type ContainerComponent = BaseComponent & {
 };
 export type ImageComponent = BaseComponent & {
   type: "image";
+  /**
+   * Whether the image comes from a static ESPHome image entry or a Home Assistant image/camera entity.
+   */
+  imageSource?: "static" | "ha";
   file: string;
+  imageBinding?: EntityBinding2;
+  /**
+   * Encoded format expected from the online image URL when imageBinding is used.
+   */
+  onlineFormat?: "png" | "jpeg" | "bmp";
   /**
    * Specifies how to encode image internally.
    */
@@ -341,6 +350,13 @@ export interface Color2 {
   g: number;
   b: number;
 }
+/**
+ * Home Assistant image/camera entity. The entity_picture attribute is used by default and loaded with online_image.
+ */
+export interface EntityBinding2 {
+  entityId: string;
+  attribute?: string | null;
+}
 export interface AutoLayoutListItem {
   id: string;
   name: string;
@@ -469,6 +485,10 @@ export interface SecretsConfig {
    * Firmware update URL for OTA via HTTP (auto-populated from server)
    */
   firmwareUpdateUrl?: string;
+  /**
+   * Base URL ESPHome can use to fetch relative Home Assistant entity_picture URLs
+   */
+  homeAssistantBaseUrl?: string;
 }
 /**
  * Project-level page header shown on all dashboard pages

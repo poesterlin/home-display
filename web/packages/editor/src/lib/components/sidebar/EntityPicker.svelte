@@ -18,6 +18,7 @@
         valueBinding?: EntityBinding;
         stateBinding?: EntityBinding;
         itemsBinding?: EntityBinding;
+        imageBinding?: EntityBinding;
         targetDevice?: { deviceId?: string; deviceName?: string };
       };
 
@@ -50,6 +51,9 @@
     }
     if (component.type === "todo_list") {
       return component.itemsBinding;
+    }
+    if (component.type === "image") {
+      return component.imageBinding;
     }
     if (component.type === "slider" || component.type === "gauge") {
       return component.valueBinding;
@@ -113,6 +117,7 @@
     cover: "Covers & Blinds",
     media_player: "Media Players",
     camera: "Cameras",
+    image: "Images",
     vacuum: "Vacuums",
     fan: "Fans",
     lock: "Locks",
@@ -140,6 +145,7 @@
     cover: "🪟",
     media_player: "🎵",
     camera: "📷",
+    image: "🖼️",
     vacuum: "🧹",
     fan: "🌀",
     lock: "🔒",

@@ -120,6 +120,17 @@
       textBinding: undefined,
     });
   }
+
+  function updateImageSource(source: "static" | "ha") {
+    if (!selectedComponent || selectedComponent.type !== "image") return;
+    historyStore.record("Update image source");
+    projectStore.updateComponent(
+      selectedComponent.id,
+      source === "static"
+        ? { imageSource: "static", imageBinding: undefined }
+        : { imageSource: "ha", file: "" },
+    );
+  }
 </script>
 
 <div class="property-editor">
@@ -343,6 +354,78 @@
           value={selectedComponent.color}
           onUpdate={(color) => updateProperty("color", color)}
         />
+      </div>
+    {/if}
+
+    {#if selectedComponent.type === "image"}
+      <div class="property-section">
+        <div class="section-label">Image</div>
+        <div class="field">
+          <span class="field-label">Source</span>
+          <select
+            value={selectedComponent.imageSource ?? (selectedComponent.imageBinding?.entityId ? "ha" : "static")}
+            onchange={(e) =>
+              updateImageSource(e.currentTarget.value === "ha" ? "ha" : "static")}
+          >
+            <option value="static">Static file / URL</option>
+            <option value="ha">Home Assistant entity</option>
+          </select>
+        </div>
+
+        {#if (selectedComponent.imageSource ?? (selectedComponent.imageBinding?.entityId ? "ha" : "static")) === "ha"}
+          <div class="field-group">
+            <label class="group-label">Home Assistant Image</label>
+            <EntityPicker
+              component={selectedComponent}
+              onUpdate={(binding) => updateProperty("imageBinding", binding)}
+            />
+          </div>
+        {:else}
+          <div class="field">
+            <span class="field-label">File</span>
+            <input
+              type="text"
+              value={selectedComponent.file ?? ""}
+              placeholder="images/photo.png"
+              oninput={(e) => updateProperty("file", e.currentTarget.value)}
+            />
+          </div>
+        {/if}
+
+        <div class="field">
+          <span class="field-label">Type</span>
+          <select
+            value={selectedComponent.image_type ?? "RGB565"}
+            onchange={(e) => updateProperty("image_type", e.currentTarget.value)}
+          >
+            <option value="BINARY">Binary</option>
+            <option value="GRAYSCALE">Grayscale</option>
+            <option value="RGB565">RGB565</option>
+            <option value="RGB">RGB</option>
+          </select>
+        </div>
+        {#if (selectedComponent.imageSource ?? (selectedComponent.imageBinding?.entityId ? "ha" : "static")) === "ha"}
+          <div class="field">
+            <span class="field-label">Online</span>
+            <select
+              value={selectedComponent.onlineFormat ?? "png"}
+              onchange={(e) => updateProperty("onlineFormat", e.currentTarget.value)}
+            >
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="bmp">BMP</option>
+            </select>
+          </div>
+        {/if}
+        <div class="field">
+          <span class="field-label">Resize</span>
+          <input
+            type="text"
+            value={selectedComponent.resize ?? `${selectedComponent.size?.width ?? 100}x${selectedComponent.size?.height ?? 100}`}
+            placeholder="100x100"
+            oninput={(e) => updateProperty("resize", e.currentTarget.value)}
+          />
+        </div>
       </div>
     {/if}
 

@@ -8,6 +8,7 @@ import type {
   TextComponent,
   ButtonComponent,
   IconComponent,
+  ImageComponent,
   TodoListComponent,
   Color,
   OnTapAction,
@@ -18,6 +19,7 @@ import {
   stateVarFromEntity,
   todoItemsVarFromBinding,
   textBindingVar,
+  imageIdFromComponentId,
   type ScreenDescriptor,
   type WidgetFactory,
 } from "./utils";
@@ -263,6 +265,10 @@ function generateTodoListWidget(
     visibilityExpr?: string,
     dirtyBoundsExpr?: string,
 ): string {
+  const haSource = c.imageSource === "ha" || (c.imageSource == null && !!c.imageBinding?.entityId);
+  if (haSource && !c.imageBinding?.entityId) {
+    return `${indent}// Image '${c.id}' has Home Assistant source but no entity binding - skipped\n`;
+  }
   const x = c.position.x + offX;
   const y = c.position.y + offY;
   const w = c.size?.width ?? 220;
@@ -282,6 +288,44 @@ function generateTodoListWidget(
   }
   if (dirtyBoundsExpr) {
     out += `${indent}todo_${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
+  }
+  return out;
+}
+
+function generateImageWidget(
+    c: ImageComponent,
+    factory: WidgetFactory,
+    indent: string,
+    offX = 0,
+    offY = 0,
+    visibilityExpr?: string,
+    dirtyBoundsExpr?: string,
+    defaultBgColor?: string,
+): string {
+  const x = c.position.x + offX;
+  const y = c.position.y + offY;
+  const w = c.size?.width ?? 100;
+  const h = c.size?.height ?? 100;
+  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const imageId = imageIdFromComponentId(c.id);
+  const rect = `UiRect{${x}, ${y}, ${w}, ${h}}`;
+  let out = `${indent}auto *${idSafe} = ${factory('ImageWidget', `${rect}, id(${imageId})`)};\n`;
+  const bgColor = c.backgroundColor ? emitColor(c.backgroundColor) : defaultBgColor;
+  if (bgColor) {
+    out += `${indent}${idSafe}->set_bg_color(${bgColor});\n`;
+  }
+  if (c.foregroundColor || c.backgroundColor) {
+    out += `${indent}${idSafe}->set_tint(${c.foregroundColor ? emitColor(c.foregroundColor) : 'display::COLOR_ON'}, ${c.backgroundColor ? emitColor(c.backgroundColor) : 'display::COLOR_OFF'});\n`;
+  }
+  const callback = emitTapAction(c.onTap);
+  if (callback) {
+    out += `${indent}${idSafe}->on_tap(${callback});\n`;
+  }
+  if (visibilityExpr) {
+    out += `${indent}${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  if (dirtyBoundsExpr) {
+    out += `${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
   }
   return out;
 }
@@ -331,6 +375,9 @@ function generateComponentSetup(
     }
     case 'icon': {
       return generateIconWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
+    }
+    case 'image': {
+      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
@@ -607,6 +654,9 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
         out += `${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
       }
       return out;
+    }
+    case 'image': {
+      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, tabBgVar);
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);

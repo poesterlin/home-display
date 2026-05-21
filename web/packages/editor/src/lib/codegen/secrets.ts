@@ -18,6 +18,9 @@ export function generateSecretsYAML(project: Project): string {
   // Firmware update URL (for OTA via HTTP)
   lines.push(`# Firmware Update URL (auto-populated when project is published)`);
   lines.push(`firmware_update_url: "${project.secrets?.firmwareUpdateUrl ?? "http://YOUR_SERVER/api/firmware/YOUR_TOKEN/manifest"}"`);
+  lines.push(``);
+  lines.push(`# Home Assistant base URL for resolving relative entity_picture paths`);
+  lines.push(`home_assistant_base_url: "${project.secrets?.homeAssistantBaseUrl ?? "http://homeassistant.local:8123"}"`);
 
   return lines.join("\n");
 }
@@ -26,5 +29,8 @@ export function generateSecretsYAML(project: Project): string {
  * Check if project has any secrets configured
  */
 export function hasSecrets(project: Project): boolean {
-  return !!project.secrets?.firmwareUpdateUrl;
+  return !!(
+    project.secrets?.firmwareUpdateUrl ||
+    project.secrets?.homeAssistantBaseUrl
+  );
 }

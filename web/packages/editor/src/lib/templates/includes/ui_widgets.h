@@ -14,6 +14,9 @@ namespace esphome {
 namespace font {
 class Font;
 }
+namespace image {
+class Image;
+}
 }  // namespace esphome
 
 void ui_fast_filled_rectangle(display::Display &it, int x, int y, int w, int h, Color color);
@@ -271,6 +274,59 @@ class RectWidget : public Widget {
  private:
   UiRect rect_;
   Color color_;
+};
+
+class ImageWidget : public Widget {
+ public:
+  using Callback = std::function<void()>;
+
+  ImageWidget(UiRect rect, esphome::image::Image *image,
+              Color color_on = display::COLOR_ON,
+              Color color_off = display::COLOR_OFF)
+      : rect_(rect), image_(image),
+        color_on_(color_on), color_off_(color_off) {}
+
+  ImageWidget(UiRect rect, esphome::image::Image &image,
+              Color color_on = display::COLOR_ON,
+              Color color_off = display::COLOR_OFF)
+      : ImageWidget(rect, &image, color_on, color_off) {}
+
+  void on_tap(Callback cb) { tap_callback_ = std::move(cb); }
+
+  void set_tint(Color on, Color off) {
+    color_on_ = on;
+    color_off_ = off;
+  }
+
+  void set_bg_color(Color c) { bg_color_ = c; }
+
+  UiRect bounds() const override { return rect_; }
+
+  bool handle_touch(const TouchEvent &event, uint32_t now) override {
+    (void)now;
+    if (!tap_callback_) return false;
+    if (event.type != TouchType::Tap) return false;
+    if (rect_.contains(event.x, event.y)) {
+      tap_callback_();
+      return true;
+    }
+    return false;
+  }
+
+  void draw(display::Display &it, const UiState &state) override {
+    (void)state;
+    if (image_ == nullptr) return;
+    ui_fast_filled_rectangle(it, rect_.x, rect_.y, rect_.w, rect_.h, bg_color_);
+    it.image(rect_.x, rect_.y, image_, color_on_, color_off_);
+  }
+
+ private:
+  UiRect rect_;
+  esphome::image::Image *image_;
+  Color color_on_;
+  Color color_off_;
+  Color bg_color_{0, 0, 0};
+  Callback tap_callback_;
 };
 
 class LabelWidget : public Widget {

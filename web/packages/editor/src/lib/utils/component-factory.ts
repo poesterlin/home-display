@@ -72,6 +72,18 @@ export function createComponent(type: string, x: number, y: number): Component {
         size: { width: 100, height: 60 },
       } as Component;
 
+    case "image":
+      return {
+        ...base,
+        type: "image",
+        imageSource: "static",
+        file: "images/image.png",
+        image_type: "RGB565",
+        onlineFormat: "png",
+        resize: "100x100",
+        size: { width: 100, height: 100 },
+      } as Component;
+
     case "todo_list":
       return {
         ...base,

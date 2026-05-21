@@ -23,11 +23,16 @@
       ? colorToCss(component.foregroundColor, "black")
       : "black",
   );
+  const imageWidth = $derived(component.size?.width ?? 100);
+  const imageHeight = $derived(component.size?.height ?? 100);
 
   // Placeholder for image rendering logic in the editor
   // In a real application, you might fetch and display the image
   // For now, we'll represent it with a colored rectangle
-  const imageUrl = $derived(() => {
+  const imageUrl = $derived.by(() => {
+    if (component.imageBinding?.entityId) {
+      return `ha:${component.imageBinding.entityId}`;
+    }
     // Attempt to parse mdi:icon-name or https://... for display
     if (
       component.file.startsWith("mdi:") ||
@@ -50,8 +55,8 @@
   <div
     class="image-renderer"
     class:selected={isSelected}
-    style:width={`${component.size.width}px`}
-    style:height={`${component.size.height}px`}
+    style:width={`${imageWidth}px`}
+    style:height={`${imageHeight}px`}
     style:background-color={bgColor}
     style:border={isSelected ? "2px solid #4a9eff" : "1px solid #777"}
     style:display="flex"
@@ -59,7 +64,9 @@
     style:justify-content="center"
     style:overflow="hidden"
   >
-    {#if imageUrl.startsWith("mdi:") || imageUrl.startsWith("mdil:")}
+    {#if imageUrl.startsWith("ha:")}
+      <span class="image-text" style:color={fgColor} title={imageUrl}>HA image: {imageUrl.slice(3)}</span>
+    {:else if imageUrl.startsWith("mdi:") || imageUrl.startsWith("mdil:")}
       <span class="image-text" style:font-size="24px" style:color={fgColor} title={imageUrl}>{imageUrl}</span>
     {:else if imageUrl.startsWith("http://") || imageUrl.startsWith("https://")}
       <img
