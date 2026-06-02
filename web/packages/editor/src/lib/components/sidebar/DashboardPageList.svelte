@@ -1,6 +1,5 @@
 <script lang="ts">
   import { projectStore } from "$lib/stores/project.svelte";
-  import PageIndicator from "../canvas/PageIndicator.svelte";
 
   let editingId = $state<string | null>(null);
   let editValue = $state("");
@@ -90,14 +89,6 @@
       </div>
     {/each}
   </div>
-
-  <div class="indicator-preview">
-    <PageIndicator
-      count={projectStore.dashboardPages.length}
-      currentIndex={projectStore.currentPageIndex}
-      isStatic={true}
-    />
-  </div>
 </div>
 
 <style>
@@ -122,11 +113,14 @@
     background: #4a9eff;
     border: none;
     color: white;
-    width: 20px;
+    width: 40px;
     height: 20px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .items {
     display: flex;

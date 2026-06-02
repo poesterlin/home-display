@@ -1,4 +1,15 @@
 <script lang="ts">
+  import {
+    mdiFormatText,
+    mdiGestureTap,
+    mdiStarOutline,
+    mdiLightbulbOutline,
+    mdiImageOutline,
+    mdiFormatListChecks,
+    mdiTab,
+    mdiSourceBranch,
+  } from '@mdi/js';
+
   interface ComponentTemplate {
     type: string;
     label: string;
@@ -7,17 +18,54 @@
   }
 
   const components: ComponentTemplate[] = [
-    { type: "text", label: "Text", icon: "T", description: "Display text or entity value" },
-    { type: "button", label: "Button", icon: "B", description: "Tap to trigger action" },
-    // { type: "slider", label: "Slider", icon: "S", description: "Adjust numeric value" },
-    // { type: "gauge", label: "Gauge", icon: "G", description: "Visual meter display" },
-    { type: "icon", label: "Icon", icon: "I", description: "MDI icon display" },
-    { type: "image", label: "Image", icon: "IMG", description: "Static or HA image" },
-    // { type: "auto_layout_list", label: "Auto List", icon: "AL", description: "Icon row/stack with conditions" },
-    { type: "tab_container", label: "Tabs", icon: "T+", description: "Named tabs with child content" },
-    { type: "todo_list", label: "To-Do List", icon: "[]", description: "PSV to-do list preview" },
-    { type: "light_state", label: "Light State", icon: "LB", description: "Show light on/off state" },
-    { type: "conditional_area", label: "Cond Area", icon: "?", description: "Dynamic content by condition" },
+    {
+      type: "text",
+      label: "Text",
+      icon: mdiFormatText,
+      description: "Display static text or Home Assistant entity values",
+    },
+    {
+      type: "button",
+      label: "Button",
+      icon: mdiGestureTap,
+      description: "Tap to trigger actions, navigate, or call services",
+    },
+    {
+      type: "icon",
+      label: "Icon",
+      icon: mdiStarOutline,
+      description: "Render Material Design Icons with custom color and size",
+    },
+    {
+      type: "light_state",
+      label: "Light",
+      icon: mdiLightbulbOutline,
+      description: "Visual on/off indicator for lights or switches",
+    },
+    {
+      type: "image",
+      label: "Image",
+      icon: mdiImageOutline,
+      description: "Display images from URL or camera entity snapshots",
+    },
+    {
+      type: "todo_list",
+      label: "To-Do List",
+      icon: mdiFormatListChecks,
+      description: "Interactive checklist for shopping or todo items",
+    },
+    {
+      type: "tab_container",
+      label: "Tabs",
+      icon: mdiTab,
+      description: "Organize content into switchable named tab sections",
+    },
+    {
+      type: "conditional_area",
+      label: "Conditional",
+      icon: mdiSourceBranch,
+      description: "Show or hide child content when conditions are met",
+    },
   ];
 
   function handleDragStart(e: DragEvent, type: string) {
@@ -40,7 +88,11 @@
         role="button"
         tabindex="0"
       >
-        <span class="item-icon">{comp.icon}</span>
+        <span class="item-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+            <path d={comp.icon} fill="currentColor" />
+          </svg>
+        </span>
         <div class="item-info">
           <span class="item-label">{comp.label}</span>
           <span class="item-desc">{comp.description}</span>
@@ -102,8 +154,11 @@
     justify-content: center;
     background: var(--color-bg-primary);
     border-radius: var(--radius-sm);
-    font-weight: bold;
     color: var(--color-accent);
+  }
+
+  .item-icon :global(svg) {
+    flex-shrink: 0;
   }
 
   .item-info {

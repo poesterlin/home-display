@@ -57,6 +57,8 @@ class PageIndicatorWidget : public Widget {
   }
 
   void update(uint32_t now) override {
+    if (!page_baseline_set_)
+      mark_dirty();
     Widget::update(now);
   }
 
@@ -222,8 +224,8 @@ class DetailHeaderWidget : public Widget {
     draw_clipped_box(it, bx, by, bw, bh, 5, RetroColors::CYAN, RetroColors::DIM, true);
     const int cx = bx + bw / 2;
     const int cy = by + bh / 2;
-    it.line(cx - 6, cy - 7, cx + 4, cy, RetroColors::CYAN);
-    it.line(cx + 4, cy, cx - 6, cy + 7, RetroColors::CYAN);
+    it.line(cx + 6, cy - 7, cx - 4, cy, RetroColors::CYAN);
+    it.line(cx - 4, cy, cx + 6, cy + 7, RetroColors::CYAN);
 
     if (title_ && title_font_) {
       // Section label in brackets for retro terminal feel
