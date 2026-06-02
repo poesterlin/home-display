@@ -32,6 +32,15 @@
   const width = $derived(component.size?.width ?? 100);
   const height = $derived(component.size?.height ?? 100);
 
+  const variantColors = [
+    "#4a9eff", "#6fbf73", "#ff914d", "#e06cae",
+    "#7ec8e3", "#c792ea", "#ffd666", "#ff6464",
+  ];
+
+  function getVariantColor(index: number): string {
+    return variantColors[index % variantColors.length];
+  }
+
   function selectVariant(variantId: string) {
     conditionalEditorStore.setActiveVariant(component.id, variantId);
     canvasPasteTargetStore.set({ scope: "variant", parentId: component.id, variantId });
@@ -129,30 +138,6 @@
 </script>
 
 <Draggable {component}>
-  <!-- Variant tabs positioned above the area -->
-  {#if isSelected}
-    <div class="variant-tabs" role="tablist" tabindex="0" onmousedown={(e) => e.stopPropagation()}>
-      {#each component.variants as variant (variant.id)}
-        <button
-          class="variant-tab"
-          class:active={variant.id === activeVariantId}
-          onclick={() => selectVariant(variant.id)}
-          title={variant.condition ? describeCondition(variant.condition) : "Default"}
-          role="tab"
-          aria-selected={variant.id === activeVariantId}
-        >
-          {variant.name}
-          {#if !variant.condition}
-            <span class="default-badge">def</span>
-          {/if}
-        </button>
-      {/each}
-      <button class="add-variant-btn" onclick={handleAddVariant} title="Add Variant">
-        +
-      </button>
-    </div>
-  {/if}
-
   <div
     class="conditional-area"
     class:selected={isSelected}
@@ -160,7 +145,34 @@
     style:width="{width}px"
     style:height="{height}px"
   >
-    <!-- Render active variant's components -->
+    <div class="variant-header" role="tablist" tabindex="0" onmousedown={(e) => e.stopPropagation()}>
+      {#each component.variants as variant, i (variant.id)}
+        {@const color = getVariantColor(i)}
+        {@const isActive = variant.id === activeVariantId}
+        <button
+          class="variant-tab"
+          class:active={isActive}
+          style:background={isActive ? color : `${color}33`}
+          style:border-color={isActive ? color : `${color}44`}
+          style:color={isActive ? '#fff' : color}
+          onclick={() => selectVariant(variant.id)}
+          title={variant.condition ? describeCondition(variant.condition) : "Default"}
+          role="tab"
+          aria-selected={isActive}
+        >
+          {variant.name}
+          {#if !variant.condition}
+            <span class="default-badge">def</span>
+          {/if}
+        </button>
+      {/each}
+      {#if isSelected}
+        <button class="add-variant-btn" onclick={handleAddVariant} title="Add Variant">
+          +
+        </button>
+      {/if}
+    </div>
+
     <div
       bind:this={contentEl}
       class="variant-content"
@@ -180,13 +192,12 @@
             component={childComponent}
             parentOffset={{
               x: (parentOffset?.x ?? 0) + component.position.x,
-              y: (parentOffset?.y ?? 0) + component.position.y
+              y: (parentOffset?.y ?? 0) + component.position.y,
             }}
           />
         {/each}
       {/if}
 
-      <!-- Empty state -->
       {#if activeVariant && activeVariant.components.length === 0}
         <div class="empty-state">
           {isDragOver ? "Release to drop" : "Drop components here"}
@@ -194,7 +205,6 @@
       {/if}
     </div>
 
-    <!-- Condition indicator (show when not selected) -->
     {#if !isSelected && activeVariant?.condition}
       <div class="condition-badge" title={describeCondition(activeVariant.condition)}>
         {getConditionIcon(activeVariant.condition)}
@@ -210,6 +220,7 @@
     border-radius: 4px;
     background: rgba(50, 50, 80, 0.2);
     pointer-events: all;
+    overflow: hidden;
   }
 
   .conditional-area.selected {
@@ -222,60 +233,108 @@
     background: rgba(50, 100, 50, 0.3);
   }
 
-  .variant-tabs {
+  .variant-header {
     position: absolute;
-    bottom: 100%;
+    top: 0;
     left: 0;
+    right: 0;
     display: flex;
+    align-items: flex-end;
     gap: 2px;
-    padding: 2px;
-    background: #2a2a2a;
-    border-radius: 4px 4px 0 0;
+    height: 22px;
+    padding: 0 0 2px 2px;
+    background: transparent;
     overflow-x: auto;
-    height: 20px;
-    z-index: 10;
+    overflow-y: hidden;
+    z-index: 5;
+    transform: translateY(-14px);
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .variant-header > :last-child {
+    margin-right: 2px;
+  }
+
+  .variant-header:hover {
+    transform: translateY(0);
+    background: rgba(22, 28, 36, 0.94);
+    box-shadow: 0 1px 0 rgba(90, 110, 130, 0.55);
   }
 
   .variant-tab {
-    padding: 2px 6px;
-    font-size: 10px;
-    background: #3a3a3a;
-    border: none;
+    padding: 0;
+    width: 12px;
+    min-width: 12px;
+    height: 8px;
+    font-size: 0;
+    border: 1px solid transparent;
     border-radius: 2px;
-    color: #aaa;
     cursor: pointer;
     white-space: nowrap;
+    flex-shrink: 0;
+    transition: padding 0.12s ease, width 0.12s ease, min-width 0.12s ease,
+                height 0.12s ease, font-size 0.12s ease, border-radius 0.12s ease,
+                filter 0.1s;
+  }
+
+  .variant-header:hover .variant-tab {
+    padding: 1px 5px;
+    width: auto;
+    min-width: auto;
+    height: auto;
+    font-size: 9px;
+    border-radius: 3px;
   }
 
   .variant-tab:hover {
-    background: #4a4a4a;
+    filter: brightness(1.3);
   }
 
   .variant-tab.active {
-    background: #4a9eff;
-    color: white;
+    font-weight: 600;
+    width: 24px;
+    min-width: 24px;
   }
 
   .default-badge {
-    font-size: 8px;
-    background: #666;
+    display: none;
+    font-size: 7px;
+    background: rgba(255, 255, 255, 0.2);
     padding: 0px 3px;
     border-radius: 2px;
     margin-left: 2px;
   }
 
+  .variant-header:hover .default-badge {
+    display: inline;
+  }
+
   .add-variant-btn {
-    padding: 2px 6px;
+    margin-left: auto;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
-    border: 1px dashed #555;
+    border: 1px dashed #5f738c;
     border-radius: 2px;
-    color: #888;
+    color: #8ea4bc;
     cursor: pointer;
-    font-size: 10px;
+    font-size: 0;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.12s ease, font-size 0.12s ease;
+  }
+
+  .variant-header:hover .add-variant-btn {
+    font-size: 14px;
+    opacity: 1;
   }
 
   .variant-content {
     position: relative;
+    flex: 1;
     overflow: hidden;
   }
 

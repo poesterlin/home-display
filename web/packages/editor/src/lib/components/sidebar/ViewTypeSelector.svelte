@@ -7,7 +7,7 @@
     class:active={projectStore.viewMode === 'dashboard'} 
     onclick={() => projectStore.setViewMode('dashboard')}
   >
-    Dashboard
+    Pages
   </button>
   <button 
     class:active={projectStore.viewMode === 'detail'} 

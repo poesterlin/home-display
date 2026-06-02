@@ -747,41 +747,19 @@
   {:else}
     {#if projectStore.viewMode === "dashboard"}
       <div class="property-section">
-        <label class="section-label">Page Header</label>
+        <label class="section-label">Page Name</label>
         <div class="field">
-          <span class="field-label">Enabled</span>
           <input
-            type="checkbox"
-            checked={!!projectStore.pageHeader}
-            onchange={(e) => {
-              if (e.currentTarget.checked) {
-                projectStore.enablePageHeader();
-              } else {
-                projectStore.disablePageHeader();
+            type="text"
+            value={projectStore.currentDashboardPage?.name ?? ""}
+            oninput={(e) => {
+              const page = projectStore.currentDashboardPage;
+              if (page && e.currentTarget.value.trim()) {
+                projectStore.renameDashboardPage(page.id, e.currentTarget.value.trim());
               }
             }}
           />
         </div>
-        {#if projectStore.pageHeader}
-          <div class="field">
-            <span class="field-label">Height</span>
-            <input
-              type="number"
-              min={20}
-              max={projectStore.display?.height
-                ? Math.floor(projectStore.display.height / 2)
-                : 160}
-              step={1}
-              value={projectStore.pageHeader.height}
-              oninput={(e) => {
-                const val = parseInt(e.currentTarget.value);
-                if (val > 0) {
-                  projectStore.updatePageHeader({ height: val });
-                }
-              }}
-            />
-          </div>
-        {/if}
       </div>
     {/if}
     <div class="no-selection">

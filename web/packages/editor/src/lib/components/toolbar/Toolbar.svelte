@@ -1,7 +1,8 @@
 <script lang="ts">
   import { projectStore } from "$lib/stores/project.svelte";
   import { historyStore } from "$lib/stores/history.svelte";
-  import * as mdiIcons from '@mdi/js';
+  import * as mdiIcons from "@mdi/js";
+  import { dev } from "$app/environment";
 
   interface Props {
     onExport: () => void;
@@ -13,15 +14,13 @@
 </script>
 
 <header class="toolbar">
-   <div class="toolbar-left">
-     <a href="/" class="projects-link">
-       <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
-         <path d={mdiIcons.mdiHome} />
-       </svg>
-       <span>Projects</span>
-     </a>
-    <div class="separator"></div>
-    <div class="logo">ESPHome Designer</div>
+  <div class="toolbar-left">
+    <a href="/" class="projects-link">
+      <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
+        <path d={mdiIcons.mdiHome} />
+      </svg>
+      <span>Projects</span>
+    </a>
   </div>
 
   <div class="toolbar-center">
@@ -30,30 +29,45 @@
       class="project-name"
       value={projectStore.project?.name ?? ""}
       oninput={(e: Event) =>
-        projectStore.updateProject({ name: (e.target as HTMLInputElement).value })
-      }
+        projectStore.updateProject({
+          name: (e.target as HTMLInputElement).value,
+        })}
     />
   </div>
 
   <div class="toolbar-right">
-     <button onclick={onSettings} title="Project Settings">
-       <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
-         <path d={mdiIcons.mdiCog} />
-       </svg>
-       <span>Settings</span>
-     </button>
-     <button onclick={onDebug} title="Debug JSON">
-       <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
-         <path d={mdiIcons.mdiFlash} />
-       </svg>
-       <span>Debug</span>
-     </button>
-    <div class="separator"></div>
-    <button onclick={() => historyStore.undo()} disabled={!historyStore.canUndo} title="Undo (Ctrl+Z)">
-      Undo
+    <button onclick={onSettings} title="Project Settings" class="settings-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+        <path d={mdiIcons.mdiCog} />
+      </svg>
+      <span>Settings</span>
     </button>
-    <button onclick={() => historyStore.redo()} disabled={!historyStore.canRedo} title="Redo (Ctrl+Y)">
-      Redo
+    {#if dev}
+      <button onclick={onDebug} title="Debug JSON" class="settings-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+          <path d={mdiIcons.mdiFlash} />
+        </svg>
+        <span>Debug</span>
+      </button>
+    {/if}
+    <div class="separator"></div>
+    <button
+      onclick={() => historyStore.undo()}
+      disabled={!historyStore.canUndo}
+      title="Undo (Ctrl+Z)"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+        <path d={mdiIcons.mdiUndo} />
+      </svg>
+    </button>
+    <button
+      onclick={() => historyStore.redo()}
+      disabled={!historyStore.canRedo}
+      title="Redo (Ctrl+Y)"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+        <path d={mdiIcons.mdiRedo} />
+      </svg>
     </button>
     <div class="separator"></div>
     <button class="primary" onclick={onExport}>Export Code</button>
@@ -96,6 +110,12 @@
     transition: background 0.2s;
   }
 
+  .settings-btn {
+    display: flex;
+    gap: 8px;
+
+  }
+
   .projects-link:hover {
     background: var(--color-bg-tertiary);
     color: var(--color-text-primary);
@@ -134,13 +154,13 @@
     margin: 0 var(--spacing-xs);
   }
 
-   button {
-     font-size: 12px;
-     padding: var(--spacing-xs) var(--spacing-sm);
-   }
+  button {
+    font-size: 12px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
 
-   .icon {
-     fill: currentColor;
-     stroke: none;
-   }
+  .icon {
+    fill: currentColor;
+    stroke: none;
+  }
 </style>
