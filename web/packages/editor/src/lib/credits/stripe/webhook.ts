@@ -1,5 +1,6 @@
 import { getStripe } from "./client";
 import { addCredits } from "../credits";
+import { getPackByPriceId } from "../packs";
 import type Stripe from "stripe";
 
 const trackedEvents = new Set<string>([
@@ -15,22 +16,22 @@ export async function handleCompletedCheckout(
 ): Promise<void> {
   const userId = session.metadata?.userId;
   if (!userId) return;
-
   if (session.mode !== "payment") return;
   if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return;
 
-  const credits = session.metadata?.credits;
-  if (!credits) return;
+  const lineItems = session.line_items?.data;
+  if (!lineItems || lineItems.length === 0) return;
 
-  const amount = parseInt(credits, 10);
-  if (isNaN(amount) || amount <= 0) return;
+  const priceId = lineItems[0].price?.id;
+  if (!priceId) return;
 
-  const priceKey = session.metadata?.price_key ?? "unknown";
+  const pack = getPackByPriceId(priceId);
+  if (!pack) return;
 
   await addCredits({
     userId,
-    amount,
-    reason: `purchase:${priceKey}`,
+    amount: pack.credits,
+    reason: `purchase:${pack.priceKey}`,
     stripeSessionId: session.id,
   });
 }

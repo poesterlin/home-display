@@ -14,6 +14,27 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditBalanc
   const db = getDb();
 
   return db.transaction(async (tx) => {
+    if (params.stripeSessionId) {
+      const [existingTx] = await tx
+        .select({ id: creditTransactions.id })
+        .from(creditTransactions)
+        .where(eq(creditTransactions.stripeSessionId, params.stripeSessionId))
+        .limit(1);
+
+      if (existingTx) {
+        const [row] = await tx
+          .select()
+          .from(creditBalances)
+          .where(eq(creditBalances.userId, params.userId));
+
+        return {
+          userId: params.userId,
+          balance: row?.balance ?? params.amount,
+          updatedAt: row?.updatedAt ?? new Date(),
+        };
+      }
+    }
+
     const [existing] = await tx
       .select()
       .from(creditBalances)

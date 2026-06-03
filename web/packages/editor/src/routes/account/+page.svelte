@@ -1,67 +1,29 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import * as mdiIcons from "@mdi/js";
 
-  let { data } = $props();
+  let { data, form } = $props();
 
-  let balance = $state(data.balance);
-  const checkoutStatus = $derived(data.checkoutStatus);
-  let purchasing = $state<string | null>(null);
-  let error = $state<string | null>(null);
+  const memberSince = $derived(
+    data.user?.createdAt
+      ? new Intl.DateTimeFormat(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }).format(new Date(data.user.createdAt))
+      : "Unknown",
+  );
 
-  const packs = $derived([
-    {
-      name: "Starter",
-      credits: 10,
-      price: "$5",
-      priceId: "price_1TeAvHAhO1kA3vuNbGO8y87n",
-      priceKey: "10_builds",
-      unitPrice: "$0.50",
-    },
-    {
-      name: "Builder",
-      credits: 50,
-      price: "$20",
-      priceId: "price_1TeAwuAhO1kA3vuNUUXVhx4e",
-      priceKey: "50_builds",
-      unitPrice: "$0.40",
-      popular: true,
-    },
-    {
-      name: "Pro",
-      credits: 200,
-      price: "$60",
-      priceId: "price_1TeAy1AhO1kA3vuNfqw8gfpJ",
-      priceKey: "200_builds",
-      unitPrice: "$0.30",
-    },
-  ]);
-
-  async function buyPack(pack: { priceId: string; priceKey: string; credits: number }) {
-    purchasing = pack.priceKey;
-    error = null;
-
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          priceId: pack.priceId,
-          priceKey: pack.priceKey,
-          credits: pack.credits,
-        }),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) throw new Error(json.error || "Checkout failed");
-
-      window.location.href = json.url;
-    } catch (err: any) {
-      error = err.message;
-      purchasing = null;
-    }
-  }
+  const lastLogin = $derived(
+    data.user?.lastLogin
+      ? new Intl.DateTimeFormat(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(data.user.lastLogin))
+      : "No sign-in recorded",
+  );
 </script>
 
 <div class="account-page">
@@ -75,68 +37,112 @@
   </header>
 
   <main class="account-content">
-    {#if checkoutStatus === "success"}
-      <div class="toast success">
-        <svg width="18" height="18" viewBox="0 0 24 24">
-          <path d={mdiIcons.mdiCheckCircle} fill="#4caf50" />
-        </svg>
-        Payment successful! Credits will appear shortly.
-      </div>
-    {:else if checkoutStatus === "cancelled"}
-      <div class="toast muted">
-        Checkout cancelled. Your credits remain unchanged.
-      </div>
-    {/if}
-
-    {#if error}
-      <div class="toast error">
-        <svg width="18" height="18" viewBox="0 0 24 24">
-          <path d={mdiIcons.mdiAlertCircle} fill="#f44336" />
-        </svg>
-        {error}
-      </div>
-    {/if}
-
-    <div class="balance-card">
-      <div class="balance-label">Available Credits</div>
-      <div class="balance-amount">{balance}</div>
-      <div class="balance-sub">1 credit = 1 firmware build</div>
-    </div>
-
-    <h2>Get More Credits</h2>
-
-    <div class="packs-grid">
-      {#each packs as pack}
-        <div class="pack-card" class:popular={pack.popular}>
-          {#if pack.popular}
-            <div class="popular-badge">Best Value</div>
-          {/if}
-          <div class="pack-name">{pack.name}</div>
-          <div class="pack-credits">{pack.credits} builds</div>
-          <div class="pack-price">{pack.price}</div>
-          <div class="pack-unit">({pack.unitPrice} per build)</div>
-          <button
-            class="buy-btn"
-            class:popular-btn={pack.popular}
-            disabled={purchasing === pack.priceKey}
-            onclick={() => buyPack(pack)}
-          >
-            {#if purchasing === pack.priceKey}
-              Redirecting...
-            {:else}
-              Buy {pack.name}
-            {/if}
-          </button>
+    <section class="profile-card">
+      <div class="profile-top">
+        <div class="avatar">{data.user?.username?.[0]?.toUpperCase() ?? "?"}</div>
+        <div>
+          <div class="eyebrow">Your Account</div>
+          <h1>{data.user?.username}</h1>
+          <p>{data.user?.email ?? "No email on file"}</p>
         </div>
-      {/each}
-    </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Member Since</span>
+          <span class="meta-value">{memberSince}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Last Login</span>
+          <span class="meta-value">{lastLogin}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Quick Actions</h2>
+      <div class="action-list">
+        <a href="/credits" class="action-link">
+          <div>
+            <strong>Manage Credits</strong>
+            <p>Buy more build credits and check your current balance.</p>
+          </div>
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <path d={mdiIcons.mdiChevronRight} />
+          </svg>
+        </a>
+
+        <form action="/logout" method="post" class="action-form">
+          <button type="submit" class="action-link button-link">
+            <div>
+              <strong>Sign Out</strong>
+              <p>Log out of this browser session immediately.</p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path d={mdiIcons.mdiLogout} />
+            </svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel danger-panel">
+      <h2>Danger Zone</h2>
+      <p class="danger-copy">
+        Permanently delete your account, projects, sessions, and credit history. This cannot be undone.
+      </p>
+      <p class="danger-legal">
+        Unused credits are forfeited when you delete your account. See <a href="/terms">Terms of Service</a>.
+      </p>
+
+      {#if form?.deleteError}
+        <div class="error-box">
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path d={mdiIcons.mdiAlertCircle} />
+          </svg>
+          {form.deleteError}
+        </div>
+      {/if}
+
+      <form method="POST" action="?/deleteAccount" class="delete-form">
+        <label for="confirmUsername">Type your username to confirm</label>
+        <input
+          id="confirmUsername"
+          name="confirmUsername"
+          type="text"
+          placeholder={data.user?.username}
+          required
+          autocomplete="off"
+        />
+
+        <label for="confirmPhrase">Type DELETE</label>
+        <input
+          id="confirmPhrase"
+          name="confirmPhrase"
+          type="text"
+          placeholder="DELETE"
+          required
+          autocomplete="off"
+        />
+
+        <button class="delete-btn" type="submit">
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path d={mdiIcons.mdiDeleteForever} />
+          </svg>
+          Delete My Account
+        </button>
+      </form>
+    </section>
   </main>
 </div>
 
 <style>
   .account-page {
     min-height: 100vh;
-    background: var(--color-bg-primary);
+    background:
+      radial-gradient(circle at 10% 0%, rgba(74, 158, 254, 0.2), transparent 45%),
+      radial-gradient(circle at 90% 100%, rgba(0, 255, 194, 0.1), transparent 45%),
+      var(--color-bg-primary);
     color: #fff;
   }
 
@@ -160,176 +166,210 @@
   }
 
   .account-content {
-    max-width: 700px;
+    max-width: 820px;
     margin: 0 auto;
-    padding: 3rem 2rem;
-  }
-
-  .toast {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem 1.25rem;
-    border-radius: var(--radius-md);
-    font-size: 0.9rem;
-    margin-bottom: 2rem;
-  }
-
-  .toast.success {
-    background: rgba(76, 175, 80, 0.1);
-    border: 1px solid rgba(76, 175, 80, 0.25);
-    color: #81c784;
-  }
-
-  .toast.muted {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--color-text-secondary);
-  }
-
-  .toast.error {
-    background: rgba(244, 67, 54, 0.1);
-    border: 1px solid rgba(244, 67, 54, 0.25);
-    color: #ef9a9a;
-  }
-
-  .balance-card {
-    text-align: center;
-    padding: 2.5rem;
-    background: linear-gradient(135deg, #1e1e2e 0%, #1a1a2e 100%);
-    border: 1px solid rgba(74, 158, 254, 0.15);
-    border-radius: 1rem;
-    margin-bottom: 3rem;
-  }
-
-  .balance-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-text-muted);
-    margin-bottom: 0.5rem;
-  }
-
-  .balance-amount {
-    font-size: 3.5rem;
-    font-weight: 800;
-    color: var(--color-accent);
-    line-height: 1;
-    margin-bottom: 0.5rem;
-  }
-
-  .balance-sub {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-  }
-
-  h2 {
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: 1.25rem;
-  }
-
-  .packs-grid {
+    padding: 2.5rem 1.25rem 4rem;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
+    gap: 1.25rem;
   }
 
-  .pack-card {
-    position: relative;
-    background: #1e1e1e;
+  .profile-card,
+  .panel {
+    background: rgba(25, 25, 25, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 1rem;
     padding: 1.5rem;
-    text-align: center;
-    transition: border-color var(--transition-normal);
+    backdrop-filter: blur(8px);
   }
 
-  .pack-card.popular {
-    border-color: rgba(74, 158, 254, 0.3);
-    background: linear-gradient(180deg, #1e1e2e 0%, #1a1a2e 100%);
+  .profile-top {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
   }
 
-  .popular-badge {
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--color-accent);
-    color: #fff;
-    font-size: 0.7rem;
+  .avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
     font-weight: 700;
+    background: linear-gradient(135deg, #4a9eff, #31e2b5);
+    color: #081018;
+  }
+
+  .eyebrow {
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-  }
-
-  .pack-name {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
-
-  .pack-credits {
-    font-size: 1.75rem;
-    font-weight: 800;
-    color: var(--color-accent);
-    margin-bottom: 0.25rem;
-  }
-
-  .pack-price {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-  }
-
-  .pack-unit {
-    font-size: 0.8rem;
+    letter-spacing: 0.07em;
     color: var(--color-text-muted);
+    font-size: 0.74rem;
+    margin-bottom: 0.2rem;
+    font-weight: 700;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .profile-card p {
+    color: var(--color-text-secondary);
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .meta-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.75rem;
+    padding: 0.9rem;
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .meta-label {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .meta-value {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  h2 {
+    font-size: 1.05rem;
     margin-bottom: 1rem;
   }
 
-  .buy-btn {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+  .action-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .action-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    color: inherit;
+    text-decoration: none;
+    padding: 1rem;
     border-radius: 0.75rem;
-    background: transparent;
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
     transition: all var(--transition-fast);
   }
 
-  .buy-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.25);
+  .action-link p {
+    margin-top: 0.2rem;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
   }
 
-  .buy-btn.popular-btn {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
+  .action-link:hover {
+    border-color: rgba(74, 158, 254, 0.5);
+    transform: translateY(-1px);
   }
 
-  .buy-btn.popular-btn:hover:not(:disabled) {
-    background: var(--color-accent-hover);
+  .action-form {
+    margin: 0;
   }
 
-  .buy-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .button-link {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
   }
 
-  @media (max-width: 600px) {
-    .packs-grid {
-      grid-template-columns: 1fr;
+  .danger-panel {
+    border-color: rgba(255, 82, 82, 0.25);
+    background: rgba(47, 20, 20, 0.5);
+  }
+
+  .danger-copy {
+    color: #ffb3b3;
+    margin-bottom: 1rem;
+  }
+
+  .danger-legal {
+    color: #ffbfbf;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .danger-legal a {
+    color: #ffd0d0;
+  }
+
+  .error-box {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgba(244, 67, 54, 0.35);
+    color: #ff8a8a;
+    background: rgba(244, 67, 54, 0.12);
+  }
+
+  .delete-form {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .delete-form label {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+  }
+
+  .delete-form input {
+    border-radius: 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .delete-btn {
+    margin-top: 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 0.7rem;
+    padding: 0.75rem 0.95rem;
+    color: #fff;
+    background: #d32f2f;
+    border: 1px solid #e57373;
+    font-weight: 700;
+  }
+
+  .delete-btn:hover {
+    background: #c62828;
+  }
+
+  svg {
+    fill: currentColor;
+  }
+
+  @media (max-width: 700px) {
+    .account-header {
+      padding: 1rem 1.25rem;
     }
 
-    .account-content {
-      padding: 2rem 1rem;
+    .meta-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

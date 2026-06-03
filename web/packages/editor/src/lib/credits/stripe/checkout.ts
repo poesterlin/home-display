@@ -2,17 +2,21 @@ import { getStripe } from "./client";
 import { getDb } from "$lib/db";
 import { stripeCustomers } from "$lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getPackByPriceId } from "../packs";
 
 export interface CreateCheckoutParams {
   userId: string;
   priceId: string;
-  priceKey: string;
-  credits: number;
   successUrl: string;
   cancelUrl: string;
 }
 
 export async function createCheckoutSession(params: CreateCheckoutParams) {
+  const pack = getPackByPriceId(params.priceId);
+  if (!pack) {
+    throw new Error(`Unknown priceId: ${params.priceId}`);
+  }
+
   const stripe = getStripe();
   const db = getDb();
 
@@ -44,8 +48,6 @@ export async function createCheckoutSession(params: CreateCheckoutParams) {
     cancel_url: params.cancelUrl,
     metadata: {
       userId: params.userId,
-      credits: String(params.credits),
-      price_key: params.priceKey,
     },
     allow_promotion_codes: true,
   });

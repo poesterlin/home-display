@@ -5,6 +5,8 @@ import type { RequestHandler } from "./$types";
 import { getAllJobs, getJobStatus, submitCompilationJob } from "$lib/utils/worker";
 import { deductCredits, CREDIT_COSTS, getBalance } from "$lib/credits";
 import { env } from "$env/dynamic/private";
+import { validateProject } from "$lib/codegen/validations";
+import type { Project } from "@esphome-designer/schema";
 
 const IS_CLOUD = env.APP_EDITION === "cloud";
 
@@ -21,6 +23,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // Validate project before queueing
+    let parsedConfig: Project;
+    try {
+      parsedConfig = JSON.parse(config);
+    } catch {
+      return json({ error: "Invalid project config JSON" }, { status: 400 });
+    }
+    const validationErrors = validateProject(parsedConfig);
+    if (validationErrors.length > 0) {
+      const messages = validationErrors.map((e) => `[${e.type}] ${e.message}`).join('; ');
+      return json({ error: `Project validation failed: ${messages}` }, { status: 400 });
     }
 
     if (IS_CLOUD) {

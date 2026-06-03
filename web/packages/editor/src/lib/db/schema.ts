@@ -91,7 +91,7 @@ export const creditTransactions = pgTable("credit_transaction", {
   amount: integer("amount").notNull(),
   balanceAfter: integer("balance_after").notNull(),
   reason: text("reason").notNull(),
-  stripeSessionId: text("stripe_session_id"),
+  stripeSessionId: text("stripe_session_id").unique(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),
