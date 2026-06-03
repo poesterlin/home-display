@@ -12,8 +12,13 @@ export function isTrackedEvent(type: string): boolean {
 }
 
 export async function handleCompletedCheckout(
-  session: Stripe.Checkout.Session
+  sessionId: string
 ): Promise<void> {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["line_items.data.price"],
+  });
+
   const userId = session.metadata?.userId;
   if (!userId) return;
   if (session.mode !== "payment") return;
@@ -48,6 +53,6 @@ export async function processStripeEvent(
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    await handleCompletedCheckout(session);
+    await handleCompletedCheckout(session.id);
   }
 }
