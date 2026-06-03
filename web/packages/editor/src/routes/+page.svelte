@@ -138,6 +138,20 @@
   <div class="glow-bg"></div>
   
   <header in:fly={{ y: -20, duration: 800, easing: cubicOut }}>
+    {#if data.user}
+      <div class="user-bar">
+        <span class="user-name">{data.user.username}</span>
+        <a href="/account" class="user-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+            <path d={mdiIcons.mdiAccount} />
+          </svg>
+          Account
+        </a>
+        <form action="/logout" method="post" class="logout-form">
+          <button type="submit" class="user-link logout-link">Logout</button>
+        </form>
+      </div>
+    {/if}
     <h1>ESPHome Designer</h1>
     <p>The visual architect for your smart home displays</p>
   </header>
@@ -396,6 +410,48 @@
     font-size: 1.25rem;
     font-weight: 400;
     opacity: 0.8;
+  }
+
+  .user-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .user-name {
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .user-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.5rem;
+    transition: all var(--transition-fast);
+  }
+
+  .user-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .logout-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .logout-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
   }
 
   .actions {

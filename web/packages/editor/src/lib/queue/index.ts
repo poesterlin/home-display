@@ -155,7 +155,7 @@ export class CompilationQueue extends EventEmitter {
           env: {
             ...env,
             // Add the venv bin to the start of PATH
-            PATH: `${venvPath}/bin:${process.env.PATH}`,
+            PATH: `${venvPath}/bin:${env.PATH}`,
             // Tell Python and ESPHome where the virtualenv is
             VIRTUAL_ENV: venvPath,
             PYTHONPATH: `${venvPath}/lib/python3.11/site-packages`, // Adjust version if needed

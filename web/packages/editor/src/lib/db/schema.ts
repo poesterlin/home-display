@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, varchar, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, varchar, jsonb, boolean, integer } from 'drizzle-orm/pg-core';
 
 const fullCascade = { onDelete: 'cascade', onUpdate: 'cascade' } as const;
 
@@ -61,3 +61,40 @@ export const compilationJobs = pgTable('compilation_jobs', {
 
 export type CompilationJob = typeof compilationJobs.$inferSelect;
 export type NewCompilationJob = typeof compilationJobs.$inferInsert;
+
+// ── Stripe Customers ────────────────────────────────────────────────────────
+export const stripeCustomers = pgTable("stripe_customer", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+});
+
+export type StripeCustomer = typeof stripeCustomers.$inferSelect;
+
+// ── Credit Balances ─────────────────────────────────────────────────────────
+export const creditBalances = pgTable("credit_balance", {
+  userId: text("user_id").primaryKey(),
+  balance: integer("balance").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+});
+
+export type CreditBalance = typeof creditBalances.$inferSelect;
+
+// ── Credit Transactions ─────────────────────────────────────────────────────
+export const creditTransactions = pgTable("credit_transaction", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  reason: text("reason").notNull(),
+  stripeSessionId: text("stripe_session_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+});
+
+export type CreditTransaction = typeof creditTransactions.$inferSelect;

@@ -2,6 +2,7 @@ import { startWorker, stopWorker } from "$lib/utils/worker";
 import type { Handle } from "@sveltejs/kit";
 import { getDb } from "./lib/db";
 import * as auth from "$lib/server/auth";
+import { env } from "$env/dynamic/private";
 
 let workerStarted = false;
 
@@ -13,7 +14,7 @@ if (!workerStarted) {
       getDb();
       console.log("Database ready");
 
-      startWorker(parseInt(process.env.CONCURRENT_JOBS || "2"));
+      startWorker(parseInt(env.CONCURRENT_JOBS || "2"));
       workerStarted = true;
       console.log("Worker started");
     } catch (error) {

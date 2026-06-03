@@ -5,6 +5,7 @@ import { generateId, validatePassword, validateUsername } from '$lib/server/util
 import { hash } from '@node-rs/argon2';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { ensureBalanceExists } from '$lib/credits';
 
 export const load: PageServerLoad = async (event) => {
   if (event.locals.user) {
@@ -50,6 +51,8 @@ export const actions: Actions = {
       const sessionToken = auth.generateSessionToken();
       const session = await auth.createSession(sessionToken, userId);
       auth.setSessionTokenCookie(event, sessionToken, session.expiresAt);
+
+      await ensureBalanceExists(userId);
     } catch {
       return fail(500, { message: 'Username already taken or server error' });
     }

@@ -3,6 +3,10 @@ import { existsSync } from "fs";
 import { join } from "path";
 import type { RequestHandler } from "./$types";
 import { getAllJobs, getJobStatus, submitCompilationJob } from "$lib/utils/worker";
+import { deductCredits, CREDIT_COSTS, getBalance } from "$lib/credits";
+import { env } from "$env/dynamic/private";
+
+const IS_CLOUD = env.APP_EDITION === "cloud";
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   if (!locals.user) {
@@ -17,6 +21,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    if (IS_CLOUD) {
+      const cost = CREDIT_COSTS.compile;
+      const result = await deductCredits({
+        userId: locals.user.id,
+        amount: cost,
+        reason: `compile:${projectId}`,
+      });
+
+      if (!result.success) {
+        const balance = await getBalance(locals.user.id);
+        return json(
+          { error: `Insufficient credits. Cost: ${cost}, balance: ${balance}` },
+          { status: 402 }
+        );
+      }
     }
 
     const result = await submitCompilationJob(

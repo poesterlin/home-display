@@ -26,6 +26,7 @@
     "drizzle-orm": "^0.45.2",
     "jszip": "3.10.1",
     "pg": "^8.20.0",
+    "stripe": "^17.0.0",
     "uuid": "14.0.0"
   },
   "devDependencies": {
