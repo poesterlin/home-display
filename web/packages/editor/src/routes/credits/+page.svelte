@@ -1,12 +1,20 @@
 <script lang="ts">
   import * as mdiIcons from "@mdi/js";
-
   let { data } = $props();
 
   const balance = $derived(data.balance);
-  const checkoutStatus = $derived(data.checkoutStatus);
+  let checkoutStatus = $state<string | null>(data.checkoutStatus);
   let purchasing = $state<string | null>(null);
   let error = $state<string | null>(null);
+
+  $effect(() => {
+    if (!checkoutStatus) return;
+
+    const id = setTimeout(() => (checkoutStatus = null), 6000);
+    history.replaceState({}, "", "/credits");
+    return () => clearTimeout(id);
+  });
+
 
   const currency = Intl.NumberFormat("us", {
     style: "currency",
@@ -68,7 +76,9 @@
         <svg width="18" height="18" viewBox="0 0 24 24">
           <path d={mdiIcons.mdiCheckCircle} />
         </svg>
-        Payment successful! Credits will appear shortly.
+        {balance > 0
+          ? "Payment successful! Credits have been added to your balance."
+          : "Payment successful! Credits will appear shortly."}
       </div>
     {:else if checkoutStatus === "cancelled"}
       <div class="toast muted">

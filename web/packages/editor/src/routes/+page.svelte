@@ -5,8 +5,10 @@
   import { fade, fly, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import * as mdiIcons from '@mdi/js';
+  import { dev } from '$app/environment';
   import { goto } from '$app/navigation';
   import DeviceSetupWizard from '$lib/components/DeviceSetupWizard.svelte';
+  import OnboardingCard from '$lib/components/OnboardingCard.svelte';
 
   type ProjectConfig = {
     display?: { width: number; height: number },
@@ -22,6 +24,15 @@
     projects = data.projects ?? [];
   });
   let showModal = $state(false);
+
+  // Onboarding state
+  let showOnboarding = $state(false);
+
+  $effect(() => {
+    if (!dev && projects.length > 0) {
+      showOnboarding = false;
+    }
+  });
 
   // Device setup wizard state
   let showSetupWizard = $state(false);
@@ -65,6 +76,15 @@
 
   // localStorage migration on first load
   onMount(async () => {
+    if (dev) {
+      showOnboarding = true;
+    } else {
+      const dismissed = localStorage.getItem("onboarding-dismissed") === "1";
+      if (!dismissed && projects.length === 0) {
+        showOnboarding = true;
+      }
+    }
+
     const localProjects = projectStore.getLocalStorageProjects();
     if (localProjects.length > 0) {
       for (const lp of localProjects) {
@@ -82,7 +102,6 @@
         }
       }
       projectStore.clearLocalStorage();
-      // Refresh the list
       projects = await projectStore.listProjects();
     }
   });
@@ -224,6 +243,10 @@
       />
     {/if}
 
+    {#if showOnboarding}
+      <OnboardingCard onDismiss={() => showOnboarding = false} />
+    {/if}
+
     <section class="ha-settings" in:fade={{ delay: 300, duration: 800 }}>
       <div class="section-header">
         <h2>Home Assistant</h2>
@@ -285,7 +308,7 @@
             <svg width="32" height="32" viewBox="0 0 24 24" class="icon ha-icon">
               <path d={mdiIcons.mdiHomeAssistant} />
             </svg>
-            <p>Import your Home Assistant entity dump to enable entity binding and autocomplete.</p>
+            <p>Import your Home Assistant entity dump to enable entity binding and autocomplete. Install our HACS integration for the easiest setup.</p>
             <button class="primary" onclick={() => haFileInput.click()}>
               <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
                 <path d={mdiIcons.mdiUpload} />
