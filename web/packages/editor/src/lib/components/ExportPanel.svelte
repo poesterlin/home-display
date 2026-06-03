@@ -8,6 +8,7 @@
     generateFontsYAML,
   } from "$lib/codegen/esphome";
   import { generateSecretsYAML } from "$lib/codegen/secrets";
+  import { validateProject } from "$lib/codegen/validations";
   import { assert } from "$lib/utils";
   import type { Project } from "@esphome-designer/schema";
   import JSZip from "jszip";
@@ -226,6 +227,14 @@
       // 2. fonts.yaml augmented with project-specific MDI icons.
       zip.file("fonts.yaml", generateFontsYAML(project, baseFontsYaml));
 
+      // Validate project before codegen
+      const validationErrors = validateProject(project);
+      if (validationErrors.length > 0) {
+        const messages = validationErrors.map((e) => `[${e.type}] ${e.message}`).join('\n');
+        compilationError = `Project validation failed:\n${messages}`;
+        return;
+      }
+
       // 3. Generated dynamic C++ headers (mirrors the queue).
       zip.file("includes/ui_types.h", generateUITypesHeader(project));
       zip.file("includes/ui_state.h", generateUIStateHeader(project));
@@ -319,16 +328,16 @@
   <!-- Header -->
   <div class="wizard-header">
     {#if step !== "choose"}
-      <button class="back-btn" onclick={reset} disabled={compiling}>
+      <button class="back-btn" onclick={reset} disabled={compiling} aria-label="back">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 12L6 8L10 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     {/if}
     <h2>
       {#if step === "choose"}Deploy{:else if step === "compiling"}Building{:else if step === "flash"}Install{:else if step === "publish"}Publish{:else}Done{/if}
     </h2>
-    <button class="close-btn" onclick={() => !compiling && onClose()} disabled={compiling}>
+    <button class="close-btn" onclick={() => !compiling && onClose()} disabled={compiling} aria-label="close">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>

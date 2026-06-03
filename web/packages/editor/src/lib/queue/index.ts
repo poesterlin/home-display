@@ -9,6 +9,7 @@ import { env } from '$env/dynamic/private';
 import type { Project } from '@esphome-designer/schema';
 import { generateESPHomeYAML, generateUITypesHeader, generateUIStateHeader, generateUIScreensHeader, generateFontsYAML } from '$lib/codegen/esphome';
 import { generateSecretsYAML } from '$lib/codegen/secrets';
+import { validateProject } from '$lib/codegen/validations';
 import { copyStaticTemplates } from '$lib/server/esphome-templates';
 import { getStaticBuildsDir } from '$lib/server/static-paths';
 
@@ -125,6 +126,13 @@ export class CompilationQueue extends EventEmitter {
           ...project.secrets,
           firmwareUpdateUrl,
         };
+      }
+
+      // Validate project before codegen
+      const validationErrors = validateProject(project);
+      if (validationErrors.length > 0) {
+        const messages = validationErrors.map((e) => `[${e.type}] ${e.message}`).join('; ');
+        throw new Error(`Project validation failed: ${messages}`);
       }
 
       // Write generated dynamic headers

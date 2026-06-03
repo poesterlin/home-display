@@ -79,7 +79,8 @@
         }
         if (target.defaultVariantId) {
           target.defaultVariantId =
-            variantIdMap.get(target.defaultVariantId) ?? target.defaultVariantId;
+            variantIdMap.get(target.defaultVariantId) ??
+            target.defaultVariantId;
         }
       } else if (target.type === "tab_container") {
         const tabIdMap = new Map<string, string>();
@@ -92,7 +93,8 @@
           }
         }
         if (target.defaultTabId) {
-          target.defaultTabId = tabIdMap.get(target.defaultTabId) ?? target.defaultTabId;
+          target.defaultTabId =
+            tabIdMap.get(target.defaultTabId) ?? target.defaultTabId;
         }
       }
     };
@@ -133,7 +135,9 @@
       return null;
     };
 
-    const headerContext = search(projectStore.headerComponents, { scope: "header" });
+    const headerContext = search(projectStore.headerComponents, {
+      scope: "header",
+    });
     if (headerContext) return headerContext;
     return search(projectStore.activeComponents, { scope: "root" });
   }
@@ -146,7 +150,10 @@
 
     const parent = projectStore.getComponent(target.parentId);
     if (target.scope === "tab") {
-      if (parent?.type === "tab_container" && parent.tabs.some((tab) => tab.id === target.tabId)) {
+      if (
+        parent?.type === "tab_container" &&
+        parent.tabs.some((tab) => tab.id === target.tabId)
+      ) {
         return target;
       }
       return null;
@@ -167,7 +174,8 @@
     if (
       explicitTarget &&
       clipboardComponent &&
-      canvasPasteTargetStore.version > clipboardComponent.pasteTargetVersionAtCopy
+      canvasPasteTargetStore.version >
+        clipboardComponent.pasteTargetVersionAtCopy
     ) {
       return explicitTarget;
     }
@@ -179,7 +187,10 @@
       // If the user selects a different parent before pasting, paste into the
       // currently edited child area. Pasting the just-copied parent duplicates
       // it beside the original instead of nesting it into itself.
-      if (selected?.type === "tab_container" && selected.id !== clipboardComponent?.component.id) {
+      if (
+        selected?.type === "tab_container" &&
+        selected.id !== clipboardComponent?.component.id
+      ) {
         const tabId =
           conditionalEditorStore.getActiveTab(
             selected.id,
@@ -252,17 +263,28 @@
     component: Component,
     context: ComponentContext,
   ): Component | undefined {
-    if (context.scope === "header") return projectStore.addHeaderComponent(component);
+    if (context.scope === "header")
+      return projectStore.addHeaderComponent(component);
     if (context.scope === "root") return projectStore.addComponent(component);
     if (context.scope === "tab") {
-      return projectStore.addComponentToTab(context.parentId, context.tabId, component);
+      return projectStore.addComponentToTab(
+        context.parentId,
+        context.tabId,
+        component,
+      );
     }
-    return projectStore.addComponentToVariant(context.parentId, context.variantId, component);
+    return projectStore.addComponentToVariant(
+      context.parentId,
+      context.variantId,
+      component,
+    );
   }
 
   function handleCanvasClick(e: MouseEvent) {
     if (e.target === canvasEl || e.target === headerEl) {
-      canvasPasteTargetStore.set(e.target === headerEl ? { scope: "header" } : { scope: "root" });
+      canvasPasteTargetStore.set(
+        e.target === headerEl ? { scope: "header" } : { scope: "root" },
+      );
       selectionStore.clear();
     }
   }
@@ -327,7 +349,11 @@
     }
 
     // Clipboard operations
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && !isFormInput) {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.key.toLowerCase() === "c" &&
+      !isFormInput
+    ) {
       if (!selectionStore.firstSelectedId) return;
       const source = projectStore.getComponent(selectionStore.firstSelectedId);
       if (!source) return;
@@ -346,14 +372,20 @@
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v" && !isFormInput) {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.key.toLowerCase() === "v" &&
+      !isFormInput
+    ) {
       if (!clipboardComponent) return;
       const destinationContext = resolvePasteContext();
       if (!destinationContext) return;
 
       e.preventDefault();
 
-      const duplicate = cloneComponentWithFreshIds(clipboardComponent.component);
+      const duplicate = cloneComponentWithFreshIds(
+        clipboardComponent.component,
+      );
       const offsetStep = 12 * (clipboardComponent.pasteCount + 1);
       duplicate.position = clampPositionForContext(
         {
@@ -499,13 +531,14 @@
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-lg);
     background: #1a1a1a;
+    outline: 30px solid black;
 
     /* Mirror the device's font system so widget previews can use the
        same typeface and pixel sizes as the rasterised bitmap fonts
        ESPHome ships (see esphome/fonts.yaml: font_tiny=14, font_small=18,
        font_medium=24, font_large=32, all Roboto). */
-    --display-font:
-      "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --display-font: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
     --display-text-tiny: 14px;
     --display-text-small: 18px;
     --display-text-medium: 24px;
@@ -515,7 +548,10 @@
        AA. Disabling those in the preview keeps glyph-advance widths close
        to what `display.get_text_bounds()` will measure on hardware. */
     font-family: var(--display-font);
-    font-feature-settings: "kern" off, "liga" off, "calt" off;
+    font-feature-settings:
+      "kern" off,
+      "liga" off,
+      "calt" off;
     font-kerning: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
