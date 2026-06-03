@@ -182,18 +182,6 @@
   </header>
 
   <main>
-    <section class="actions" in:fade={{ delay: 200, duration: 800 }}>
-       <button class="primary large create-btn" onclick={() => showModal = true}>
-         <div class="btn-content">
-           <svg width="24" height="24" viewBox="0 0 24 24" class="icon">
-             <path d={mdiIcons.mdiPlus} />
-           </svg>
-           <span>Craft New Interface</span>
-         </div>
-        <div class="btn-shine"></div>
-      </button>
-    </section>
-
     {#if showModal}
       <div class="modal-backdrop" onclick={() => showModal = false} transition:fade={{ duration: 200 }}>
         <div 
@@ -349,7 +337,18 @@
     <section class="project-list" in:fade={{ delay: 400, duration: 800 }}>
       <div class="section-header">
         <h2>Your Blueprints</h2>
-        <span class="count">{projects.length} saved</span>
+        <div class="section-header-actions">
+          <span class="count">{projects.length} saved</span>
+          <button class="primary create-btn" onclick={() => showModal = true}>
+            <div class="btn-content">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
+                <path d={mdiIcons.mdiPlus} />
+              </svg>
+              <span>Craft New Interface</span>
+            </div>
+            <div class="btn-shine"></div>
+          </button>
+        </div>
       </div>
       
       {#if projects.length === 0}
@@ -359,7 +358,7 @@
               <path d={mdiIcons.mdiViewGrid} />
             </svg>
           </div>
-          <p>The canvas is empty. Start your first display design today.</p>
+          <p>You do not have any projects jet. Setup your first display.</p>
         </div>
       {:else}
         <div class="grid">
@@ -483,40 +482,33 @@
     padding: 0;
   }
 
-  .actions {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 5rem;
-  }
-
   .create-btn {
     position: relative;
     padding: 0;
     overflow: hidden;
     border-radius: var(--radius-lg);
     border: none;
-    box-shadow: 0 10px 30px rgba(74, 158, 254, 0.2);
     transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   .btn-content {
     display: flex;
     align-items: center;
-    gap: var(--spacing-md);
-    padding: 1.25rem 2.5rem;
-    font-size: 1.25rem;
+    gap: var(--spacing-sm);
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
     font-weight: 600;
     z-index: 1;
     position: relative;
   }
 
   .create-btn:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 15px 40px rgba(74, 158, 254, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(74, 158, 254, 0.25);
   }
 
   .create-btn:active {
-    transform: translateY(-1px);
+    transform: translateY(0);
   }
 
   .btn-shine {
@@ -675,6 +667,12 @@
     color: #fff;
   }
 
+  .section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
   .count {
     font-size: 0.85rem;
     color: var(--color-text-muted);
@@ -793,6 +791,8 @@
   }
 
   .empty-icon {
+    display: flex;
+    justify-content: center;
     margin-bottom: 1.5rem;
     opacity: 0.5;
   }
