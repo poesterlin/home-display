@@ -114,7 +114,7 @@
   // Friendly domain labels
   const domainLabels: Record<string, string> = {
     sensor: "Sensors",
-    binary_sensor: "On/Off Sensors",
+    binary_sensor: "Binary Sensors",
     switch: "Switches",
     light: "Lights",
     climate: "Climate",

@@ -1,7 +1,9 @@
 <script lang="ts">
+  import type { NavigationAction } from "@esphome-designer/schema";
   import { projectStore } from "$lib/stores/project.svelte";
   import { selectionStore } from "$lib/stores/selection.svelte";
   import { historyStore } from "$lib/stores/history.svelte";
+  import { validationStore } from "$lib/stores/validation.svelte";
   import EntityPicker from "./EntityPicker.svelte";
   import IconSearcher from "./IconSearcher.svelte";
   import ConditionEditor from "./ConditionEditor.svelte";
@@ -11,11 +13,41 @@
   import { describeCondition } from "$lib/utils/condition-utils";
   import ActionEditor from "./ActionEditor.svelte";
 
+  const NAV_ICONS: Record<string, string> = {
+    OPEN_DETAIL: "mdi:open-in-new",
+    GO_BACK: "mdi:arrow-left",
+    NEXT_PAGE: "mdi:chevron-right",
+    PREV_PAGE: "mdi:chevron-left",
+  };
+
+  const NAV_ICON_NAMES = new Set([
+    "open-in-new",
+    "arrow-left",
+    "chevron-right",
+    "chevron-left",
+  ]);
+
+  function getNavIcon(action: NavigationAction): string | undefined {
+    return NAV_ICONS[action.type];
+  }
+
+  function isNavPresetIcon(icon: string | undefined): boolean {
+    if (!icon) return false;
+    const name = icon.replace(/^mdi:/, "");
+    return NAV_ICON_NAMES.has(name);
+  }
+
   // Get selected component
   const selectedComponent = $derived(
     selectionStore.firstSelectedId
       ? projectStore.getComponent(selectionStore.firstSelectedId)
       : null,
+  );
+
+  const componentValidationErrors = $derived(
+    selectionStore.firstSelectedId
+      ? validationStore.getErrorsForComponent(selectionStore.firstSelectedId)
+      : [],
   );
 
   const selectedAutoLayoutComponent = $derived<any>(
@@ -84,6 +116,37 @@
     if (!selectedComponent) return;
     historyStore.record(`Update ${key}`);
     projectStore.updateComponent(selectedComponent.id, { [key]: value });
+
+    if (key === "onTap") {
+      if (
+        value &&
+        typeof value === "object" &&
+        "type" in value &&
+        (value as any).type !== "SERVICE_CALL"
+      ) {
+        const navAction = value as NavigationAction;
+        const comp = selectedComponent as any;
+        if (comp.icon === undefined || comp.icon === null || comp.icon === "") {
+          const presetIcon = getNavIcon(navAction);
+          if (presetIcon) {
+            projectStore.updateComponent(comp.id, { icon: presetIcon });
+          }
+        }
+      } else if (value === undefined) {
+        const comp = selectedComponent as any;
+        if (isNavPresetIcon(comp.icon)) {
+          projectStore.updateComponent(comp.id, { icon: undefined });
+        }
+        projectStore.updateComponent(selectedComponent.id, {
+          onHold: undefined,
+          onDragStart: undefined,
+          onDragEnd: undefined,
+          ...(selectedComponent.type === "button"
+            ? { pressAction: undefined, holdAction: undefined }
+            : {}),
+        } as any);
+      }
+    }
   }
 
   function updatePosition(axis: "x" | "y", value: number) {
@@ -168,6 +231,25 @@
 
   {#if selectedComponent}
     <h3>{selectedComponent.type} Properties</h3>
+
+    {#if componentValidationErrors.length > 0}
+      <div class="validation-errors">
+        {#each componentValidationErrors as err}
+          <div class="validation-error">
+            <svg class="error-icon" width="14" height="14" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="11" fill="#f44336" />
+              <path
+                d="M12 7v6M12 15v2"
+                stroke="white"
+                stroke-width="2.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span>{err.message}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <div class="property-section">
       <label class="section-label">Position</label>
@@ -363,9 +445,12 @@
         <div class="field">
           <span class="field-label">Source</span>
           <select
-            value={selectedComponent.imageSource ?? (selectedComponent.imageBinding?.entityId ? "ha" : "static")}
+            value={selectedComponent.imageSource ??
+              (selectedComponent.imageBinding?.entityId ? "ha" : "static")}
             onchange={(e) =>
-              updateImageSource(e.currentTarget.value === "ha" ? "ha" : "static")}
+              updateImageSource(
+                e.currentTarget.value === "ha" ? "ha" : "static",
+              )}
           >
             <option value="static">Static file / URL</option>
             <option value="ha">Home Assistant entity</option>
@@ -376,9 +461,11 @@
           <div class="field-group">
             <label class="group-label">Home Assistant Image</label>
             <EntityPicker
+              preselectedDomain="image"
               component={selectedComponent}
               onUpdate={(binding) => updateProperty("imageBinding", binding)}
             />
+            <br>
           </div>
         {:else}
           <div class="field">
@@ -396,7 +483,8 @@
           <span class="field-label">Type</span>
           <select
             value={selectedComponent.image_type ?? "RGB565"}
-            onchange={(e) => updateProperty("image_type", e.currentTarget.value)}
+            onchange={(e) =>
+              updateProperty("image_type", e.currentTarget.value)}
           >
             <option value="BINARY">Binary</option>
             <option value="GRAYSCALE">Grayscale</option>
@@ -409,7 +497,8 @@
             <span class="field-label">Online</span>
             <select
               value={selectedComponent.onlineFormat ?? "png"}
-              onchange={(e) => updateProperty("onlineFormat", e.currentTarget.value)}
+              onchange={(e) =>
+                updateProperty("onlineFormat", e.currentTarget.value)}
             >
               <option value="png">PNG</option>
               <option value="jpeg">JPEG</option>
@@ -421,7 +510,8 @@
           <span class="field-label">Resize</span>
           <input
             type="text"
-            value={selectedComponent.resize ?? `${selectedComponent.size?.width ?? 100}x${selectedComponent.size?.height ?? 100}`}
+            value={selectedComponent.resize ??
+              `${selectedComponent.size?.width ?? 100}x${selectedComponent.size?.height ?? 100}`}
             placeholder="100x100"
             oninput={(e) => updateProperty("resize", e.currentTarget.value)}
           />
@@ -496,23 +586,12 @@
           />
         </div>
         <div class="field">
-          <span class="field-label">Show Icon</span>
-          <input
-            type="checkbox"
-            checked={selectedComponent.showIcon !== false}
-            onchange={(e) =>
-              updateProperty("showIcon", e.currentTarget.checked)}
+          <span class="field-label">Icon</span>
+          <IconSearcher
+            value={selectedComponent.icon ?? "lightbulb"}
+            onSelect={(icon) => updateProperty("icon", icon || "lightbulb")}
           />
         </div>
-        {#if selectedComponent.showIcon !== false}
-          <div class="field">
-            <span class="field-label">Icon</span>
-            <IconSearcher
-              value={selectedComponent.icon ?? "lightbulb"}
-              onSelect={(icon) => updateProperty("icon", icon || "lightbulb")}
-            />
-          </div>
-        {/if}
       </div>
     {/if}
 
@@ -672,19 +751,6 @@
           </div>
         </div>
       {/if}
-
-      <div class="property-section">
-        <label class="section-label">Settings</label>
-        <div class="field">
-          <span class="field-label">Clip</span>
-          <input
-            type="checkbox"
-            checked={selectedComponent.clipContent !== false}
-            onchange={(e) =>
-              updateProperty("clipContent", e.currentTarget.checked)}
-          />
-        </div>
-      </div>
     {/if}
 
     <!-- Entity Binding (only for components that display entity values) -->
@@ -692,20 +758,21 @@
       <div class="property-section">
         <label class="section-label">Entity Binding</label>
         <EntityPicker
+          preselectedDomain={selectedComponent.type === "todo_list"
+            ? "todo"
+            : "light"}
           component={selectedComponent}
           onUpdate={(binding) => {
             if (selectedComponent.type === "todo_list") {
               updateProperty("itemsBinding", binding);
-            } else if (selectedComponent.type === "light_state") {
-              updateProperty("stateBinding", binding);
             } else {
-              updateProperty("valueBinding", binding);
+              updateProperty("stateBinding", binding);
             }
           }}
         />
       </div>
     {/if}
-    {#if selectedComponent.type !== "light_state" && selectedComponent.type !== 'text'}
+    {#if selectedComponent.type !== "light_state" && selectedComponent.type !== "text"}
       <div class="property-section">
         <label class="section-label">Actions</label>
         <ActionEditor
@@ -726,7 +793,10 @@
             oninput={(e) => {
               const page = projectStore.currentDashboardPage;
               if (page && e.currentTarget.value.trim()) {
-                projectStore.renameDashboardPage(page.id, e.currentTarget.value.trim());
+                projectStore.renameDashboardPage(
+                  page.id,
+                  e.currentTarget.value.trim(),
+                );
               }
             }}
           />
@@ -745,9 +815,10 @@
   }
 
   h3 {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--color-text-secondary);
     margin-bottom: var(--spacing-md);
   }
@@ -755,8 +826,8 @@
   .property-section {
     margin-bottom: var(--spacing-md);
     padding-bottom: var(--spacing-md);
-    
-    &:not(:last-child){
+
+    &:not(:last-child) {
       border-bottom: 1px solid var(--color-border);
     }
   }
@@ -766,6 +837,7 @@
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--color-text-muted);
     margin-bottom: var(--spacing-sm);
   }
@@ -788,8 +860,8 @@
   }
 
   .field-label {
-    font-size: 12px;
-    color: var(--color-text-secondary);
+    font-size: 11px;
+    color: var(--color-text-muted);
     min-width: 50px;
   }
 
@@ -797,6 +869,50 @@
   select {
     flex: 1;
     min-width: 0;
+    font-size: 13px;
+    font-family: inherit;
+    height: 30px;
+    padding: 0 var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    outline: none;
+    transition:
+      border-color var(--transition-fast),
+      background-color var(--transition-fast);
+  }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 24px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    cursor: pointer;
+  }
+
+  input:hover,
+  select:hover {
+    border-color: var(--color-border-light);
+  }
+
+  input:focus,
+  select:focus {
+    border-color: var(--color-accent);
+    background: var(--color-bg-tertiary);
+  }
+
+  input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+    background: transparent;
+    border-radius: 2px;
   }
 
   .no-selection {
@@ -806,7 +922,8 @@
   }
 
   .no-selection p {
-    font-size: 13px;
+    font-size: 12px;
+    color: var(--color-text-muted);
   }
 
   .variant-tabs-row {
@@ -816,8 +933,8 @@
   }
 
   .variant-pill {
-    padding: 4px 8px;
-    font-size: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
     border-radius: 12px;
@@ -901,6 +1018,32 @@
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--color-text-muted);
+  }
+
+  .validation-errors {
+    margin-bottom: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .validation-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: var(--radius-sm);
+    color: var(--color-error);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .validation-error .error-icon {
+    flex: 0 0 auto;
+    margin-top: 1px;
   }
 </style>

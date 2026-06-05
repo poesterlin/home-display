@@ -168,7 +168,7 @@
   .move-btn {
     background: none;
     border: none;
-    color: #555;
+    color: #8d8d8d;
     font-size: 8px;
     padding: 0;
     cursor: pointer;
@@ -178,7 +178,6 @@
     color: #4a9eff;
   }
   .move-btn:disabled {
-    opacity: 0.2;
     cursor: default;
   }
   .delete-btn {
@@ -191,15 +190,5 @@
   }
   .delete-btn:hover {
     color: #ff4a4a;
-  }
-  .indicator-preview {
-    position: relative;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-top: 1px solid #333;
-    padding-top: 12px;
-    margin-top: 4px;
   }
 </style>

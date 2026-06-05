@@ -17,6 +17,20 @@
   const isCheckable = $derived(component.checkable === true);
   let toggledByIndex = $state<Record<number, boolean>>({});
 
+  const width = $derived(component.size?.width ?? 200);
+  const height = $derived(component.size?.height ?? 160);
+  const cornerSize = 8;
+  const innerCorner = 6;
+  const innerMargin = 2;
+
+  const amberColor = "rgb(255, 180, 0)";
+  const amberDimColor = "rgb(160, 110, 0)";
+  const containerBg = "rgb(10, 12, 18)";
+  const whiteColor = "rgb(230, 240, 250)";
+  const grayColor = "rgb(120, 130, 145)";
+  const redColor = "rgb(255, 55, 55)";
+  const greenColor = "rgb(0, 220, 120)";
+
   const iconPathIncomplete = $derived.by(() => {
     const path = (mdiIcons as Record<string, unknown>).mdiCheckboxBlankOutline;
     return typeof path === "string" ? path : null;
@@ -71,67 +85,107 @@
       toggleChecked(index);
     }
   }
+
+  function clippedPolygonPoints(w: number, h: number, c: number): string {
+    return `${c},0 ${w - c},0 ${w},${c} ${w},${h - c} ${w - c},${h} ${c},${h} 0,${h - c} 0,${c}`;
+  }
+
+  function iconPathForRow(index: number, row: { completed: boolean }): string | null {
+    if (isCompleted(index, row.completed)) return iconPathComplete;
+    return iconPathIncomplete;
+  }
 </script>
 
 <Draggable {component}>
   <div class="todo-list" class:scrollable={isScrollable} style:width="100%" style:height="100%">
-    {#each renderedRows as row, index (row.summary + index)}
-      {#if isCheckable}
-        <button
-          type="button"
-          class="todo-row checkable"
-          style:height="{rowHeight}px"
-          onclick={() => toggleChecked(index)}
-          onkeydown={(event) => handleRowKeydown(event, index)}
-        >
-          <span class="checkbox">
-            {#if iconPathIncomplete && iconPathComplete}
-              <svg viewBox="0 0 24 24" class="checkbox-icon">
-                <path d={isCompleted(index, row.completed) ? iconPathComplete : iconPathIncomplete} fill="currentColor" />
-              </svg>
-            {:else}
-              {isCompleted(index, row.completed) ? "[x]" : "[ ]"}
+    <svg
+      class="todo-svg"
+      width={width}
+      height={height}
+      viewBox="0 0 {width} {height}"
+    >
+      <polygon
+        points={clippedPolygonPoints(width, height, cornerSize)}
+        fill={containerBg}
+        stroke={amberColor}
+        stroke-width="1"
+      />
+      <polygon
+        points={clippedPolygonPoints(width - innerMargin * 2, height - innerMargin * 2, innerCorner)}
+        fill="none"
+        stroke={amberDimColor}
+        stroke-width="1"
+        transform="translate({innerMargin}, {innerMargin})"
+      />
+    </svg>
+
+    <div class="todo-rows" style:padding-top="8px" style:padding-left="8px" style:padding-right="8px">
+      {#each renderedRows as row, index (row.summary + index)}
+        {#if isCheckable}
+          {@const completed = isCompleted(index, row.completed)}
+          {@const showMDI = iconPathIncomplete !== null && iconPathComplete !== null}
+          <button
+            type="button"
+            class="todo-row checkable"
+            style:height="{rowHeight}px"
+            onclick={() => toggleChecked(index)}
+            onkeydown={(event) => handleRowKeydown(event, index)}
+          >
+            <span class="checkbox" style:color={completed ? greenColor : amberColor}>
+              {#if showMDI}
+                <svg viewBox="0 0 24 24" class="checkbox-icon">
+                  <path d={completed ? iconPathComplete! : iconPathIncomplete!} fill="currentColor" />
+                </svg>
+              {:else}
+                {completed ? "[x]" : "[ ]"}
+              {/if}
+            </span>
+            {#if row.due}
+              <span class="due" class:overdue={row.overdue} style:color={row.overdue ? redColor : amberColor}>{row.due}</span>
             {/if}
-          </span>
-          {#if row.due}
-            <span class="due" class:overdue={row.overdue}>{row.due}</span>
-          {/if}
-          <span class="summary" class:completed={isCompleted(index, row.completed)} title={row.summary}>{row.summary}</span>
-        </button>
-      {:else}
-        <div
-          class="todo-row"
-          style:height="{rowHeight}px"
-        >
-          <span class="checkbox">
-            {#if iconPathIncomplete && iconPathComplete}
-              <svg viewBox="0 0 24 24" class="checkbox-icon">
-                <path d={isCompleted(index, row.completed) ? iconPathComplete : iconPathIncomplete} fill="currentColor" />
-              </svg>
-            {:else}
-              {isCompleted(index, row.completed) ? "[x]" : "[ ]"}
+            <span
+              class="summary"
+              class:completed={completed}
+              style:color={completed ? grayColor : whiteColor}
+              title={row.summary}
+            >{row.summary}</span>
+          </button>
+        {:else}
+          {@const completed = isCompleted(index, row.completed)}
+          {@const showMDI = iconPathIncomplete !== null && iconPathComplete !== null}
+          <div
+            class="todo-row"
+            style:height="{rowHeight}px"
+          >
+            <span class="checkbox" style:color={completed ? greenColor : amberColor}>
+              {#if showMDI}
+                <svg viewBox="0 0 24 24" class="checkbox-icon">
+                  <path d={completed ? iconPathComplete! : iconPathIncomplete!} fill="currentColor" />
+                </svg>
+              {:else}
+                {completed ? "[x]" : "[ ]"}
+              {/if}
+            </span>
+            {#if row.due}
+              <span class="due" class:overdue={row.overdue} style:color={row.overdue ? redColor : amberColor}>{row.due}</span>
             {/if}
-          </span>
-          {#if row.due}
-            <span class="due" class:overdue={row.overdue}>{row.due}</span>
-          {/if}
-          <span class="summary" class:completed={isCompleted(index, row.completed)} title={row.summary}>{row.summary}</span>
-        </div>
-      {/if}
-    {/each}
+            <span
+              class="summary"
+              class:completed={completed}
+              style:color={completed ? grayColor : whiteColor}
+              title={row.summary}
+            >{row.summary}</span>
+          </div>
+        {/if}
+      {/each}
+    </div>
   </div>
 </Draggable>
 
 <style>
   .todo-list {
-    background: rgba(0, 0, 0, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 6px;
-    padding: 4px;
+    position: relative;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
     box-sizing: border-box;
   }
 
@@ -139,15 +193,31 @@
     overflow-y: auto;
   }
 
+  .todo-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .todo-rows {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-sizing: border-box;
+    padding-bottom: 8px;
+  }
+
   .todo-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 0 6px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 4px;
+    padding: 0 2px;
     min-height: 20px;
     box-sizing: border-box;
+    background: none;
   }
 
   .todo-row.checkable {
@@ -158,7 +228,6 @@
   }
 
   .checkbox {
-    color: #f5c35a;
     flex: 0 0 auto;
     width: 16px;
     height: 16px;
@@ -175,17 +244,14 @@
   .summary {
     flex: 1 1 auto;
     min-width: 0;
-    /* Todo rows print with g_theme.label.font (Roboto 18). */
     font-family: var(--display-font, monospace);
     font-size: var(--display-text-small, 18px);
-    color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .summary.completed {
-    color: #8aa0b4;
     text-decoration: line-through;
   }
 
@@ -193,7 +259,6 @@
     flex: 0 0 auto;
     font-family: var(--display-font, monospace);
     font-size: var(--display-text-small, 18px);
-    color: #f5c35a;
     white-space: nowrap;
     max-width: 92px;
     overflow: hidden;
@@ -201,6 +266,6 @@
   }
 
   .due.overdue {
-    color: #ff6b6b;
+    /* color is set inline to match redColor */
   }
 </style>

@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { ButtonComponent } from "@esphome-designer/schema";
   import Draggable from "../Draggable.svelte";
-  import { projectStore } from "../../../stores/project.svelte";
-  import { colorToCss } from "../../../utils/color-utils";
+  import { projectStore } from "$lib/stores/project.svelte";
+  import { colorToCss } from "$lib/utils/color-utils";
   import * as mdiIcons from "@mdi/js";
 
   interface Props {
@@ -12,145 +12,110 @@
   let { component }: Props = $props();
   const theme = $derived(projectStore.theme);
 
-  const bgColor = $derived(
-    colorToCss(
-      component.backgroundColor,
-      colorToCss(theme.colors.backgroundSecondary),
-    ),
-  );
-  const accentColor = $derived(
+  const borderColor = $derived(
     colorToCss(component.borderColor, colorToCss(theme.colors.accent)),
   );
   const foregroundColor = $derived(
     colorToCss(component.foregroundColor, colorToCss(theme.colors.foreground)),
   );
-  const shadowColor = $derived(colorToCss(theme.colors.background, "black"));
+  const dimFill = "rgb(25, 30, 40)";
 
-  // Retro style constants
-  const shadowOffset = $derived(theme.values?.shadowOffset ?? 3);
-  const cornerSize = $derived(theme.values?.cornerSize ?? 10);
-
-  // Get MDI icon path
-  const iconPath = $derived.by(() => {
-    if (!component.icon) return null;
-
-    // Remove mdi: prefix if present
+  const iconSize = 20;
+  const hasIcon = $derived.by(() => {
+    if (!component.icon) return false;
     const iconName = component.icon.replace(/^mdi:/, "");
-
-    // Convert icon name to @mdi/js format (e.g., "home" -> "mdiHome", "lightbulb-outline" -> "mdiLightbulbOutline")
     const iconKey =
       "mdi" +
       iconName
         .split(/[-_]/)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join("");
-
     const path = (mdiIcons as Record<string, unknown>)[iconKey];
     return typeof path === "string" ? path : null;
   });
-
-  // Layout calculations for icon and label
-  const iconSize = 20;
-  const hasIcon = $derived(iconPath !== null);
   const hasLabel = $derived(
     component.label !== undefined && component.label.length > 0,
   );
-  const buttonWidth = $derived(
-    (component.size?.width ?? 100) -
-      (theme.style?.buttonShadow ? shadowOffset : 0),
-  );
-  const buttonHeight = $derived(
-    (component.size?.height ?? 40) -
-      (theme.style?.buttonShadow ? shadowOffset : 0),
-  );
+  const buttonWidth = $derived(component.size?.width ?? 100);
+  const buttonHeight = $derived(component.size?.height ?? 44);
 
-  // Choose icon-next-to-label when the button is narrow/short; stack
-  // vertically only when there is clearly room for two legible lines.
-  // The width estimate mirrors what the device-side ButtonWidget does
-  // (icon width + gap + truncated label fits in the inner width), using
-  // ~7px per character for the monospace label as a coarse proxy.
+  const cornerSize = $derived(buttonHeight < 40 ? 4 : 6);
+
   const horizontalLayout = $derived.by(() => {
     if (!hasIcon || !hasLabel) return false;
-    if (buttonHeight >= 56) return false; // tall enough to comfortably stack
+    if (buttonHeight >= 56) return false;
     const sidePad = 8;
     const gap = 6;
     const horizBudget = buttonWidth - 2 * sidePad - iconSize - gap;
-    // Need room for at least ~3 chars + ellipsis ("W..." ≈ 28px).
     return horizBudget >= 28;
   });
+
+  function clippedPolygonPoints(w: number, h: number, c: number): string {
+    return `${c},0 ${w - c},0 ${w},${c} ${w},${h - c} ${w - c},${h} ${c},${h} 0,${h - c} 0,${c}`;
+  }
+
+  function glowColor(cssColor: string): string {
+    return cssColor.replace(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/, (_, r, g, b) => {
+      return `rgb(${Math.floor(+r / 4)}, ${Math.floor(+g / 4)}, ${Math.floor(+b / 4)})`;
+    });
+  }
 </script>
 
 <Draggable {component}>
   {#if component.size}
-    {@const width = component.size.width}
-    {@const height = component.size.height}
-    {@const innerW = width - (theme.style?.buttonShadow ? shadowOffset : 0)}
-    {@const innerH = height - (theme.style?.buttonShadow ? shadowOffset : 0)}
-    <div class="button-wrapper" style:width="100%" style:height="100%">
-      <svg
-        class="button-bg"
-        width="100%"
-        height="100%"
-        viewBox="0 0 {width} {height}"
-        preserveAspectRatio="none"
-      >
-        <rect
-          x="0"
-          y="0"
-          width={innerW}
-          height={innerH}
-          fill={bgColor}
-          stroke={accentColor}
-          stroke-width="1"
-        />
-      </svg>
+    {@const w = component.size.width}
+    {@const h = component.size.height}
+    <svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 {w} {h}"
+      preserveAspectRatio="none"
+    >
+      <polygon
+        points={clippedPolygonPoints(w + 4, h + 4, cornerSize + 2)}
+        fill="none"
+        stroke={glowColor(borderColor)}
+        stroke-width="2"
+        transform="translate(-2, -2)"
+      />
+      <polygon
+        points={clippedPolygonPoints(w, h, cornerSize)}
+        fill={dimFill}
+        stroke={borderColor}
+        stroke-width="1"
+      />
+    </svg>
 
-      <div
-        class="button-content"
-        class:horizontal={horizontalLayout}
-        style:width="{(innerW / width) * 100}%"
-        style:height="{(innerH / height) * 100}%"
-        style:color={foregroundColor}
-      >
-        {#if hasIcon && iconPath}
-          <svg
-            class="button-icon"
-            width={iconSize}
-            height={iconSize}
-            viewBox="0 0 24 24"
-          >
-            <path d={iconPath} fill="currentColor" />
-          </svg>
-        {/if}
-        {#if hasLabel}
-          <span
-            class="button-label"
-            class:with-icon={hasIcon}
-            class:inline={horizontalLayout}
-            title={component.label}
-          >
-            {component.label}
-          </span>
-        {/if}
-      </div>
+    <div
+      class="button-content"
+      class:horizontal={horizontalLayout}
+      style:color={foregroundColor}
+    >
+      {#if hasIcon}
+        <svg
+          class="button-icon"
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 24 24"
+        >
+          <path d={hasIcon} fill="currentColor" />
+        </svg>
+      {/if}
+      {#if hasLabel}
+        <span
+          class="button-label"
+          class:with-icon={!!hasIcon}
+          class:inline={horizontalLayout}
+          title={component.label}
+        >
+          {component.label}
+        </span>
+      {/if}
     </div>
   {/if}
 </Draggable>
 
 <style>
-  .button-wrapper {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .button-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-  }
-
   .button-content {
     position: absolute;
     inset: 0;
@@ -191,9 +156,6 @@
     font-size: var(--display-text-tiny, 14px);
   }
 
-  /* When laid out side-by-side, the label can use the normal size --
-     we are no longer trying to fit two lines in the same vertical
-     space, so it should match an icon-less button's text. */
   .button-label.inline {
     flex: 1 1 auto;
     text-align: left;

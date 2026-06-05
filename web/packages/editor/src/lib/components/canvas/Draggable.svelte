@@ -3,6 +3,7 @@
   import { selectionStore } from "$lib/stores/selection.svelte";
   import { historyStore } from "$lib/stores/history.svelte";
   import { snapStore } from "$lib/stores/snap.svelte";
+  import { validationStore } from "$lib/stores/validation.svelte";
   import type { Component } from "@esphome-designer/schema";
   import type { Snippet } from "svelte";
 
@@ -30,6 +31,7 @@
 
   const isSelected = $derived(selectionStore.isSelected(component.id));
   const isHovered = $derived(selectionStore.isHovered(component.id));
+  const hasValidationError = $derived(validationStore.hasErrors(component.id));
 
   function handleMouseDown(e: MouseEvent) {
     e.stopPropagation();
@@ -253,6 +255,7 @@
   class:selected={isSelected}
   class:hovered={isHovered}
   class:dragging
+  class:has-error={hasValidationError}
   style:left="{component.position.x}px"
   style:top="{component.position.y}px"
   style:width="{component.size?.width ?? 'auto'}px"
@@ -263,6 +266,19 @@
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
 >
+  {#if hasValidationError}
+    <div class="error-badge" title="Validation error">
+      <svg width="18" height="18" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="#f44336" />
+        <path
+          d="M12 7v6M12 15v2"
+          stroke="white"
+          stroke-width="2.5"
+          stroke-linecap="round"
+        />
+      </svg>
+    </div>
+  {/if}
   {@render children()}
 </div>
 
@@ -271,11 +287,6 @@
     position: absolute;
     cursor: move;
     user-select: none;
-    /* Make sure renderer content cannot visually escape the component's
-       declared rect -- the device has a hard clip at widget bounds, the
-       editor preview should mirror that as the default. Individual
-       renderers that need to draw outside (e.g. focus rings on selection)
-       can opt back in with overflow: visible. */
     overflow: hidden;
     box-sizing: border-box;
   }
@@ -288,5 +299,27 @@
   .draggable.dragging {
     opacity: 0.8;
     cursor: grabbing;
+  }
+
+  .draggable.has-error {
+    overflow: visible;
+    outline: 2px solid var(--color-error);
+    outline-offset: 1px;
+    animation: error-pulse 1.5s ease-in-out infinite;
+  }
+
+  .error-badge {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    z-index: 10;
+    pointer-events: none;
+    line-height: 0;
+    filter: drop-shadow(0 0 3px rgba(244, 67, 54, 0.6));
+  }
+
+  @keyframes error-pulse {
+    0%, 100% { outline-color: var(--color-error); }
+    50% { outline-color: rgba(244, 67, 54, 0.4); }
   }
 </style>

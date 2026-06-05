@@ -147,25 +147,34 @@
         onchange={(e) => handleNavTypeChange(e.currentTarget.value)}
       >
         <option value="OPEN_DETAIL">Open Detail</option>
-        <option value="NEXT_PAGE">Next Page</option>
-        <option value="PREV_PAGE">Previous Page</option>
-        <option value="GO_BACK">Go Back</option>
+        <option value="NEXT_PAGE" disabled={projectStore.dashboardPages.length <= 1}>Next Page</option>
+        <option value="PREV_PAGE" disabled={projectStore.dashboardPages.length <= 1}>Previous Page</option>
+        <option value="GO_BACK">Go to Home Screen</option>
       </select>
     </div>
 
     {#if navType === "OPEN_DETAIL"}
-      <div class="field">
-        <span class="field-label">Target</span>
-        <select
-          value={navTargetId}
-          onchange={(e) => handleNavTargetChange(e.currentTarget.value)}
-        >
-          <option value="" disabled>Select Detail View</option>
-          {#each projectStore.detailViews as view (view.id)}
-            <option value={view.id}>{view.title}</option>
-          {/each}
-        </select>
-      </div>
+      {#if projectStore.detailViews.length === 0}
+        <div class="hint">
+          <p>No detail views exist yet. Create one to use as a navigation target.</p>
+          <button class="create-dv-btn" onclick={() => projectStore.addDetailView()}>
+            + Create Detail View
+          </button>
+        </div>
+      {:else}
+        <div class="field">
+          <span class="field-label">Target</span>
+          <select
+            value={navTargetId}
+            onchange={(e) => handleNavTargetChange(e.currentTarget.value)}
+          >
+            <option value="" disabled>Select Detail View</option>
+            {#each projectStore.detailViews as view (view.id)}
+              <option value={view.id}>{view.title}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -180,18 +189,6 @@
         {displayName}
       </button>
     </div>
-
-    <!-- {#if isCustom}
-      <div class="field">
-        <span class="field-label">Action ID</span>
-        <input
-          type="text"
-          placeholder="domain.service_name"
-          value={serviceName}
-          oninput={(e) => handleServiceChange(e.currentTarget.value)}
-        />
-      </div>
-    {/if} -->
 
     <div class="target-section">
       <span class="field-label">Target</span>
@@ -234,8 +231,7 @@
     min-width: 50px;
   }
 
-  select,
-  input {
+  select {
     flex: 1;
     min-width: 0;
   }
@@ -276,5 +272,39 @@
     text-transform: uppercase;
     font-weight: 600;
     color: var(--color-text-muted);
+  }
+
+  .hint {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--color-bg-secondary);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+
+  .hint p {
+    margin: 0;
+  }
+
+  .create-dv-btn {
+    align-self: flex-start;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity var(--transition-fast);
+  }
+
+  .create-dv-btn:hover {
+    opacity: 0.85;
   }
 </style>

@@ -3,6 +3,7 @@
   import Draggable from "../Draggable.svelte";
   import * as mdiIcons from "@mdi/js";
   import { colorToCss } from "$lib/utils/color-utils";
+
   interface Props {
     component: LightStateComponent;
   }
@@ -25,15 +26,60 @@
     const path = (mdiIcons as Record<string, unknown>)[iconKey];
     return typeof path === "string" ? path : null;
   });
-  const offColor = $derived(
-    colorToCss(component.offColor, "rgb(92, 102, 117)"),
+
+  const onColor = $derived(
+    colorToCss(component.onColor, "rgb(255, 180, 0)"),
   );
+  const offColor = $derived(
+    colorToCss(component.offColor, "rgb(80, 80, 80)"),
+  );
+  const dimFill = "rgb(25, 30, 40)";
+  const cornerSize = 6;
+
+  const width = $derived(component.size?.width ?? 200);
+  const height = $derived(component.size?.height ?? 90);
+
+  function clippedPolygonPoints(w: number, h: number, c: number): string {
+    return `${c},0 ${w - c},0 ${w},${c} ${w},${h - c} ${w - c},${h} ${c},${h} 0,${h - c} 0,${c}`;
+  }
+
+  function glowColor(cssColor: string): string {
+    return cssColor.replace(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/, (_, r, g, b) => {
+      return `rgb(${Math.floor(+r / 4)}, ${Math.floor(+g / 4)}, ${Math.floor(+b / 4)})`;
+    });
+  }
 </script>
 
 <Draggable {component} widthOnly>
-    {#if useImageToggle}
-      <div class="image-toggle" style:border-color={offColor}>
-        <div class="icon-wrap" style:color={offColor}>
+  {#if useImageToggle}
+    {#if component.size}
+      {@const w = component.size.width}
+      {@const h = component.size.height}
+      <div class="image-toggle-wrap" style:width="100%" style:height="100%">
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 {w} {h}"
+          preserveAspectRatio="none"
+          style:position="absolute"
+          style:inset="0"
+        >
+          <polygon
+            points={clippedPolygonPoints(w + 4, h + 4, cornerSize + 2)}
+            fill="none"
+            stroke={glowColor(offColor)}
+            stroke-width="2"
+            transform="translate(-2, -2)"
+          />
+          <polygon
+            points={clippedPolygonPoints(w, h, cornerSize)}
+            fill={dimFill}
+            stroke={offColor}
+            stroke-width="1"
+          />
+        </svg>
+
+        <div class="toggle-icon" style:color={offColor}>
           {#if iconPath}
             <svg viewBox="0 0 24 24" class="icon-svg">
               <path d={iconPath} fill="currentColor" />
@@ -42,106 +88,67 @@
             <span class="icon-fallback">{iconName || "?"}</span>
           {/if}
         </div>
-        <span class="label">{label}</span>
+        <span class="toggle-label">{label}</span>
       </div>
-    {:else}
-      <span class="label">{label}</span>
+    {/if}
+  {:else}
+    {@const w = component.size?.width ?? 200}
+    {@const h = component.size?.height ?? 90}
+    <div class="text-toggle-wrap" style:width="100%" style:height="100%">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 {w} {h}"
+        preserveAspectRatio="none"
+        style:position="absolute"
+        style:inset="0"
+        style:pointer-events="none"
+      >
+        <rect x="0" y="0" width={w} height={20} fill="rgb(2, 3, 5)" />
+      </svg>
+      <span class="text-label">{label}</span>
       <span class="state-pill" style:background-color={offColor}>
         {offText}
       </span>
-    {/if}
+    </div>
+  {/if}
 </Draggable>
 
 <style>
-  .label {
-    min-width: 0;
-    /* Light-state labels print via g_theme.label (font_small / Roboto 18). */
-    font-family: var(--display-font, monospace);
-    font-size: var(--display-text-small, 18px);
-    color: #f2f4f8;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .state-pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    color: #0d1117;
-    font-family: monospace;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-  }
-
-  .bindings {
-    grid-column: 1 / -1;
-    min-width: 0;
-    font-size: 10px;
-    color: #8fa0b5;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .brightness-row {
-    grid-column: 1 / -1;
+  .image-toggle-wrap {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 2px;
-  }
-
-  .brightness-label {
-    font-size: 10px;
-    color: #9dadc1;
-    flex: 0 0 auto;
-  }
-
-  .brightness-track {
-    height: 6px;
-    flex: 1;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.16);
-    overflow: hidden;
-  }
-
-  .brightness-fill {
-    width: 55%;
-    height: 100%;
-    border-radius: 999px;
-  }
-
-  .brightness-hint {
-    font-size: 10px;
-    color: #8fa0b5;
-  }
-
-  .image-toggle {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    gap: 0;
     min-width: 0;
     min-height: 32px;
-    padding: 6px 10px;
-    border: 1px solid;
-    border-radius: 8px;
-    background: rgba(8, 10, 14, 0.45);
     overflow: hidden;
   }
 
-  .image-toggle .label {
-    flex: 1 1 auto;
-  }
-
-  .icon-wrap {
+  .toggle-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
-    flex: 0 0 auto;
+  }
+
+  .toggle-label {
+    position: absolute;
+    left: 52px;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--display-font, monospace);
+    font-size: var(--display-text-small, 18px);
+    color: rgb(230, 240, 250);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .icon-svg {
@@ -157,5 +164,37 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     text-transform: lowercase;
+  }
+
+  .text-toggle-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+
+  .text-label {
+    font-family: var(--display-font, monospace);
+    font-size: var(--display-text-small, 18px);
+    color: rgb(230, 240, 250);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 100%;
+    padding-top: 22px;
+    padding-left: 2px;
+  }
+
+  .state-pill {
+    padding: 2px 8px;
+    border-radius: 0;
+    color: #0d1117;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
   }
 </style>

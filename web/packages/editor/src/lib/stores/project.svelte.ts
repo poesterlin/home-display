@@ -16,7 +16,7 @@ import { selectionStore } from "./selection.svelte";
 const LATEST_VERSION = "1.0.0";
 const PROJECTS_INDEX_KEY = "esphome-designer-projects-index";
 const PROJECT_PREFIX = "esphome-designer-project-";
-const TAB_HEADER_HEIGHT = 30;
+const TAB_HEADER_HEIGHT = 36;
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -347,7 +347,13 @@ function createProjectStore() {
       const updateInComponents = (components: Component[]): boolean => {
         const idx = components.findIndex((c) => c.id === id);
         if (idx !== -1) {
-          components[idx] = { ...components[idx], ...updates } as Component;
+          const merged: any = { ...components[idx], ...updates };
+          for (const key of Object.keys(updates)) {
+            if (merged[key] === undefined) {
+              delete merged[key];
+            }
+          }
+          components[idx] = merged as Component;
           return true;
         }
         for (const comp of components) {
@@ -536,7 +542,7 @@ function createProjectStore() {
           } else if (c.type === "tab_container") {
             for (const t of c.tabs) {
               if (t.components.some((child) => child.id === targetId)) {
-                return { parent: c, offsetY: 22 };
+                return { parent: c, offsetY: TAB_HEADER_HEIGHT };
               }
               const found = findParent(t.components, targetId);
               if (found) return found;

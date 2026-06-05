@@ -7,19 +7,56 @@ import type {
   TabContainerComponent,
   ConditionalAreaComponent,
   ContainerComponent,
+  LightStateComponent,
 } from "@esphome-designer/schema";
 
 export interface ValidationError {
   type: "error" | "warning";
   message: string;
   componentId?: string;
+  componentLabel?: string;
   field?: string;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  onTap: "On Tap",
+  onHold: "On Hold",
+  onDragStart: "On Drag Start",
+  onDragEnd: "On Drag End",
+  pressAction: "Press Action",
+  holdAction: "Hold Action",
+};
+
+function componentLabel(c: Component): string {
+  if (c.type === "button" && (c as ButtonComponent).label) {
+    return `"${(c as ButtonComponent).label}" button`;
+  }
+  if (c.type === "text" && c.text) {
+    return `"${c.text}" text`;
+  }
+  const typeLabels: Record<string, string> = {
+    button: "Button",
+    text: "Text",
+    icon: "Icon",
+    image: "Image",
+    light_state: "Light State",
+    todo_list: "To-Do List",
+    slider: "Slider",
+    gauge: "Gauge",
+    conditional_area: "Conditional Area",
+    tab_container: "Tab Container",
+    container: "Container",
+    procedural_icon: "Procedural Icon",
+    auto_layout_list: "Auto Layout List",
+  };
+  return typeLabels[c.type] ?? c.type;
 }
 
 export type ValidationRule = (project: Project) => ValidationError[];
 
 const RULES: ValidationRule[] = [
   validateActionTargets,
+  validateLightStateBinding,
 ];
 
 export function validateProject(project: Project): ValidationError[] {
@@ -62,8 +99,10 @@ function collectAllComponents(project: Project): Component[] {
   return result;
 }
 
-function validateAction(action: OnTapAction | ActionBinding | undefined, fieldName: string, componentId: string): ValidationError[] {
+function validateAction(action: OnTapAction | ActionBinding | undefined, fieldName: string, componentId: string, compLabel: string): ValidationError[] {
   if (!action) return [];
+
+  const fieldLabel = FIELD_LABELS[fieldName] ?? fieldName;
 
   if (action.type === "SERVICE_CALL") {
     const hasTarget = !!(action.target?.entityId || action.target?.deviceId);
@@ -71,8 +110,9 @@ function validateAction(action: OnTapAction | ActionBinding | undefined, fieldNa
       return [
         {
           type: "error" as const,
-          message: `Button "${componentId}" has a "${fieldName}" SERVICE_CALL without a target entity or device`,
+          message: `"${fieldLabel}" needs a target entity or device`,
           componentId,
+          componentLabel: compLabel,
           field: fieldName,
         },
       ];
@@ -84,8 +124,9 @@ function validateAction(action: OnTapAction | ActionBinding | undefined, fieldNa
       return [
         {
           type: "error" as const,
-          message: `Button "${componentId}" has a "${fieldName}" OPEN_DETAIL without a target detail view`,
+          message: `"${fieldLabel}" needs a target detail view`,
           componentId,
+          componentLabel: compLabel,
           field: fieldName,
         },
       ];
@@ -100,6 +141,8 @@ function validateActionTargets(project: Project): ValidationError[] {
   const components = collectAllComponents(project);
 
   for (const c of components) {
+    const label = componentLabel(c);
+
     const baseActions: { action: OnTapAction | undefined; field: string }[] = [
       { action: c.onTap, field: "onTap" },
       { action: c.onHold, field: "onHold" },
@@ -108,13 +151,33 @@ function validateActionTargets(project: Project): ValidationError[] {
     ];
 
     for (const { action, field } of baseActions) {
-      errors.push(...validateAction(action, field, c.id));
+      errors.push(...validateAction(action, field, c.id, label));
     }
 
     if (c.type === "button") {
       const btn = c as ButtonComponent;
-      errors.push(...validateAction(btn.pressAction, "pressAction", c.id));
-      errors.push(...validateAction(btn.holdAction, "holdAction", c.id));
+      errors.push(...validateAction(btn.pressAction, "pressAction", c.id, label));
+      errors.push(...validateAction(btn.holdAction, "holdAction", c.id, label));
+    }
+  }
+
+  return errors;
+}
+
+function validateLightStateBinding(project: Project): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const components = collectAllComponents(project);
+
+  for (const c of components) {
+    if (c.type !== "light_state") continue;
+    const ls = c as LightStateComponent;
+    if (!ls.stateBinding?.entityId) {
+      errors.push({
+        type: "error" as const,
+        message: `Needs an entity binding to display state`,
+        componentId: c.id,
+        componentLabel: componentLabel(c),
+      });
     }
   }
 

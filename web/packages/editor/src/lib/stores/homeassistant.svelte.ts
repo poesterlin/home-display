@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import { fuzzyFilter } from "$lib/utils/search";
 import type {
   HomeAssistantDump,
   Entity,
@@ -181,13 +182,8 @@ function createHomeAssistantStore() {
   }
 
   function searchEntities(query: string): Entity[] {
-    const q = query.toLowerCase();
-    return entities.filter(
-      (e: Entity) =>
-        e.entity_id.toLowerCase().includes(q) ||
-        e.name.toLowerCase().includes(q) ||
-        e.area?.toLowerCase().includes(q)
-    );
+    if (!query || query.trim().length === 0) return entities;
+    return fuzzyFilter(entities, query, ["name", "area", "entity_id"]);
   }
 
   // Initialize from storage

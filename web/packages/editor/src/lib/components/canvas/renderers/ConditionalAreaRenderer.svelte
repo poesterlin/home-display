@@ -200,7 +200,7 @@
 
       {#if activeVariant && activeVariant.components.length === 0}
         <div class="empty-state">
-          {isDragOver ? "Release to drop" : "Drop components here"}
+          {isDragOver ? "Release to drop" : "Drop new components here"}
         </div>
       {/if}
     </div>

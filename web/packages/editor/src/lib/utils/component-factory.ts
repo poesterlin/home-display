@@ -24,7 +24,7 @@ export function createComponent(type: string, x: number, y: number): Component {
         ...base,
         type: "button",
         label: "Button",
-        size: { width: 80, height: 36 },
+        size: { width: 80, height: 44 },
       } as Component;
 
     case "slider":

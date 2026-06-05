@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as mdiIcons from "@mdi/js";
+  import { fuzzyFilter } from "$lib/utils/search";
 
   interface Props {
     value: string;
@@ -37,8 +38,8 @@
   const filteredIcons = $derived.by(() => {
     if (!searchQuery) return allIconNames.slice(0, 50);
 
-    const query = searchQuery.toLowerCase();
-    return allIconNames.filter((name) => name.includes(query)).slice(0, 100);
+    const query = searchQuery.toLowerCase().replaceAll(' ', '-');
+    return fuzzyFilter(allIconNames, query, [], { limit: 100 });
   });
 
   // Get icon SVG path for a given icon name
@@ -72,10 +73,12 @@
     }
 
     switch (e.key) {
+      case 'ArrowRight':
       case "ArrowDown":
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, filteredIcons.length - 1);
         break;
+      case "ArrowLeft":
       case "ArrowUp":
         e.preventDefault();
         selectedIndex = Math.max(selectedIndex - 1, -1);

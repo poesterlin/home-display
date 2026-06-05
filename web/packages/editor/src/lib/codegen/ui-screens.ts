@@ -265,10 +265,6 @@ function generateTodoListWidget(
     visibilityExpr?: string,
     dirtyBoundsExpr?: string,
 ): string {
-  const haSource = c.imageSource === "ha" || (c.imageSource == null && !!c.imageBinding?.entityId);
-  if (haSource && !c.imageBinding?.entityId) {
-    return `${indent}// Image '${c.id}' has Home Assistant source but no entity binding - skipped\n`;
-  }
   const x = c.position.x + offX;
   const y = c.position.y + offY;
   const w = c.size?.width ?? 220;

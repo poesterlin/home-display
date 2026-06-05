@@ -6,6 +6,7 @@
   import { historyStore } from "$lib/stores/history.svelte";
   import { canvasPasteTargetStore } from "$lib/stores/canvas-paste-target.svelte";
   import { createComponent } from "$lib/utils/component-factory";
+  import { colorToCss } from "$lib/utils/color-utils";
   import ComponentRenderer from "./ComponentRenderer.svelte";
   import Draggable from "../Draggable.svelte";
 
@@ -19,6 +20,12 @@
   let contentEl: HTMLDivElement | undefined = $state();
   let isDragOver = $state(false);
 
+  const theme = $derived(projectStore.theme);
+  const accentColor = $derived(colorToCss(theme.colors.accent));
+  const foregroundColor = $derived(colorToCss(theme.colors.foreground));
+  const dimColor = "rgb(25, 30, 40)";
+  const voidColor = "rgb(2, 3, 5)";
+
   let activeTabId = $derived(
     conditionalEditorStore.getActiveTab(component.id, component.defaultTabId ?? component.tabs[0]?.id),
   );
@@ -27,8 +34,15 @@
   const isSelected = $derived(selectionStore.selectedIds.has(component.id));
   const width = $derived(component.size?.width ?? 150);
   const height = $derived(component.size?.height ?? 100);
-  const tabsHeaderHeight = 30;
-  const contentHeight = $derived(Math.max(0, height - tabsHeaderHeight));
+  const kTabBarHeight = 36;
+  const kTabPadding = 6;
+  const kTabVertPadding = 2;
+  const kTabCorner = 3;
+  const contentHeight = $derived(Math.max(0, height - kTabBarHeight));
+
+  function tabPolygonPoints(w: number, h: number, c: number): string {
+    return `${c},0 ${w - c},0 ${w},${c} ${w},${h - c} ${w - c},${h} ${c},${h} 0,${h - c} 0,${c}`;
+  }
 
   function selectTab(tabId: string) {
     conditionalEditorStore.setActiveTab(component.id, tabId);
@@ -101,20 +115,64 @@
     style:width="{width}px"
     style:height="{height}px"
   >
-    <div class="tab-header" role="tablist" tabindex="0" onmousedown={(e) => e.stopPropagation()}>
+    <svg class="tab-bar-svg" width={width} height={kTabBarHeight} viewBox="0 0 {width} {kTabBarHeight}">
+      <rect x="0" y="0" width={width} height={kTabBarHeight} fill={dimColor} />
+      {#each component.tabs as tab, i (tab.id)}
+        {@const tabW = (width - kTabPadding * (component.tabs.length + 1)) / component.tabs.length}
+        {@const tx = kTabPadding + i * (tabW + kTabPadding)}
+        {@const ty = kTabVertPadding}
+        {@const tabH = kTabBarHeight - kTabVertPadding * 2}
+        {#if tab.id === activeTabId}
+          <polygon
+            points={tabPolygonPoints(tabW, tabH, kTabCorner)}
+            fill={accentColor}
+            stroke={accentColor}
+            stroke-width="1"
+            transform="translate({tx}, {ty})"
+          />
+          <text
+            x={tx + tabW / 2}
+            y={ty + tabH / 2}
+            fill="black"
+            font-family="var(--display-font, monospace)"
+            font-size="14"
+            text-anchor="middle"
+            dominant-baseline="central"
+          >{tab.name}</text>
+        {:else}
+          <polygon
+            points={tabPolygonPoints(tabW, tabH, kTabCorner)}
+            fill="none"
+            stroke={accentColor}
+            stroke-width="1"
+            transform="translate({tx}, {ty})"
+          />
+          <text
+            x={tx + tabW / 2}
+            y={ty + tabH / 2}
+            fill={foregroundColor}
+            font-family="var(--display-font, monospace)"
+            font-size="14"
+            text-anchor="middle"
+            dominant-baseline="central"
+          >{tab.name}</text>
+        {/if}
+      {/each}
+    </svg>
+
+    <div class="tab-bar-overlay" role="tablist" tabindex="0" onmousedown={(e) => e.stopPropagation()}>
       {#each component.tabs as tab (tab.id)}
         <button
-          class="tab-button"
+          class="tab-hit-area"
           class:active={tab.id === activeTabId}
           onclick={() => selectTab(tab.id)}
           role="tab"
           aria-selected={tab.id === activeTabId}
           title={tab.name}
         >
-          {tab.name}
+          <span class="visually-hidden">{tab.name}</span>
         </button>
       {/each}
-
       {#if isSelected}
         <button class="add-tab-btn" onclick={handleAddTab} title="Add Tab">+</button>
       {/if}
@@ -139,7 +197,7 @@
             component={childComponent}
             parentOffset={{
               x: (parentOffset?.x ?? 0) + component.position.x,
-              y: (parentOffset?.y ?? 0) + component.position.y + tabsHeaderHeight,
+              y: (parentOffset?.y ?? 0) + component.position.y + kTabBarHeight,
             }}
           />
         {/each}
@@ -147,7 +205,7 @@
 
       {#if activeTab && activeTab.components.length === 0}
         <div class="empty-state">
-          {isDragOver ? "Release to drop" : "Drop components here"}
+          {isDragOver ? "Release to drop" : "Drop new components here"}
         </div>
       {/if}
     </div>
@@ -157,71 +215,76 @@
 <style>
   .tab-container {
     position: relative;
-    border: 1px solid #3d4b5a;
-    border-radius: 4px;
-    background: rgba(36, 44, 56, 0.65);
     pointer-events: all;
     overflow: hidden;
+    background: rgb(2, 3, 5);
   }
 
   .tab-container.selected {
-    border-color: #4a9eff;
-    box-shadow: 0 0 0 1px #4a9eff;
+    outline: 1px solid #4a9eff;
+    outline-offset: 1px;
   }
 
   .tab-container.drag-over {
-    border-color: #6fbf73;
-    background: rgba(45, 70, 50, 0.45);
+    outline: 1px solid #6fbf73;
+    outline-offset: 1px;
   }
 
-  .tab-header {
+  .tab-bar-svg {
+    display: block;
+    pointer-events: none;
+  }
+
+  .tab-bar-overlay {
+    position: absolute;
+    top: 2px;
+    left: 0;
+    right: 0;
+    height: 32px;
     display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 30px;
-    padding: 3px;
-    background: rgba(22, 28, 36, 0.9);
-    border-bottom: 1px solid rgba(90, 110, 130, 0.6);
-    overflow-x: auto;
+    align-items: stretch;
+    padding: 0 6px;
+    gap: 6px;
+    pointer-events: all;
   }
 
-  .tab-button {
-    min-height: 24px;
-    max-width: 140px;
-    padding: 0 12px;
-    font-size: 12px;
-    line-height: 24px;
-    background: rgba(68, 78, 92, 0.85);
-    border: 1px solid transparent;
-    border-radius: 3px;
-    color: #b8c2cf;
+  .tab-hit-area {
+    flex: 1 1 0;
+    min-width: 0;
+    border: none;
+    background: transparent;
     cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0;
+    position: relative;
   }
 
-  .tab-button:hover {
-    background: rgba(78, 92, 108, 0.95);
-  }
-
-  .tab-button.active {
-    background: #4a9eff;
-    color: #fff;
-    border-color: #7eb9ff;
+  .tab-hit-area:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .add-tab-btn {
-    margin-left: auto;
+    flex: 0 0 24px;
     min-width: 24px;
     height: 24px;
-    border: 1px dashed #5f738c;
-    border-radius: 3px;
+    align-self: center;
+    border: 1px solid;
+    border-color: inherit;
     background: transparent;
     color: #8ea4bc;
     font-size: 14px;
     cursor: pointer;
     line-height: 20px;
+    padding: 0;
+    margin-left: 2px;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   .tab-content {
