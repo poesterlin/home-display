@@ -235,7 +235,7 @@ export function generateESPHomeYAML(project: Project, _firmwareVersion?: string)
     ? `\nhttp_request:\n  verify_ssl: false\n  timeout: 10s\n`
     : '';
   const httpOtaYaml = httpOtaEnabled
-    ? `\nota:\n  - platform: http_request\n    url: !secret firmware_update_url\n`
+    ? `\nota:\n  - platform: http_request\n`
     : '';
   const haBaseUrlLocal = onlineImagesEnabled
     ? `\n          const std::string ha_base_url = "\${home_assistant_base_url}";\n`
