@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as mdiIcons from '@mdi/js';
+  import * as mdiIcons from "@mdi/js";
 
   interface Props {
     value: string;
@@ -7,7 +7,7 @@
   }
 
   let { value, onSelect }: Props = $props();
-  let searchQuery = $state('');
+  let searchQuery = $state("");
   let isOpen = $state(false);
   let selectedIndex = $state(-1);
 
@@ -19,12 +19,16 @@
   // Get all available MDI icon names (exported as mdiXxx format)
   const allIconNames = $derived.by(() => {
     return Object.keys(mdiIcons)
-      .map(key => {
+      .map((key) => {
         // Convert from mdiHome format to kebab-case
-        const name = key.replace(/^mdi/, '');
-        return name.charAt(0).toLowerCase() + name.slice(1)
-          .replace(/([A-Z])/g, '-$1')
-          .toLowerCase();
+        const name = key.replace(/^mdi/, "");
+        return (
+          name.charAt(0).toLowerCase() +
+          name
+            .slice(1)
+            .replace(/([A-Z])/g, "-$1")
+            .toLowerCase()
+        );
       })
       .sort();
   });
@@ -32,22 +36,22 @@
   // Filter icons based on search query
   const filteredIcons = $derived.by(() => {
     if (!searchQuery) return allIconNames.slice(0, 50);
-    
+
     const query = searchQuery.toLowerCase();
-    return allIconNames
-      .filter(name => name.includes(query))
-      .slice(0, 100);
+    return allIconNames.filter((name) => name.includes(query)).slice(0, 100);
   });
 
   // Get icon SVG path for a given icon name
   function getIconPath(iconName: string): string | null {
-    const iconKey = 'mdi' + iconName
-      .split('-')
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join('');
-    
+    const iconKey =
+      "mdi" +
+      iconName
+        .split("-")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join("");
+
     const path = (mdiIcons as Record<string, unknown>)[iconKey];
-    return typeof path === 'string' ? path : null;
+    return typeof path === "string" ? path : null;
   }
 
   function selectIcon(iconName: string) {
@@ -59,7 +63,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === ' ') {
+      if (e.key === "ArrowDown" || e.key === " ") {
         e.preventDefault();
         isOpen = true;
         selectedIndex = 0;
@@ -68,21 +72,21 @@
     }
 
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, filteredIcons.length - 1);
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
         selectedIndex = Math.max(selectedIndex - 1, -1);
         break;
-      case 'Enter':
+      case "Enter":
         e.preventDefault();
         if (selectedIndex >= 0) {
           selectIcon(filteredIcons[selectedIndex]);
         }
         break;
-      case 'Escape':
+      case "Escape":
         e.preventDefault();
         isOpen = false;
         selectedIndex = -1;
@@ -105,6 +109,14 @@
 
 <div class="icon-searcher">
   <div class="search-input-wrapper">
+    {#if value}
+      {@const iconPath = getIconPath(value)}
+      {#if iconPath}
+        <svg viewBox="0 0 24 24" class="selected-icon-preview">
+          <path d={iconPath} fill="currentColor" />
+        </svg>
+      {/if}
+    {/if}
     <input
       type="text"
       placeholder="Search icons..."
@@ -113,6 +125,7 @@
       onfocus={handleFocus}
       onkeydown={handleKeydown}
       class="search-input"
+      class:has-selected-icon={!!value}
     />
     {#if searchQuery}
       <button
@@ -164,6 +177,18 @@
     align-items: center;
   }
 
+  .selected-icon-preview {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-secondary);
+    pointer-events: none;
+    z-index: 1;
+  }
+
   .search-input {
     width: 100%;
     padding: 8px 12px;
@@ -174,6 +199,10 @@
     background: var(--color-input-bg, #1e1e1e);
     color: var(--color-text-primary);
     transition: border-color 0.2s;
+  }
+
+  .search-input.has-selected-icon {
+    padding-left: 36px;
   }
 
   .search-input:focus {

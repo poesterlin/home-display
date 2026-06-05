@@ -90,13 +90,13 @@ function isIsoDate(str: string): boolean {
 
 /**
  * Format an entity's state for display, preferring rounded numeric
- * values with units when available. ISO datetimes are intentionally
+ * values without units. ISO datetimes are intentionally
  * suppressed (returned as an empty string) so they don't dominate a
  * small label preview.
  */
 export function getStateDisplay(entity: Entity): string {
-  if (entity.numeric_state !== undefined && entity.unit) {
-    return `${Math.round(entity.numeric_state * 10) / 10}${entity.unit}`;
+  if (entity.numeric_state !== undefined) {
+    return `${Math.round(entity.numeric_state * 10) / 10}`;
   }
   if (isIsoDate(entity.state)) return "";
   return entity.state;

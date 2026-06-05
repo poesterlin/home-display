@@ -11,13 +11,6 @@
 
   const offText = $derived(component.offText?.trim() || "OFF");
   const useImageToggle = $derived(component.showIcon !== false);
-  const showBrightnessControl = $derived(
-    component.showBrightnessControl === true,
-  );
-  const hasBrightnessTarget = $derived(
-    !!component.stateBinding?.entityId || !!component.targetDevice?.deviceId,
-  );
-
   const label = $derived(component.label?.trim() || "Light");
   const iconName = $derived(
     (component.icon?.trim() || "lightbulb").replace(/^mdi:/, ""),
@@ -51,30 +44,11 @@
         </div>
         <span class="label">{label}</span>
       </div>
-      <div class="bindings">
-        {#if !component.stateBinding}
-          Bind a light entity
-        {/if}
-      </div>
     {:else}
       <span class="label">{label}</span>
       <span class="state-pill" style:background-color={offColor}>
         {offText}
       </span>
-      {#if showBrightnessControl}
-        <div class="brightness-row">
-          <span class="brightness-label">Brightness</span>
-          <div class="brightness-track">
-            <div
-              class="brightness-fill"
-              style:background-color={offColor}
-            ></div>
-          </div>
-          {#if !hasBrightnessTarget}
-            <span class="brightness-hint">no target</span>
-          {/if}
-        </div>
-      {/if}
     {/if}
 </Draggable>
 

@@ -2,20 +2,14 @@
   import { projectStore } from "$lib/stores/project.svelte";
   import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
   import { onMount } from "svelte";
-  import { fade, fly, scale } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
-  import * as mdiIcons from '@mdi/js';
-  import { dev } from '$app/environment';
-  import { goto } from '$app/navigation';
-  import DeviceSetupWizard from '$lib/components/DeviceSetupWizard.svelte';
-  import OnboardingCard from '$lib/components/OnboardingCard.svelte';
-
-  type ProjectConfig = {
-    display?: { width: number; height: number },
-    theme?: any,
-    dashboardPages?: number,
-    detailViews?: string[]
-  };
+  import { fade, fly, scale } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
+  import * as mdiIcons from "@mdi/js";
+  import { dev } from "$app/environment";
+  import { goto } from "$app/navigation";
+  import OnboardingCard from "$lib/components/OnboardingCard.svelte";
+  import CreateProjectModal from "$lib/components/CreateProjectModal.svelte";
+  import type { CreateProjectConfig } from "$lib/components/CreateProjectModal.svelte";
 
   let { data } = $props();
   let projects = $state<{ id: string; name: string; updatedAt: string }[]>([]);
@@ -33,13 +27,6 @@
       showOnboarding = false;
     }
   });
-
-  // Device setup wizard state
-  let showSetupWizard = $state(false);
-  let newlyCreatedProject = $state<{ id: string; name: string } | null>(null);
-
-  // New Project Form State
-  let newProjectName = $state("");
 
   // HomeAssistant Import State
   let haFileInput: HTMLInputElement;
@@ -59,7 +46,7 @@
       const success = homeAssistantStore.importFromJson(text);
       if (success) {
         haImportSuccess = true;
-        setTimeout(() => haImportSuccess = false, 3000);
+        setTimeout(() => (haImportSuccess = false), 3000);
       } else {
         haImportError = "Invalid HomeAssistant dump format";
       }
@@ -91,13 +78,13 @@
         const data = projectStore.getLocalProjectData(lp.id);
         if (data) {
           try {
-            await fetch('/api/projects', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            await fetch("/api/projects", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: data.name, data }),
             });
           } catch (e) {
-            console.error('Migration failed for', lp.name, e);
+            console.error("Migration failed for", lp.name, e);
           }
         }
       }
@@ -106,41 +93,21 @@
     }
   });
 
-  async function createProject() {
-    if (!newProjectName.trim()) return;
+  async function handleCreateProject(config: CreateProjectConfig) {
+    const newProject = await projectStore.createNewProject(config.name, {
+      display: { width: 480, height: 480 },
+    });
 
-    const config: ProjectConfig = {
-      display: { width: 480, height: 480 }
-    };
+    projectStore.updateProject({
+      notificationOverlay: config.notificationOverlay,
+    });
 
-    const project = await projectStore.createNewProject(newProjectName, config);
-    const projectId = projectStore.serverProjectId;
-    const createdName = newProjectName;
-    
-    // Reset form and show the device setup wizard instead of immediately navigating
-    newProjectName = "";
-    showModal = false;
-    newlyCreatedProject = { id: projectId!, name: createdName };
-    showSetupWizard = true;
-    
-    // Refresh the project list
     projects = await projectStore.listProjects();
-  }
+    showModal = false;
 
-  function handleWizardClose() {
-    showSetupWizard = false;
-    if (newlyCreatedProject) {
-      goto(`/project/${newlyCreatedProject.id}`);
+    if (newProject) {
+      await goto(`/project/${newProject.id}`);
     }
-    newlyCreatedProject = null;
-  }
-
-  function handleWizardSkip() {
-    showSetupWizard = false;
-    if (newlyCreatedProject) {
-      goto(`/project/${newlyCreatedProject.id}`);
-    }
-    newlyCreatedProject = null;
   }
 
   async function deleteProject(id: string, event: MouseEvent) {
@@ -155,7 +122,7 @@
 
 <div class="project-selector">
   <div class="glow-bg"></div>
-  
+
   <header in:fly={{ y: -20, duration: 800, easing: cubicOut }}>
     {#if data.user}
       <div class="user-bar">
@@ -183,69 +150,100 @@
 
   <main>
     {#if showModal}
-      <div class="modal-backdrop" onclick={() => showModal = false} transition:fade={{ duration: 200 }}>
-        <div 
-          class="modal" 
-          onclick={(e) => e.stopPropagation()}
-          in:fly={{ y: 20, duration: 400, easing: cubicOut }}
-        >
-          <div class="modal-header">
-            <h2>New Project</h2>
-            <button class="close-icon" onclick={() => showModal = false}>&times;</button>
-          </div>
-          
-          <div class="form-grid">
-            <div class="field">
-              <label for="name">Project Name</label>
-              <input
-                id="name"
-                type="text"
-                placeholder="Living Room Dashboard"
-                bind:value={newProjectName}
-                autofocus
-              />
-            </div>
-
-            <div class="field">
-              <label>Display</label>
-              <p class="hardware-info">Guition ESP32-S3-4848S040 &mdash; 480 &times; 480</p>
-            </div>
-          </div>
-
-          <div class="modal-actions">
-            <button class="btn-text" onclick={() => showModal = false}>Cancel</button>
-            <button class="primary" onclick={createProject} disabled={!newProjectName.trim()}>
-              Initialize Blueprint
-            </button>
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    {#if showSetupWizard && newlyCreatedProject}
-      <DeviceSetupWizard
-        projectId={newlyCreatedProject.id}
-        projectName={newlyCreatedProject.name}
-        onClose={handleWizardClose}
-        onSkip={handleWizardSkip}
+      <CreateProjectModal
+        onClose={() => (showModal = false)}
+        onCreate={handleCreateProject}
       />
     {/if}
 
     {#if showOnboarding}
-      <OnboardingCard onDismiss={() => showOnboarding = false} />
+      <OnboardingCard onDismiss={() => (showOnboarding = false)} />
     {/if}
+
+    <section class="project-list" in:fade={{ delay: 400, duration: 800 }}>
+      <div class="section-header">
+        <h2>Your Project</h2>
+        <div class="section-header-actions">
+          <span class="count">{projects.length} saved</span>
+          <button class="primary create-btn" onclick={() => (showModal = true)}>
+            <div class="btn-content">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
+                <path d={mdiIcons.mdiPlus} />
+              </svg>
+              <span>New Project</span>
+            </div>
+            <div class="btn-shine"></div>
+          </button>
+        </div>
+      </div>
+
+      {#if projects.length === 0}
+        <div class="empty-state" in:scale={{ start: 0.95, delay: 600 }}>
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" class="icon">
+              <path d={mdiIcons.mdiViewGrid} />
+            </svg>
+          </div>
+          <p>You do not have any projects jet. Setup your first display.</p>
+        </div>
+      {:else}
+        <div class="grid">
+          {#each projects as project, i}
+            <div in:fly={{ y: 20, delay: 500 + i * 50, duration: 500 }}>
+              <a href="/project/{project.id}" class="project-card">
+                <div class="project-info">
+                  <h3>{project.name}</h3>
+                  <div class="meta">
+                    <span class="date">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        class="icon"
+                      >
+                        <path d={mdiIcons.mdiClock} />
+                      </svg>
+                      {new Date(project.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <div class="card-actions">
+                  <button
+                    class="delete-btn"
+                    onclick={(e) => deleteProject(project.id, e)}
+                    title="Delete Project"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      class="icon"
+                    >
+                      <path d={mdiIcons.mdiDelete} />
+                    </svg>
+                  </button>
+                  <div class="arrow">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      class="icon"
+                    >
+                      <path d={mdiIcons.mdiChevronRight} />
+                    </svg>
+                  </div>
+                </div>
+              </a>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
 
     <section class="ha-settings" in:fade={{ delay: 300, duration: 800 }}>
       <div class="section-header">
         <h2>Home Assistant</h2>
-        {#if homeAssistantStore.isLoaded}
-          <span class="status status-connected">
-            <svg width="8" height="8" viewBox="0 0 24 24" class="icon">
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-            Connected
-          </span>
-        {:else}
+        {#if !homeAssistantStore.isLoaded}
           <span class="status status-disconnected">Not configured</span>
         {/if}
       </div>
@@ -255,25 +253,34 @@
           <div class="ha-info">
             <div class="ha-stats">
               <div class="stat">
-                <span class="stat-value">{homeAssistantStore.entities.length}</span>
+                <span class="stat-value"
+                  >{homeAssistantStore.entities.length}</span
+                >
                 <span class="stat-label">Entities</span>
               </div>
               <div class="stat">
-                <span class="stat-value">{homeAssistantStore.devices.length}</span>
+                <span class="stat-value"
+                  >{homeAssistantStore.devices.length}</span
+                >
                 <span class="stat-label">Devices</span>
               </div>
               <div class="stat">
-                <span class="stat-value">{homeAssistantStore.domains.length}</span>
+                <span class="stat-value"
+                  >{homeAssistantStore.domains.length}</span
+                >
                 <span class="stat-label">Domains</span>
               </div>
               <div class="stat">
-                <span class="stat-value">{homeAssistantStore.areas.length}</span>
+                <span class="stat-value">{homeAssistantStore.areas.length}</span
+                >
                 <span class="stat-label">Areas</span>
               </div>
             </div>
             {#if homeAssistantStore.generatedAt}
               <p class="ha-meta">
-                Last updated: {new Date(homeAssistantStore.generatedAt).toLocaleString()}
+                Last updated: {new Date(
+                  homeAssistantStore.generatedAt,
+                ).toLocaleString()}
               </p>
             {/if}
           </div>
@@ -293,10 +300,19 @@
           </div>
         {:else}
           <div class="ha-empty">
-            <svg width="32" height="32" viewBox="0 0 24 24" class="icon ha-icon">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              class="icon ha-icon"
+            >
               <path d={mdiIcons.mdiHomeAssistant} />
             </svg>
-            <p>Import your Home Assistant entity dump to enable entity binding and autocomplete. Install our HACS integration for the easiest setup.</p>
+            <p>
+              Import your Home Assistant entity dump to enable entity binding
+              and autocomplete. Install our HACS integration for the easiest
+              setup.
+            </p>
             <button class="primary" onclick={() => haFileInput.click()}>
               <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
                 <path d={mdiIcons.mdiUpload} />
@@ -333,67 +349,6 @@
         style="display: none"
       />
     </section>
-
-    <section class="project-list" in:fade={{ delay: 400, duration: 800 }}>
-      <div class="section-header">
-        <h2>Your Blueprints</h2>
-        <div class="section-header-actions">
-          <span class="count">{projects.length} saved</span>
-          <button class="primary create-btn" onclick={() => showModal = true}>
-            <div class="btn-content">
-              <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
-                <path d={mdiIcons.mdiPlus} />
-              </svg>
-              <span>Craft New Interface</span>
-            </div>
-            <div class="btn-shine"></div>
-          </button>
-        </div>
-      </div>
-      
-      {#if projects.length === 0}
-        <div class="empty-state" in:scale={{ start: 0.95, delay: 600 }}>
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" class="icon">
-              <path d={mdiIcons.mdiViewGrid} />
-            </svg>
-          </div>
-          <p>You do not have any projects jet. Setup your first display.</p>
-        </div>
-      {:else}
-        <div class="grid">
-          {#each projects as project, i}
-            <div in:fly={{ y: 20, delay: 500 + (i * 50), duration: 500 }}>
-              <a href="/project/{project.id}" class="project-card">
-                <div class="project-info">
-                  <h3>{project.name}</h3>
-                  <div class="meta">
-                    <span class="date">
-                      <svg width="12" height="12" viewBox="0 0 24 24" class="icon">
-                        <path d={mdiIcons.mdiClock} />
-                      </svg>
-                      {new Date(project.updatedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <div class="card-actions">
-                  <button class="delete-btn" onclick={(e) => deleteProject(project.id, e)} title="Delete Project">
-                    <svg width="18" height="18" viewBox="0 0 24 24" class="icon">
-                      <path d={mdiIcons.mdiDelete} />
-                    </svg>
-                  </button>
-                  <div class="arrow">
-                    <svg width="20" height="20" viewBox="0 0 24 24" class="icon">
-                      <path d={mdiIcons.mdiChevronRight} />
-                    </svg>
-                  </div>
-                </div>
-              </a>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </section>
   </main>
 </div>
 
@@ -413,7 +368,6 @@
     transform: translateX(-50%);
     width: 80%;
     height: 40%;
-    background: radial-gradient(circle, rgba(74, 158, 254, 0.08) 0%, rgba(0,0,0,0) 70%);
     pointer-events: none;
     z-index: -1;
   }
@@ -427,9 +381,7 @@
     font-size: 3.5rem;
     font-weight: 800;
     margin-bottom: var(--spacing-sm);
-    background: linear-gradient(to right, #fff, var(--color-accent), #4facfe);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--color-accent);
     letter-spacing: -0.02em;
   }
 
@@ -502,162 +454,25 @@
     position: relative;
   }
 
-  .create-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(74, 158, 254, 0.25);
-  }
-
-  .create-btn:active {
-    transform: translateY(0);
-  }
-
   .btn-shine {
     position: absolute;
     top: 0;
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(
-      120deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: all 0.6s;
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.3s;
   }
 
   .create-btn:hover .btn-shine {
     left: 100%;
   }
 
-  .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(8px);
-  }
-
-  .modal {
-    background: #121212;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 1.5rem;
-    padding: 2.5rem;
-    width: 90%;
-    max-width: 550px;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-  }
-
-  .modal h2 {
-    font-size: 1.75rem;
-    margin: 0;
-    font-weight: 700;
-    color: #fff;
-  }
-
-  .close-icon {
-    background: none;
-    border: none;
-    color: var(--color-text-muted);
-    font-size: 2rem;
-    cursor: pointer;
-    line-height: 1;
-    padding: 0;
-    transition: color 0.2s;
-  }
-
-  .close-icon:hover {
-    color: #fff;
-  }
-
-  .form-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .field label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-secondary);
-  }
-
-  .field input, .field select {
-    padding: 1rem;
-    background: #1e1e1e;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-md);
-    color: #fff;
-    font-size: 1rem;
-    transition: all 0.2s;
-  }
-
-  .field input:focus, .field select:focus {
-    border-color: var(--color-accent);
-    background: #252525;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(74, 158, 254, 0.1);
-  }
-
-  .hardware-info {
-    padding: 1rem;
-    background: #1e1e1e;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
-    font-size: 0.95rem;
-    margin: 0;
-  }
-
-  .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 1.5rem;
-    margin-top: 2.5rem;
-  }
-
-  .btn-text {
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    font-weight: 600;
-    cursor: pointer;
-    transition: color 0.2s;
-  }
-
-  .btn-text:hover {
-    color: #fff;
-  }
-
   .section-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-bottom: 2rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    padding-bottom: 1rem;
+    margin-top: 2rem;
   }
 
   .section-header h2 {

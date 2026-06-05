@@ -139,10 +139,7 @@
 <style>
   .account-page {
     min-height: 100vh;
-    background:
-      radial-gradient(circle at 10% 0%, rgba(74, 158, 254, 0.2), transparent 45%),
-      radial-gradient(circle at 90% 100%, rgba(0, 255, 194, 0.1), transparent 45%),
-      var(--color-bg-primary);
+    background: var(--color-bg-primary);
     color: #fff;
   }
 
@@ -197,7 +194,7 @@
     place-items: center;
     font-size: 1.2rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #4a9eff, #31e2b5);
+    background: var(--color-accent);
     color: #081018;
   }
 

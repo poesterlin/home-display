@@ -261,7 +261,6 @@
     transform: translateX(-50%);
     width: 80%;
     height: 40%;
-    background: radial-gradient(circle, rgba(74, 158, 254, 0.08) 0%, rgba(0,0,0,0) 70%);
     pointer-events: none;
     z-index: -1;
   }
@@ -275,10 +274,7 @@
     font-size: 3.5rem;
     font-weight: 800;
     margin-bottom: var(--spacing-sm);
-    background: linear-gradient(to right, #fff, var(--color-accent), #4facfe);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--color-accent);
     letter-spacing: -0.02em;
   }
 

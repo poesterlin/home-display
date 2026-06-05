@@ -167,15 +167,6 @@
       });
       if (res.ok) {
         published = true;
-        if (projectStore.firmwareToken) {
-          const url = `${window.location.origin}/api/firmware/${projectStore.firmwareToken}/manifest`;
-          projectStore.updateProject({
-            secrets: {
-              ...projectStore.secrets,
-              firmwareUpdateUrl: url,
-            },
-          });
-        }
         step = "done";
       }
     } catch (e) {
@@ -193,10 +184,9 @@
         .toLowerCase()
         .replace(/\s+/g, "-");
 
-      // Mirror the server queue: if we have a firmware token and the
-      // project does not already carry a firmwareUpdateUrl, inject one
-      // pointing at this server so OTA updates work out of the box.
-      const project = projectStore.project;
+      // Strip OTA-related secrets so downloaded firmware never includes
+      // OTA functionality. The OTA URL is only baked in at server build time.
+      const project = { ...projectStore.project, secrets: { ...projectStore.project.secrets, firmwareUpdateUrl: undefined } };
 
       // 1. Copy bundled static templates (base.yaml, hardware.yaml,
       //    includes/*.h, ...). fonts.yaml is held back so we can append
@@ -245,14 +235,6 @@
     }
   }
 
-  let firmwareUrl = $derived(
-    projectStore.firmwareToken
-      ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/firmware/${projectStore.firmwareToken}/manifest`
-      : null,
-  );
-
-  let copied = $state(false);
-
   const insufficientCreditsRegex =
     /Insufficient credits\. Cost: (?<cost>\d+), balance: (?<balance>\d+)/;
 
@@ -266,14 +248,6 @@
       balance: Number(match.groups.balance),
     };
   });
-
-  function copyFirmwareUrl() {
-    if (firmwareUrl) {
-      navigator.clipboard.writeText(firmwareUrl);
-      copied = true;
-      setTimeout(() => (copied = false), 2000);
-    }
-  }
 
   function playPling() {
     try {
@@ -551,21 +525,6 @@
           <p class="done-desc">
             Your devices will show an update notification in Home Assistant. They'll download and install the new firmware automatically.
           </p>
-
-          {#if firmwareUrl}
-            <div class="firmware-url-section">
-              <label>Firmware URL</label>
-              <div class="url-row">
-                <input type="text" readonly value={firmwareUrl} class="url-input" />
-                <button class="copy-btn" onclick={copyFirmwareUrl}>
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-              <p class="url-hint">
-                Devices use this URL to check for updates. It's already configured in your project.
-              </p>
-            </div>
-          {/if}
         {:else if flow === "new"}
           <h3>You're All Set</h3>
           <p class="done-desc">
@@ -1087,58 +1046,5 @@
     color: var(--color-text-secondary);
     line-height: 1.6;
     max-width: 360px;
-  }
-
-  .firmware-url-section {
-    width: 100%;
-    text-align: left;
-  }
-
-  .firmware-url-section label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    margin-bottom: var(--spacing-xs);
-    display: block;
-  }
-
-  .url-row {
-    display: flex;
-    gap: var(--spacing-sm);
-  }
-
-  .url-input {
-    flex: 1;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    color: var(--color-text-primary);
-    font-family: monospace;
-    font-size: 12px;
-  }
-
-  .copy-btn {
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    font-size: 13px;
-    white-space: nowrap;
-    font-family: inherit;
-    transition: border-color 0.15s;
-  }
-
-  .copy-btn:hover {
-    border-color: var(--color-accent);
-  }
-
-  .url-hint {
-    margin: var(--spacing-xs) 0 0;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    opacity: 0.7;
   }
 </style>

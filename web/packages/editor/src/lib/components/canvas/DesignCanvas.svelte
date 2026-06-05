@@ -12,11 +12,11 @@
   import ComponentRenderer from "./renderers/ComponentRenderer.svelte";
   import SelectionOverlay from "./SelectionOverlay.svelte";
   import DetailHeader from "./DetailHeader.svelte";
+  import DashboardHeader from "./DashboardHeader.svelte";
   import PageIndicator from "./PageIndicator.svelte";
   import { createComponent } from "$lib/utils/component-factory";
 
   let canvasEl: HTMLDivElement | undefined = $state();
-  let headerEl: HTMLDivElement | undefined = $state();
   let clipboardComponent = $state<{
     component: Component;
     context: ComponentContext;
@@ -135,10 +135,6 @@
       return null;
     };
 
-    const headerContext = search(projectStore.headerComponents, {
-      scope: "header",
-    });
-    if (headerContext) return headerContext;
     return search(projectStore.activeComponents, { scope: "root" });
   }
 
@@ -146,7 +142,7 @@
     const target = canvasPasteTargetStore.target;
     if (!target) return null;
 
-    if (target.scope === "root" || target.scope === "header") return target;
+    if (target.scope === "root") return target;
 
     const parent = projectStore.getComponent(target.parentId);
     if (target.scope === "tab") {
@@ -233,10 +229,7 @@
     let maxX = Number.POSITIVE_INFINITY;
     let maxY = Number.POSITIVE_INFINITY;
 
-    if (context.scope === "header") {
-      maxX = (projectStore.display?.width ?? 240) - componentWidth;
-      maxY = headerHeight - componentHeight;
-    } else if (context.scope === "root") {
+    if (context.scope === "root") {
       maxX = (projectStore.display?.width ?? 240) - componentWidth;
       maxY = contentHeight - componentHeight;
     } else if (context.scope === "tab") {
@@ -263,8 +256,6 @@
     component: Component,
     context: ComponentContext,
   ): Component | undefined {
-    if (context.scope === "header")
-      return projectStore.addHeaderComponent(component);
     if (context.scope === "root") return projectStore.addComponent(component);
     if (context.scope === "tab") {
       return projectStore.addComponentToTab(
@@ -281,10 +272,8 @@
   }
 
   function handleCanvasClick(e: MouseEvent) {
-    if (e.target === canvasEl || e.target === headerEl) {
-      canvasPasteTargetStore.set(
-        e.target === headerEl ? { scope: "header" } : { scope: "root" },
-      );
+    if (e.target === canvasEl) {
+      canvasPasteTargetStore.set({ scope: "root" });
       selectionStore.clear();
     }
   }
@@ -302,22 +291,6 @@
 
     const newComponent = createComponent(componentType, x, y);
     projectStore.addComponent(newComponent);
-    selectionStore.select(newComponent.id);
-  }
-
-  function handleHeaderDrop(e: DragEvent) {
-    e.preventDefault();
-    const componentType = e.dataTransfer?.getData("component-type");
-    if (!componentType || !headerEl) return;
-
-    const rect = headerEl.getBoundingClientRect();
-    const x = Math.round(e.clientX - rect.left);
-    const y = Math.round(e.clientY - rect.top);
-
-    historyStore.record(`Add ${componentType} to header`);
-
-    const newComponent = createComponent(componentType, x, y);
-    projectStore.addHeaderComponent(newComponent);
     selectionStore.select(newComponent.id);
   }
 
@@ -436,31 +409,7 @@
   {/if}
 
   {#if hasHeader}
-    <!-- Page header region -->
-    <div
-      bind:this={headerEl}
-      class="header-region"
-      role="application"
-      tabindex="-1"
-      aria-label="Page header region"
-      onclick={handleCanvasClick}
-      ondrop={handleHeaderDrop}
-      ondragover={handleDragOver}
-      style:height="{headerHeight}px"
-      style:background-color={projectStore.pageHeader?.backgroundColor
-        ? `rgb(${projectStore.pageHeader.backgroundColor.r}, ${projectStore.pageHeader.backgroundColor.g}, ${projectStore.pageHeader.backgroundColor.b})`
-        : undefined}
-    >
-      {#each projectStore.headerComponents as component (component.id)}
-        <ComponentRenderer {component} />
-      {/each}
-      <SelectionOverlay
-        region="header"
-        regionOffset={0}
-        widthOnly={selectedComponent?.type === "light_state"}
-      />
-    </div>
-    <div class="header-divider"></div>
+    <DashboardHeader />
   {/if}
 
   <div
@@ -556,20 +505,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: geometricPrecision;
-  }
-
-  .header-region {
-    width: 100%;
-    position: relative;
-    overflow: hidden;
-    cursor: crosshair;
-  }
-
-  .header-divider {
-    width: 100%;
-    height: 1px;
-    background: var(--color-border);
-    opacity: 0.5;
   }
 
   .canvas {

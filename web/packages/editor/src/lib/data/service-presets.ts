@@ -214,3 +214,15 @@ export const DOMAIN_LABELS: Record<string, string> = {
   input_number: "Input Numbers",
   lock: "Locks",
 };
+
+/**
+ * Format a raw domain key into a consistent display label.
+ * Uses DOMAIN_LABELS for known domains, otherwise converts snake_case to Title Case.
+ */
+export function getDomainLabel(domain: string): string {
+  if (DOMAIN_LABELS[domain]) return DOMAIN_LABELS[domain];
+  return domain
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}

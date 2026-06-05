@@ -3,6 +3,7 @@
   import TemplateHelperModal from "./TemplateHelperModal.svelte";
   import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
   import type { EntityBinding } from "@esphome-designer/schema";
+  import { mdiCodeBraces } from "@mdi/js";
   import {
     type BindingSegment,
     getBindingDisplay,
@@ -409,7 +410,9 @@
     onclick={() => (templateHelperOpen = true)}
     title="Add entity binding"
   >
-    ➕
+    <svg class="plus-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={mdiCodeBraces}></path>
+    </svg>
   </button>
 </div>
 
@@ -515,5 +518,31 @@
 
   .chip-remove:hover {
     color: #ff5555;
+  }
+
+  .composite-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .composite-action:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+  }
+
+  .plus-icon {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
   }
 </style>

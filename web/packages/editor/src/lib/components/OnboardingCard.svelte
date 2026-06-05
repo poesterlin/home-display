@@ -240,11 +240,7 @@
   .onboarding-header {
     text-align: center;
     padding: 2.5rem 2.5rem 2rem;
-    background: linear-gradient(
-      180deg,
-      rgba(74, 158, 254, 0.06) 0%,
-      transparent 100%
-    );
+    background: rgba(74, 158, 254, 0.03);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
 

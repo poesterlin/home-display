@@ -5,18 +5,26 @@
 <div class="list-container">
   <div class="header">
     <h3>DETAIL VIEWS</h3>
-    <button class="add-btn" onclick={() => projectStore.addDetailView()}>+</button>
+    <button class="add-btn" onclick={() => projectStore.addDetailView()}
+      >+</button
+    >
   </div>
-  
+
   <div class="items">
     {#each projectStore.detailViews as view}
-      <div 
-        class="item" 
+      <div
+        class="item"
         class:active={projectStore.currentDetailViewId === view.id}
         onclick={() => projectStore.setDetailView(view.id)}
       >
         <span class="name">{view.title}</span>
-        <button class="delete-btn" onclick={(e) => { e.stopPropagation(); projectStore.deleteDetailView(view.id); }}>×</button>
+        <button
+          class="delete-btn"
+          onclick={(e) => {
+            e.stopPropagation();
+            projectStore.deleteDetailView(view.id);
+          }}>×</button
+        >
       </div>
     {/each}
     {#if projectStore.detailViews.length === 0}
@@ -45,11 +53,14 @@
     background: #4a9eff;
     border: none;
     color: white;
-    width: 20px;
+    width: 40px;
     height: 20px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .items {
     display: flex;

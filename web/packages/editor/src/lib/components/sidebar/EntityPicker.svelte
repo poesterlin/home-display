@@ -1,14 +1,40 @@
 <script lang="ts">
   import type { Component, EntityBinding } from "@esphome-designer/schema";
   import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
-  import type { Entity, Device } from "@esphome-designer/schema/homeassistant";
-  import { onMount } from "svelte";
-  import { assert } from "$lib/utils";
-
-  interface DeviceSelection {
-    deviceId: string;
-    deviceName: string;
-  }
+  import type { Entity } from "@esphome-designer/schema/homeassistant";
+  import {
+    mdiAccessPointOff,
+    mdiAccountOutline,
+    mdiArrowLeft,
+    mdiCameraOutline,
+    mdiCheckCircleOutline,
+    mdiChevronDown,
+    mdiChevronUp,
+    mdiClose,
+    mdiCubeOutline,
+    mdiFan,
+    mdiFormatListBulleted,
+    mdiGestureTapButton,
+    mdiImageOutline,
+    mdiLightbulbOutline,
+    mdiLockOutline,
+    mdiMagnify,
+    mdiMapMarker,
+    mdiMovieOpenOutline,
+    mdiNumeric,
+    mdiPowerPlug,
+    mdiRobot,
+    mdiRobotVacuum,
+    mdiScriptTextOutline,
+    mdiSpeaker,
+    mdiThermometer,
+    mdiToggleSwitchOffOutline,
+    mdiUpdate,
+    mdiWeatherPartlyCloudy,
+    mdiWhiteBalanceSunny,
+    mdiWindowShutter,
+    mdiChartBoxOutline,
+  } from "@mdi/js";
 
   type PickerComponent =
     | Component
@@ -25,17 +51,15 @@
   interface Props {
     component: PickerComponent;
     onUpdate?: (binding: EntityBinding | undefined) => void;
-    onDeviceSelect?: (device: DeviceSelection | undefined) => void;
     numericOnly?: boolean;
-    deviceOnly?: boolean;
+    preselectedDomain?: string;
   }
 
   let {
     component,
     onUpdate,
-    onDeviceSelect,
     numericOnly = false,
-    deviceOnly = false,
+    preselectedDomain = undefined,
   }: Props = $props();
 
   // Get current binding based on component type
@@ -66,14 +90,8 @@
   let inputEl = $state<HTMLInputElement | null>(null);
   let showAttributes = $state(false);
   let selectedEntity = $state<Entity | null>(null);
-  let selectedDevice = $state<Device | null>(null);
   let selectedDomain = $state<string | null>(null);
-  let selectedDeviceId = $state<string | null>(null);
-  let browseMode = $state<"type" | "device" | "area">("type");
-
-  $effect(() => {
-    browseMode = deviceOnly ? "device" : "type";
-  });
+  let selectedAreaFilter = $state("");
 
   $effect(() => {
     if (isModalOpen && inputEl) {
@@ -83,21 +101,7 @@
 
   // Sync state when binding changes
   $effect(() => {
-    if (deviceOnly) {
-      // For device mode, check if there's a device selection stored
-      const deviceId =
-        "targetDevice" in component
-          ? component.targetDevice?.deviceId
-          : undefined;
-      if (deviceId) {
-        const device = homeAssistantStore.getDeviceById(deviceId);
-        if (device) {
-          selectedDevice = device;
-        }
-      } else {
-        selectedDevice = null;
-      }
-    } else if (currentBinding?.entityId) {
+    if (currentBinding?.entityId) {
       const entity = homeAssistantStore.getEntity(currentBinding.entityId);
       if (entity) {
         selectedEntity = entity;
@@ -137,31 +141,31 @@
   };
 
   const domainIcons: Record<string, string> = {
-    sensor: "📊",
-    binary_sensor: "🔘",
-    switch: "🔌",
-    light: "💡",
-    climate: "🌡️",
-    cover: "🪟",
-    media_player: "🎵",
-    camera: "📷",
-    image: "🖼️",
-    vacuum: "🧹",
-    fan: "🌀",
-    lock: "🔒",
-    input_boolean: "✅",
-    input_number: "🔢",
-    input_select: "📋",
-    person: "👤",
-    weather: "⛅",
-    sun: "☀️",
-    automation: "⚙️",
-    script: "📜",
-    scene: "🎬",
-    button: "🔘",
-    update: "🔄",
-    number: "🔢",
-    select: "📋",
+    sensor: mdiChartBoxOutline,
+    binary_sensor: mdiToggleSwitchOffOutline,
+    switch: mdiPowerPlug,
+    light: mdiLightbulbOutline,
+    climate: mdiThermometer,
+    cover: mdiWindowShutter,
+    media_player: mdiSpeaker,
+    camera: mdiCameraOutline,
+    image: mdiImageOutline,
+    vacuum: mdiRobotVacuum,
+    fan: mdiFan,
+    lock: mdiLockOutline,
+    input_boolean: mdiCheckCircleOutline,
+    input_number: mdiNumeric,
+    input_select: mdiFormatListBulleted,
+    person: mdiAccountOutline,
+    weather: mdiWeatherPartlyCloudy,
+    sun: mdiWhiteBalanceSunny,
+    automation: mdiRobot,
+    script: mdiScriptTextOutline,
+    scene: mdiMovieOpenOutline,
+    button: mdiGestureTapButton,
+    update: mdiUpdate,
+    number: mdiNumeric,
+    select: mdiFormatListBulleted,
   };
 
   function getDomainLabel(domain: string): string {
@@ -172,7 +176,25 @@
   }
 
   function getDomainIcon(domain: string): string {
-    return domainIcons[domain] || "📦";
+    return domainIcons[domain] || mdiCubeOutline;
+  }
+
+  const uiIcons = {
+    empty: mdiAccessPointOff,
+    search: mdiMagnify,
+    location: mdiMapMarker,
+    emptyBrowse: mdiArrowLeft,
+    close: mdiClose,
+    chevronUp: mdiChevronUp,
+    chevronDown: mdiChevronDown,
+  };
+
+  function normalizeName(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[_\-]+/g, " ")
+      .replace(/\s+/g, " ");
   }
 
   // Get all entities (filtered by numericOnly if needed)
@@ -198,57 +220,19 @@
       .map(([domain, count]) => ({ domain, count }));
   });
 
-  // Available devices sorted by entity count (filtered for numeric entities if needed)
-  const availableDevices = $derived.by(() => {
-    if (!homeAssistantStore.isLoaded) return [];
-
-    if (numericOnly) {
-      // Count numeric entities per device
-      const deviceEntityCounts: Record<string, number> = {};
-      for (const entity of allFilteredEntities) {
-        if (entity.device_id) {
-          deviceEntityCounts[entity.device_id] =
-            (deviceEntityCounts[entity.device_id] || 0) + 1;
-        }
-      }
-      return homeAssistantStore.devices
-        .filter((d: Device) => deviceEntityCounts[d.id] > 0)
-        .map((d: Device) => ({
-          ...d,
-          entity_ids: Array(deviceEntityCounts[d.id]).fill(""),
-        }))
-        .sort(
-          (a: Device, b: Device) =>
-            (b.entity_ids?.length ?? 0) - (a.entity_ids?.length ?? 0),
-        );
-    }
-
-    return homeAssistantStore.devices
-      .filter((d: Device) => d.entity_ids && d.entity_ids.length > 0)
-      .sort(
-        (a: Device, b: Device) =>
-          (b.entity_ids?.length ?? 0) - (a.entity_ids?.length ?? 0),
-      );
+  const selectedDomainEntities = $derived.by(() => {
+    if (!homeAssistantStore.isLoaded || !selectedDomain) return [];
+    return applyNumericFilter(homeAssistantStore.getEntitiesByDomain(selectedDomain));
   });
 
-  // Available areas (filtered for numeric entities if needed)
-  const availableAreas = $derived.by(() => {
-    if (!homeAssistantStore.isLoaded) return [];
-
-    if (numericOnly) {
-      // Count numeric entities per area
-      const areaCounts: Record<string, number> = {};
-      for (const entity of allFilteredEntities) {
-        if (entity.area) {
-          areaCounts[entity.area] = (areaCounts[entity.area] || 0) + 1;
-        }
+  const availableAreasForSelectedDomain = $derived.by(() => {
+    const areas = new Set<string>();
+    for (const entity of selectedDomainEntities) {
+      if (entity.area) {
+        areas.add(entity.area);
       }
-      return homeAssistantStore.areasList
-        .filter((area) => areaCounts[area.name] > 0)
-        .map((area) => ({ ...area, entity_count: areaCounts[area.name] }));
     }
-
-    return homeAssistantStore.areasList;
+    return Array.from(areas).sort((a, b) => a.localeCompare(b));
   });
 
   // Check if a string looks like an ISO date
@@ -271,21 +255,60 @@
   const filteredEntities = $derived.by(() => {
     if (!homeAssistantStore.isLoaded) return [];
 
-    let entities: Entity[];
-
     if (searchQuery) {
-      entities = homeAssistantStore.searchEntities(searchQuery);
-    } else if (browseMode === "type" && selectedDomain) {
-      entities = homeAssistantStore.getEntitiesByDomain(selectedDomain);
-    } else if (browseMode === "device" && selectedDeviceId) {
-      entities = homeAssistantStore.getEntitiesByDevice(selectedDeviceId);
-    } else if (browseMode === "area" && selectedDomain) {
-      entities = homeAssistantStore.getEntitiesByArea(selectedDomain);
+      return applyNumericFilter(homeAssistantStore.searchEntities(searchQuery));
+    } else if (selectedDomain) {
+      if (selectedAreaFilter) {
+        return selectedDomainEntities.filter(
+          (entity) => entity.area === selectedAreaFilter,
+        );
+      }
+      return selectedDomainEntities;
     } else {
       return [];
     }
+  });
 
-    return applyNumericFilter(entities);
+  // Group search results by device
+  const searchResultGroups = $derived.by(() => {
+    if (!searchQuery) return [];
+
+    const groupMap: Map<
+      string,
+      { deviceName: string; area: string | undefined; entities: Entity[] }
+    > = new Map();
+
+    for (const entity of filteredEntities) {
+      const key = entity.device_id || entity.entity_id;
+      if (!groupMap.has(key)) {
+        const device = entity.device_id
+          ? homeAssistantStore.getDeviceById(entity.device_id)
+          : null;
+        groupMap.set(key, {
+          deviceName: device?.friendly_name || getDisplayName(entity),
+          area: entity.area,
+          entities: [],
+        });
+      }
+      groupMap.get(key)!.entities.push(entity);
+    }
+
+    return Array.from(groupMap.entries()).map(([key, group]) => {
+      const primaryEntity = group.entities.find(
+        (entity) =>
+          normalizeName(getDisplayName(entity)) ===
+          normalizeName(group.deviceName),
+      );
+      const entity = primaryEntity || group.entities[0];
+
+      return {
+        key,
+        ...group,
+        entity,
+        hasMultiple: group.entities.length > 1,
+        entityCount: group.entities.length,
+      };
+    });
   });
 
   // Get display name for entity
@@ -301,7 +324,13 @@
     if (entity.numeric_state !== undefined && entity.unit) {
       return `${entity.numeric_state}${entity.unit}`;
     }
-    if (isIsoDate(entity.state)) {
+    const normalizedState = entity.state.trim().toLowerCase();
+    if (
+      isIsoDate(entity.state) ||
+      normalizedState === "unknown" ||
+      normalizedState === "unavailable" ||
+      normalizedState === "unavaliable"
+    ) {
       return "";
     }
     return entity.state;
@@ -337,17 +366,6 @@
     });
   }
 
-  function selectDeviceItem(device: Device) {
-    selectedDevice = device;
-    isModalOpen = false;
-    resetFilters();
-
-    onDeviceSelect?.({
-      deviceId: device.id,
-      deviceName: device.friendly_name,
-    });
-  }
-
   function selectAttribute(attr: string | null) {
     if (!selectedEntity) return;
 
@@ -359,20 +377,16 @@
   }
 
   function clearSelection() {
-    if (deviceOnly) {
-      selectedDevice = null;
-      onDeviceSelect?.(undefined);
-    } else {
-      selectedEntity = null;
-      onUpdate?.(undefined);
-      showAttributes = false;
-    }
+    selectedEntity = null;
+    onUpdate?.(undefined);
+    showAttributes = false;
   }
 
   function openModal() {
     isModalOpen = true;
     searchQuery = "";
-    resetFilters();
+    selectedDomain = preselectedDomain ?? null;
+    selectedAreaFilter = "";
   }
 
   function closeModal() {
@@ -383,7 +397,7 @@
 
   function resetFilters() {
     selectedDomain = null;
-    selectedDeviceId = null;
+    selectedAreaFilter = "";
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -396,58 +410,27 @@
 <div class="entity-picker">
   {#if !homeAssistantStore.isLoaded}
     <div class="empty-state">
-      <span class="empty-icon">📡</span>
+      <svg class="icon empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d={uiIcons.empty}></path>
+      </svg>
       <span class="empty-text">No Home Assistant data loaded</span>
       <span class="empty-hint"
-        >Import your Home Assistant export to see available {deviceOnly
-          ? "devices"
-          : "entities"}</span
+        >Import your Home Assistant export to see available entities</span
       >
     </div>
-  {:else if deviceOnly}
-    <!-- Device Only Mode -->
-    {#if selectedDevice}
-      <div class="selected-entity">
-        <div class="selected-header">
-          <div class="selected-info">
-            <span class="selected-icon">🔧</span>
-            <div class="selected-details">
-              <span class="selected-name">{selectedDevice.friendly_name}</span>
-              <span class="selected-meta">
-                {#if selectedDevice.manufacturer}
-                  <span class="selected-manufacturer"
-                    >{selectedDevice.manufacturer}</span
-                  >
-                {/if}
-                {#if selectedDevice.area_name}
-                  <span class="selected-area"
-                    >📍 {selectedDevice.area_name}</span
-                  >
-                {/if}
-              </span>
-            </div>
-          </div>
-          <button class="clear-btn" onclick={clearSelection} title="Remove"
-            >✕</button
-          >
-        </div>
-        <button class="change-btn" onclick={openModal}> Change device </button>
-      </div>
-    {:else}
-      <button class="select-btn" onclick={openModal}>
-        <span class="select-icon">🔧</span>
-        <span>Select a device...</span>
-      </button>
-    {/if}
   {:else}
     <!-- Entity Mode -->
     {#if selectedEntity}
       <div class="selected-entity">
         <div class="selected-header">
           <div class="selected-info">
-            <span class="selected-icon"
-              >{getDomainIcon(selectedEntity.domain)}</span
+            <svg
+              class="icon selected-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
             >
+              <path d={getDomainIcon(selectedEntity.domain)}></path>
+            </svg>
             <div class="selected-details">
               <span class="selected-name">{getDisplayName(selectedEntity)}</span
               >
@@ -458,14 +441,29 @@
                   >
                 {/if}
                 {#if selectedEntity.area}
-                  <span class="selected-area">📍 {selectedEntity.area}</span>
+                  <span class="selected-area">
+                    <svg
+                      class="icon inline-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d={uiIcons.location}></path>
+                    </svg>
+                    {selectedEntity.area}
+                  </span>
                 {/if}
               </span>
             </div>
           </div>
-          <button class="clear-btn" onclick={clearSelection} title="Remove"
-            >✕</button
-          >
+          <button class="clear-btn" onclick={clearSelection} title="Remove">
+            <svg
+              class="icon button-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d={uiIcons.close}></path>
+            </svg>
+          </button>
         </div>
 
         <!-- Attribute Selection -->
@@ -481,7 +479,17 @@
                 Showing: <strong>state</strong>
               {/if}
             </span>
-            <span class="toggle-arrow">{showAttributes ? "▲" : "▼"}</span>
+            <span class="toggle-arrow">
+              <svg
+                class="icon inline-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d={showAttributes ? uiIcons.chevronUp : uiIcons.chevronDown}
+                ></path>
+              </svg>
+            </span>
           </button>
 
           {#if showAttributes}
@@ -513,7 +521,9 @@
       </div>
     {:else}
       <button class="select-btn" onclick={openModal}>
-        <span class="select-icon">🔍</span>
+        <svg class="icon select-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d={uiIcons.search}></path>
+        </svg>
         <span>Select an entity...</span>
       </button>
     {/if}
@@ -532,107 +542,84 @@
   >
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
-        <h2>{deviceOnly ? "Select Device" : "Select Entity"}</h2>
-        <button class="modal-close" onclick={closeModal}>✕</button>
+        <h2>Select Entity</h2>
+        <button class="modal-close" onclick={closeModal}>
+          <svg class="icon button-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d={uiIcons.close}></path>
+          </svg>
+        </button>
       </div>
 
       <div class="modal-search">
-        <span class="search-icon">🔍</span>
+        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d={uiIcons.search}></path>
+        </svg>
         <input
           type="text"
-          placeholder={deviceOnly ? "Search devices..." : "Search entities..."}
+          placeholder="Search entities..."
           bind:value={searchQuery}
           autofocus
           bind:this={inputEl}
         />
         {#if searchQuery}
-          <button class="search-clear" onclick={() => (searchQuery = "")}
-            >✕</button
+          <button
+            class="search-clear"
+            onclick={() => {
+              searchQuery = "";
+            }}
           >
+            <svg
+              class="icon button-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d={uiIcons.close}></path>
+            </svg>
+          </button>
         {/if}
       </div>
 
       <div class="modal-body">
-        {#if deviceOnly}
-          <!-- Device Only Mode -->
-          {@const filteredDevices = searchQuery
-            ? availableDevices.filter(
-                (d: Device) =>
-                  d.friendly_name
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ||
-                  d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  d.manufacturer
-                    ?.toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ||
-                  d.model?.toLowerCase().includes(searchQuery.toLowerCase()),
-              )
-            : availableDevices}
-          <div class="results-panel">
-            <div class="panel-header">
-              <span>{searchQuery ? "Search Results" : "All Devices"}</span>
-              <span class="result-count">{filteredDevices.length} devices</span>
-            </div>
-            <div class="entity-grid">
-              {#each filteredDevices as device}
-                <button
-                  class="entity-card"
-                  onclick={() => selectDeviceItem(device)}
-                >
-                  <span class="entity-icon">🔧</span>
-                  <div class="entity-info">
-                    <span class="entity-name">{device.friendly_name}</span>
-                    <span class="entity-meta">
-                      {#if device.manufacturer}
-                        <span class="entity-manufacturer"
-                          >{device.manufacturer}{device.model
-                            ? ` ${device.model}`
-                            : ""}</span
-                        >
-                      {/if}
-                      {#if device.area_name}
-                        <span class="entity-area">{device.area_name}</span>
-                      {/if}
-                    </span>
-                  </div>
-                </button>
-              {/each}
-              {#if filteredDevices.length === 0}
-                <div class="no-results">No devices found</div>
-              {/if}
-            </div>
-          </div>
-        {:else if searchQuery}
-          <!-- Search Results -->
+        {#if searchQuery}
+          <!-- Search Results (Grouped by Device) -->
           <div class="results-panel">
             <div class="panel-header">
               <span>Search Results</span>
               <span class="result-count">{filteredEntities.length} found</span>
             </div>
             <div class="entity-grid">
-              {#each filteredEntities as entity}
+              {#each searchResultGroups as group}
                 <button
-                  class="entity-card"
-                  onclick={() => selectEntity(entity)}
+                  class="entity-card {group.hasMultiple
+                    ? 'primary-entity'
+                    : ''}"
+                  onclick={() => selectEntity(group.entity)}
                 >
-                  <span class="entity-icon">{getDomainIcon(entity.domain)}</span
+                  <svg
+                    class="icon entity-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
+                    <path d={getDomainIcon(group.entity.domain)}></path>
+                  </svg>
                   <div class="entity-info">
-                    <span class="entity-name">{getDisplayName(entity)}</span>
+                    <span class="entity-name"
+                      >{getDisplayName(group.entity)}</span
+                    >
                     <span class="entity-meta">
-                      {#if entity.area}
-                        <span class="entity-area">{entity.area}</span>
+                      {#if group.area}
+                        <span class="entity-area">{group.area}</span>
                       {/if}
-                      {#if getStateDisplay(entity)}
+                      {#if getStateDisplay(group.entity)}
                         <span class="entity-state"
-                          >{getStateDisplay(entity)}</span
+                          >{getStateDisplay(group.entity)}</span
                         >
                       {/if}
                     </span>
                   </div>
                 </button>
               {/each}
-              {#if filteredEntities.length === 0}
+              {#if searchResultGroups.length === 0}
                 <div class="no-results">No entities match your search</div>
               {/if}
             </div>
@@ -642,91 +629,28 @@
           <div class="browse-layout">
             <!-- Sidebar -->
             <div class="browse-sidebar">
-              <div class="browse-tabs">
-                <button
-                  class="browse-tab {browseMode === 'type' ? 'active' : ''}"
-                  onclick={() => {
-                    browseMode = "type";
-                    resetFilters();
-                  }}
-                >
-                  📦 Type
-                </button>
-                <button
-                  class="browse-tab {browseMode === 'device' ? 'active' : ''}"
-                  onclick={() => {
-                    browseMode = "device";
-                    resetFilters();
-                  }}
-                >
-                  🔧 Device
-                </button>
-                <button
-                  class="browse-tab {browseMode === 'area' ? 'active' : ''}"
-                  onclick={() => {
-                    browseMode = "area";
-                    resetFilters();
-                  }}
-                >
-                  🏠 Room
-                </button>
-              </div>
-
               <div class="filter-list">
-                {#if browseMode === "type"}
-                  {#each availableDomains as { domain, count }}
-                    <button
-                      class="filter-item {selectedDomain === domain
-                        ? 'active'
-                        : ''}"
-                      onclick={() => (selectedDomain = domain)}
+                {#each availableDomains as { domain, count }}
+                  <button
+                    class="filter-item {selectedDomain === domain
+                      ? 'active'
+                      : ''}"
+                    onclick={() => {
+                      selectedDomain = domain;
+                      selectedAreaFilter = "";
+                    }}
+                  >
+                    <svg
+                      class="icon filter-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
-                      <span class="filter-icon">{getDomainIcon(domain)}</span>
-                      <span class="filter-name">{getDomainLabel(domain)}</span>
-                      <span class="filter-count">{count}</span>
-                    </button>
-                  {/each}
-                {:else if browseMode === "device"}
-                  {#each availableDevices as device}
-                    <button
-                      class="filter-item {selectedDeviceId === device.id
-                        ? 'active'
-                        : ''}"
-                      onclick={() => (selectedDeviceId = device.id)}
-                      title={device.manufacturer
-                        ? `${device.manufacturer} ${device.model || ""}`
-                        : ""}
-                    >
-                      <span class="filter-icon">🔧</span>
-                      <div class="filter-details">
-                        <span class="filter-name">{device.friendly_name}</span>
-                        {#if device.manufacturer}
-                          <span class="filter-subtitle"
-                            >{device.manufacturer}</span
-                          >
-                        {/if}
-                      </div>
-                      <span class="filter-count"
-                        >{device.entity_ids?.length ?? 0}</span
-                      >
-                    </button>
-                  {/each}
-                {:else if browseMode === "area"}
-                  {#each availableAreas as area}
-                    <button
-                      class="filter-item {selectedDomain === area.name
-                        ? 'active'
-                        : ''}"
-                      onclick={() => (selectedDomain = area.name)}
-                    >
-                      <span class="filter-icon">{area.icon || "🏠"}</span>
-                      <span class="filter-name">{area.name}</span>
-                      {#if area.entity_count}
-                        <span class="filter-count">{area.entity_count}</span>
-                      {/if}
-                    </button>
-                  {/each}
-                {/if}
+                      <path d={getDomainIcon(domain)}></path>
+                    </svg>
+                    <span class="filter-name">{getDomainLabel(domain)}</span>
+                    <span class="filter-count">{count}</span>
+                  </button>
+                {/each}
               </div>
             </div>
 
@@ -734,21 +658,34 @@
             <div class="browse-content">
               {#if filteredEntities.length > 0}
                 <div class="panel-header">
-                  <span>
-                    {#if browseMode === "type" && selectedDomain}
-                      {getDomainIcon(selectedDomain)}
+                  <span class="icon-label-group">
+                    {#if selectedDomain}
+                      <svg
+                        class="icon inline-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d={getDomainIcon(selectedDomain)}></path>
+                      </svg>
                       {getDomainLabel(selectedDomain)}
-                    {:else if browseMode === "device" && selectedDeviceId}
-                      {availableDevices.find(
-                        (d: Device) => d.id === selectedDeviceId,
-                      )?.friendly_name}
-                    {:else if browseMode === "area" && selectedDomain}
-                      🏠 {selectedDomain}
                     {/if}
                   </span>
-                  <span class="result-count"
-                    >{filteredEntities.length} entities</span
-                  >
+                  <div class="panel-controls">
+                    <label class="room-filter">
+                      <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d={uiIcons.location}></path>
+                      </svg>
+                      <select bind:value={selectedAreaFilter}>
+                        <option value="">All rooms</option>
+                        {#each availableAreasForSelectedDomain as area}
+                          <option value={area}>{area}</option>
+                        {/each}
+                      </select>
+                    </label>
+                    <span class="result-count"
+                      >{filteredEntities.length} entities</span
+                    >
+                  </div>
                 </div>
                 <div class="entity-grid">
                   {#each filteredEntities as entity}
@@ -756,14 +693,18 @@
                       class="entity-card"
                       onclick={() => selectEntity(entity)}
                     >
-                      <span class="entity-icon"
-                        >{getDomainIcon(entity.domain)}</span
+                      <svg
+                        class="icon entity-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
                       >
+                        <path d={getDomainIcon(entity.domain)}></path>
+                      </svg>
                       <div class="entity-info">
                         <span class="entity-name">{getDisplayName(entity)}</span
                         >
                         <span class="entity-meta">
-                          {#if browseMode !== "area" && entity.area}
+                          {#if entity.area}
                             <span class="entity-area">{entity.area}</span>
                           {/if}
                           {#if getStateDisplay(entity)}
@@ -778,9 +719,15 @@
                 </div>
               {:else}
                 <div class="browse-empty">
-                  <span class="browse-empty-icon">👈</span>
+                  <svg
+                    class="icon browse-empty-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d={uiIcons.emptyBrowse}></path>
+                  </svg>
                   <span class="browse-empty-text"
-                    >Select a category to browse entities</span
+                    >Select a type to browse entities</span
                   >
                 </div>
               {/if}
@@ -793,6 +740,22 @@
 {/if}
 
 <style>
+  .icon {
+    display: block;
+    fill: currentColor;
+  }
+
+  .inline-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .button-icon {
+    width: 14px;
+    height: 14px;
+  }
+
   .entity-picker {
     font-size: 13px;
   }
@@ -811,7 +774,9 @@
   }
 
   .empty-icon {
-    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-muted);
     opacity: 0.6;
   }
 
@@ -847,7 +812,8 @@
   }
 
   .select-icon {
-    font-size: 16px;
+    width: 16px;
+    height: 16px;
   }
 
   /* Selected Entity */
@@ -876,8 +842,10 @@
   }
 
   .selected-icon {
-    font-size: 24px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
+    color: var(--color-text-secondary);
   }
 
   .selected-details {
@@ -908,6 +876,9 @@
   }
 
   .selected-area {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     color: var(--color-text-muted);
   }
 
@@ -961,7 +932,8 @@
   }
 
   .toggle-arrow {
-    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
     color: var(--color-text-muted);
   }
 
@@ -1094,7 +1066,9 @@
   .modal-search .search-icon {
     position: absolute;
     left: 32px;
-    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    color: var(--color-text-muted);
     pointer-events: none;
   }
 
@@ -1155,35 +1129,6 @@
     flex-shrink: 0;
   }
 
-  .browse-tabs {
-    display: flex;
-    padding: 8px;
-    gap: 4px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .browse-tab {
-    flex: 1;
-    padding: 8px 4px;
-    font-size: 11px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    transition: all 0.15s;
-  }
-
-  .browse-tab:hover {
-    background: var(--color-hover);
-    color: var(--color-text-primary);
-  }
-
-  .browse-tab.active {
-    background: var(--color-primary, #0066cc);
-    color: white;
-  }
-
   .filter-list {
     flex: 1;
     overflow-y: auto;
@@ -1216,15 +1161,9 @@
   }
 
   .filter-icon {
-    font-size: 16px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-  }
-
-  .filter-details {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   .filter-name {
@@ -1233,11 +1172,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .filter-subtitle {
-    font-size: 10px;
-    opacity: 0.7;
   }
 
   .filter-count {
@@ -1270,7 +1204,8 @@
   }
 
   .browse-empty-icon {
-    font-size: 32px;
+    width: 32px;
+    height: 32px;
     opacity: 0.5;
   }
 
@@ -1301,10 +1236,45 @@
     z-index: 1;
   }
 
+  .icon-label-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .result-count {
     font-size: 11px;
     font-weight: normal;
     color: var(--color-text-muted);
+  }
+
+  .panel-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .room-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-muted);
+    font-size: 11px;
+  }
+
+  .room-filter select {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    padding: 4px 8px;
+    min-width: 110px;
+    outline: none;
+  }
+
+  .room-filter select:focus {
+    border-color: var(--color-primary, #0066cc);
   }
 
   .entity-grid {
@@ -1332,9 +1302,25 @@
     background: var(--color-hover);
   }
 
+  .entity-count {
+    color: var(--color-primary, #0066cc);
+    font-weight: 500;
+  }
+
+  .primary-entity {
+    border-color: var(--color-primary, #0066cc);
+    background: var(--color-hover);
+    box-shadow:
+      -2px 0 0 0 var(--color-primary, #0066cc),
+      0 0 0 1px var(--color-primary, #0066cc);
+    opacity: 1;
+  }
+
   .entity-icon {
-    font-size: 20px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
+    color: var(--color-text-secondary);
   }
 
   .entity-info {
@@ -1359,21 +1345,16 @@
     gap: 8px;
     font-size: 10px;
     flex-wrap: wrap;
+    min-height: 1.2em;
   }
 
   .entity-area {
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
   }
 
   .entity-state {
-    color: var(--color-accent, #4ec9b0);
-    font-weight: 500;
-  }
-
-  .entity-manufacturer,
-  .selected-manufacturer {
     color: var(--color-text-muted);
-    font-style: italic;
+    font-weight: 400;
   }
 
   .no-results {

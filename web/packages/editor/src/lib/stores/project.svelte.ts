@@ -1,17 +1,17 @@
+import { browser } from "$app/environment";
+import { toUpperSnakeCase } from "$lib/utils";
 import type {
-  Project,
-  Page,
-  DetailView,
   Component,
+  DetailView,
   DisplayConfig,
-  Theme,
+  Page,
   PageHeader,
+  Project,
+  Theme,
 } from "@esphome-designer/schema";
 import { RETRO_THEME } from "../themes/retro";
-import { assert, toUpperSnakeCase } from "$lib/utils";
-import { selectionStore } from "./selection.svelte";
 import { conditionalEditorStore } from "./conditional-editor.svelte";
-import { browser } from "$app/environment";
+import { selectionStore } from "./selection.svelte";
 
 const LATEST_VERSION = "1.0.0";
 const PROJECTS_INDEX_KEY = "esphome-designer-projects-index";
@@ -46,7 +46,6 @@ function createProjectStore() {
   // Core project state
   let project = $state<Project | null>(null);
   let serverProjectId = $state<string | null>(null);
-  let firmwareToken = $state<string | null>(null);
 
   // Current view tracking
   let currentDashboardPageId = $state<string | null>(null);
@@ -141,7 +140,6 @@ function createProjectStore() {
     },
 
     get serverProjectId() { return serverProjectId; },
-    get firmwareToken() { return firmwareToken; },
     get saving() { return saving; },
 
     // Navigation
@@ -291,12 +289,6 @@ function createProjectStore() {
         height,
         components: [defaultTimeComponent],
       };
-      scheduleSave();
-    },
-
-    disablePageHeader() {
-      if (!project) return;
-      delete project.pageHeader;
       scheduleSave();
     },
 
@@ -884,8 +876,8 @@ function createProjectStore() {
 
     async createNewProject(name: string, config?: ProjectConfig): Promise<Project> {
       const display = {
-        width: config?.display?.width ?? 240,
-        height: config?.display?.height ?? 320,
+        width: config?.display?.width ?? 480,
+        height: config?.display?.height ?? 480,
       } as DisplayConfig;
 
       const newProject: Project = {
@@ -903,28 +895,29 @@ function createProjectStore() {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, data: newProject }),
+        body: JSON.stringify({ id: newProject.id, name, data: newProject }),
       });
       const saved = await res.json();
 
       project = newProject;
       this.enablePageHeader();
       serverProjectId = saved.id;
-      firmwareToken = saved.firmwareToken;
       currentDashboardPageId = newProject.dashboardPages[0].id;
       currentDetailViewId = null;
       viewMode = "dashboard";
       return newProject;
     },
 
-    loadFromServer(serverProject: { id: string; name: string; data: any; firmwareToken: string }) {
+    loadFromServer(serverProject: { id: string; name: string; data: any }) {
       const parsed = serverProject.data as Project;
       project = parsed;
       serverProjectId = serverProject.id;
-      firmwareToken = serverProject.firmwareToken;
       currentDashboardPageId = parsed.dashboardPages[0]?.id ?? "";
       currentDetailViewId = null;
       viewMode = "dashboard";
+      if (!project.pageHeader) {
+        this.enablePageHeader();
+      }
     },
 
     // Keep for backward compatibility during migration
@@ -951,7 +944,6 @@ function createProjectStore() {
       if (serverProjectId === id) {
         project = null;
         serverProjectId = null;
-        firmwareToken = null;
       }
     },
 

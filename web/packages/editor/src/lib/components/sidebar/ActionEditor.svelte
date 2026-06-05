@@ -1,8 +1,14 @@
 <script lang="ts">
-  import type { ActionBinding, ServiceAction, NavigationAction } from "@esphome-designer/schema";
+  import type {
+    ActionBinding,
+    ServiceAction,
+    NavigationAction,
+  } from "@esphome-designer/schema";
   import { projectStore } from "$lib/stores/project.svelte";
-  import { SERVICE_PRESETS, getServicesByDomain, DOMAIN_LABELS } from "$lib/data/service-presets";
+  import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
+  import { SERVICE_PRESETS } from "$lib/data/service-presets";
   import EntityPicker from "./EntityPicker.svelte";
+  import ServicePicker from "./ServicePicker.svelte";
 
   type ActionType = "none" | "navigation" | "service";
 
@@ -14,46 +20,60 @@
 
   let { action, onUpdate, label = "Action" }: Props = $props();
 
-  // Derive the current action type
   const actionType = $derived.by<ActionType>(() => {
     if (!action) return "none";
     if (action.type === "SERVICE_CALL") return "service";
     return "navigation";
   });
 
-  // For navigation actions
   const navType = $derived(
-    action && action.type !== "SERVICE_CALL" ? action.type : "OPEN_DETAIL"
+    action && action.type !== "SERVICE_CALL" ? action.type : "OPEN_DETAIL",
   );
   const navTargetId = $derived(
-    action && action.type !== "SERVICE_CALL" ? (action as NavigationAction).targetId : ""
+    action && action.type !== "SERVICE_CALL"
+      ? (action as NavigationAction).targetId
+      : "",
   );
 
-  // For service actions
   const serviceAction = $derived(
-    action?.type === "SERVICE_CALL" ? (action as ServiceAction) : null
+    action?.type === "SERVICE_CALL" ? (action as ServiceAction) : null,
   );
   const serviceName = $derived(serviceAction?.service ?? "");
   const serviceTargetEntity = $derived(serviceAction?.target?.entityId ?? "");
 
-  // Track whether the user is editing a custom action ID. This is UI-only state;
-  // we never persist the "__custom__" sentinel into the model.
   let customMode = $state(false);
+  let showServicePicker = $state(false);
 
-  // If the persisted service is non-empty and not a known preset, we're effectively
-  // already in custom mode (e.g. when loading an existing custom action).
+  const serviceKeySet = $derived.by(() => {
+    const keys = new Set<string>();
+    const dumpServices = homeAssistantStore.services;
+    if (Object.keys(dumpServices).length > 0) {
+      for (const [domain, domainServices] of Object.entries(dumpServices)) {
+        if (!domainServices) continue;
+        for (const svcName of Object.keys(domainServices)) {
+          keys.add(`${domain}.${svcName}`);
+        }
+      }
+    } else {
+      for (const service of Object.keys(SERVICE_PRESETS)) {
+        keys.add(service);
+      }
+    }
+    return keys;
+  });
+
   const isCustom = $derived(
-    customMode || (!!serviceName && !SERVICE_PRESETS[serviceName])
+    customMode || (!!serviceName && !serviceKeySet.has(serviceName)),
   );
 
-  // Value shown in the service <select>: use the sentinel when in custom mode so
-  // the "Enter Custom Action..." option stays selected.
-  const serviceSelectValue = $derived(isCustom ? "__custom__" : serviceName);
+  const displayName = $derived.by(() => {
+    if (!serviceName) return "Select Action";
+    return serviceName;
+  });
 
-  // Build a clean service action, only including optional fields when populated
   function buildServiceAction(
     service: string,
-    target?: { entityId?: string }
+    target?: { entityId?: string },
   ): ServiceAction {
     const action: ServiceAction = { type: "SERVICE_CALL", service };
     if (target?.entityId) {
@@ -82,27 +102,27 @@
   }
 
   function handleServiceChange(service: string) {
-    const target = serviceTargetEntity ? { entityId: serviceTargetEntity } : undefined;
+    const target = serviceTargetEntity
+      ? { entityId: serviceTargetEntity }
+      : undefined;
     onUpdate(buildServiceAction(service, target));
   }
 
-  function handleServiceSelect(value: string) {
-    if (value === "__custom__") {
+  function handleServicePickerSelect(service: string) {
+    if (service === "") {
       customMode = true;
-      // Clear any previously selected preset so the custom input starts empty.
       handleServiceChange("");
     } else {
       customMode = false;
-      handleServiceChange(value);
+      handleServiceChange(service);
     }
   }
 
   function handleEntityTargetChange(entityId: string | undefined) {
-    onUpdate(buildServiceAction(serviceName, entityId ? { entityId } : undefined));
+    onUpdate(
+      buildServiceAction(serviceName, entityId ? { entityId } : undefined),
+    );
   }
-
-  // Get services grouped by domain
-  const groupedServices = $derived(getServicesByDomain());
 </script>
 
 <div class="action-editor">
@@ -110,7 +130,8 @@
     <span class="field-label">{label}</span>
     <select
       value={actionType}
-      onchange={(e) => handleActionTypeChange(e.currentTarget.value as ActionType)}
+      onchange={(e) =>
+        handleActionTypeChange(e.currentTarget.value as ActionType)}
     >
       <option value="none">None</option>
       <option value="navigation">Navigation</option>
@@ -140,7 +161,7 @@
           onchange={(e) => handleNavTargetChange(e.currentTarget.value)}
         >
           <option value="" disabled>Select Detail View</option>
-          {#each projectStore.detailViews as view}
+          {#each projectStore.detailViews as view (view.id)}
             <option value={view.id}>{view.title}</option>
           {/each}
         </select>
@@ -151,25 +172,16 @@
   {#if actionType === "service"}
     <div class="field">
       <span class="field-label">Action</span>
-      <select
-        value={serviceSelectValue}
-        onchange={(e) => handleServiceSelect(e.currentTarget.value)}
+      <button
+        class="service-pick-btn"
+        class:has-value={!!serviceName}
+        onclick={() => (showServicePicker = true)}
       >
-        <option value="">Select Action</option>
-        {#each [...groupedServices.entries()] as [domain, services]}
-          <optgroup label={DOMAIN_LABELS[domain] ?? domain}>
-            {#each services as { service, preset }}
-              <option value={service}>{preset.label}</option>
-            {/each}
-          </optgroup>
-        {/each}
-        <optgroup label="Custom">
-          <option value="__custom__">Enter Custom Action...</option>
-        </optgroup>
-      </select>
+        {displayName}
+      </button>
     </div>
 
-    {#if isCustom}
+    <!-- {#if isCustom}
       <div class="field">
         <span class="field-label">Action ID</span>
         <input
@@ -179,29 +191,29 @@
           oninput={(e) => handleServiceChange(e.currentTarget.value)}
         />
       </div>
-    {/if}
+    {/if} -->
 
     <div class="target-section">
       <span class="field-label">Target</span>
       <EntityPicker
         component={{
           type: "light_state",
-          stateBinding: serviceTargetEntity ? { entityId: serviceTargetEntity } : undefined,
+          stateBinding: serviceTargetEntity
+            ? { entityId: serviceTargetEntity }
+            : undefined,
         }}
         onUpdate={(binding) => handleEntityTargetChange(binding?.entityId)}
       />
     </div>
-
-    {#if serviceName && serviceTargetEntity}
-      <div class="preview">
-        <span class="preview-title">Preview:</span>
-        <code class="preview-service">{serviceName}</code>
-        <span class="preview-arrow">→</span>
-        <code class="preview-target">{serviceTargetEntity}</code>
-      </div>
-    {/if}
   {/if}
 </div>
+
+{#if showServicePicker}
+  <ServicePicker
+    onSelect={handleServicePickerSelect}
+    onClose={() => (showServicePicker = false)}
+  />
+{/if}
 
 <style>
   .action-editor {
@@ -228,6 +240,31 @@
     min-width: 0;
   }
 
+  .service-pick-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 12px;
+    text-align: left;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-input-bg, #1e1e1e);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: border-color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .service-pick-btn:hover {
+    border-color: var(--color-primary, #0066cc);
+    color: var(--color-text-secondary);
+  }
+
+  .service-pick-btn.has-value {
+    color: var(--color-text-primary);
+  }
+
   .target-section {
     display: flex;
     flex-direction: column;
@@ -239,33 +276,5 @@
     text-transform: uppercase;
     font-weight: 600;
     color: var(--color-text-muted);
-  }
-
-  .preview {
-    font-size: 11px;
-    color: var(--color-text-muted);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: var(--color-bg-primary);
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
-  .preview-title {
-    font-weight: 500;
-  }
-
-  .preview-service {
-    color: var(--color-accent);
-  }
-
-  .preview-arrow {
-    color: var(--color-text-muted);
-  }
-
-  .preview-target {
-    color: var(--color-success, #27ae60);
   }
 </style>

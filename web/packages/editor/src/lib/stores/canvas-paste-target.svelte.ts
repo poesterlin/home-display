@@ -1,6 +1,5 @@
 export type CanvasPasteTarget =
   | { scope: "root" }
-  | { scope: "header" }
   | { scope: "tab"; parentId: string; tabId: string }
   | { scope: "variant"; parentId: string; variantId: string };
 

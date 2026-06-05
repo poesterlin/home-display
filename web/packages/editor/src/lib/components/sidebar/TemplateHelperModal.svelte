@@ -1,7 +1,38 @@
 <script lang="ts">
   import { homeAssistantStore } from "$lib/stores/homeassistant.svelte";
-    import type { EntityBinding } from "@esphome-designer/schema";
-  import type { Entity, Device } from "@esphome-designer/schema/homeassistant";
+  import type { EntityBinding } from "@esphome-designer/schema";
+  import type { Entity } from "@esphome-designer/schema/homeassistant";
+  import {
+    mdiAccountOutline,
+    mdiCameraOutline,
+    mdiCheckCircleOutline,
+    mdiChevronDown,
+    mdiChevronUp,
+    mdiClose,
+    mdiCubeOutline,
+    mdiFan,
+    mdiFormatListBulleted,
+    mdiGestureTapButton,
+    mdiImageOutline,
+    mdiLightbulbOutline,
+    mdiLockOutline,
+    mdiMagnify,
+    mdiMapMarker,
+    mdiMovieOpenOutline,
+    mdiNumeric,
+    mdiPowerPlug,
+    mdiRobot,
+    mdiRobotVacuum,
+    mdiScriptTextOutline,
+    mdiSpeaker,
+    mdiThermometer,
+    mdiToggleSwitchOffOutline,
+    mdiUpdate,
+    mdiWeatherPartlyCloudy,
+    mdiWhiteBalanceSunny,
+    mdiWindowShutter,
+    mdiChartBoxOutline,
+  } from "@mdi/js";
 
   interface Props {
     onInsert: (binding: { entityId: string; attribute?: string }) => void;
@@ -17,8 +48,7 @@
   let selectedAttribute = $state<string>("state");
   let showAttributes = $state(false);
   let selectedDomain = $state<string | null>(null);
-  let selectedDeviceId = $state<string | null>(null);
-  let browseMode = $state<"type" | "device" | "area">("type");
+  let selectedAreaFilter = $state("");
 
   $effect(() => {
     if (initialBinding && !selectedEntity) {
@@ -26,7 +56,6 @@
       if (entity) {
         selectedEntity = entity;
         selectedAttribute = initialBinding.attribute || "state";
-        browseMode = "type";
         selectedDomain = entity.domain;
       }
     }
@@ -60,30 +89,39 @@
   };
 
   const domainIcons: Record<string, string> = {
-    sensor: "📊",
-    binary_sensor: "🔘",
-    switch: "🔌",
-    light: "💡",
-    climate: "🌡️",
-    cover: "🪟",
-    media_player: "🎵",
-    camera: "📷",
-    vacuum: "🧹",
-    fan: "🌀",
-    lock: "🔒",
-    input_boolean: "✅",
-    input_number: "🔢",
-    input_select: "📋",
-    person: "👤",
-    weather: "⛅",
-    sun: "☀️",
-    automation: "⚙️",
-    script: "📜",
-    scene: "🎬",
-    button: "🔘",
-    update: "🔄",
-    number: "🔢",
-    select: "📋",
+    sensor: mdiChartBoxOutline,
+    binary_sensor: mdiToggleSwitchOffOutline,
+    switch: mdiPowerPlug,
+    light: mdiLightbulbOutline,
+    climate: mdiThermometer,
+    cover: mdiWindowShutter,
+    media_player: mdiSpeaker,
+    camera: mdiCameraOutline,
+    vacuum: mdiRobotVacuum,
+    fan: mdiFan,
+    lock: mdiLockOutline,
+    input_boolean: mdiCheckCircleOutline,
+    input_number: mdiNumeric,
+    input_select: mdiFormatListBulleted,
+    person: mdiAccountOutline,
+    weather: mdiWeatherPartlyCloudy,
+    sun: mdiWhiteBalanceSunny,
+    automation: mdiRobot,
+    script: mdiScriptTextOutline,
+    scene: mdiMovieOpenOutline,
+    button: mdiGestureTapButton,
+    update: mdiUpdate,
+    number: mdiNumeric,
+    select: mdiFormatListBulleted,
+  };
+
+  const uiIcons = {
+    close: mdiClose,
+    search: mdiMagnify,
+    location: mdiMapMarker,
+    chevronUp: mdiChevronUp,
+    chevronDown: mdiChevronDown,
+    emptyBrowse: mdiImageOutline,
   };
 
   const commonAttributes: Record<string, string[]> = {
@@ -104,7 +142,15 @@
   }
 
   function getDomainIcon(domain: string): string {
-    return domainIcons[domain] || "📦";
+    return domainIcons[domain] || mdiCubeOutline;
+  }
+
+  function normalizeName(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[_\-]+/g, " ")
+      .replace(/\s+/g, " ");
   }
 
   function isIsoDate(str: string): boolean {
@@ -117,9 +163,26 @@
   }
 
   function getStateDisplay(entity: Entity): string {
-    if (entity.numeric_state !== undefined && entity.unit) return `${entity.numeric_state}${entity.unit}`;
-    if (isIsoDate(entity.state)) return "";
+    if (entity.numeric_state !== undefined) return `${entity.numeric_state}`;
+    const normalizedState = entity.state.trim().toLowerCase();
+    if (
+      isIsoDate(entity.state) ||
+      normalizedState === "unknown" ||
+      normalizedState === "unavailable" ||
+      normalizedState === "unavaliable"
+    ) return "";
     return entity.state;
+  }
+
+  function truncateNumericValue(value: string, maxDecimals = 1): string {
+    const match = value.match(/^(-?\d+)\.(\d+)(.*)$/);
+    if (!match) return value;
+    const [, integerPart, decimals, suffix] = match;
+    const truncated = decimals.slice(0, maxDecimals);
+    if (truncated.length === 0 || /^0+$/.test(truncated)) {
+      return `${integerPart}${suffix}`;
+    }
+    return `${integerPart}.${truncated}${suffix}`;
   }
 
   function getEntityAttributes(entity: Entity): string[] {
@@ -144,25 +207,68 @@
       .map(([domain, count]) => ({ domain, count }));
   });
 
-  const availableDevices = $derived(
-    homeAssistantStore.devices
-      .filter((d: Device) => d.entity_ids && d.entity_ids.length > 0)
-      .sort((a: Device, b: Device) => (b.entity_ids?.length ?? 0) - (a.entity_ids?.length ?? 0)),
-  );
-
-  const availableAreas = $derived(homeAssistantStore.areasList);
+  const availableTypeAreas = $derived.by(() => {
+    if (!selectedDomain) return [];
+    const areas = new Set<string>();
+    for (const entity of homeAssistantStore.getEntitiesByDomain(selectedDomain)) {
+      if (entity.area) areas.add(entity.area);
+    }
+    return Array.from(areas).sort((a, b) => a.localeCompare(b));
+  });
 
   const filteredEntities = $derived.by(() => {
     if (searchQuery) return homeAssistantStore.searchEntities(searchQuery);
-    if (browseMode === "type" && selectedDomain) return homeAssistantStore.getEntitiesByDomain(selectedDomain);
-    if (browseMode === "device" && selectedDeviceId) return homeAssistantStore.getEntitiesByDevice(selectedDeviceId);
-    if (browseMode === "area" && selectedDomain) return homeAssistantStore.getEntitiesByArea(selectedDomain);
+    if (selectedDomain) {
+      const entities = homeAssistantStore.getEntitiesByDomain(selectedDomain);
+      if (!selectedAreaFilter) return entities;
+      return entities.filter((entity) => entity.area === selectedAreaFilter);
+    }
     return [];
+  });
+
+  const searchResultGroups = $derived.by(() => {
+    if (!searchQuery) return [];
+
+    const groupMap: Map<
+      string,
+      { deviceName: string; area: string | undefined; entities: Entity[] }
+    > = new Map();
+
+    for (const entity of filteredEntities) {
+      const key = entity.device_id || entity.entity_id;
+      if (!groupMap.has(key)) {
+        const device = entity.device_id
+          ? homeAssistantStore.getDeviceById(entity.device_id)
+          : null;
+        groupMap.set(key, {
+          deviceName: device?.friendly_name || getDisplayName(entity),
+          area: entity.area,
+          entities: [],
+        });
+      }
+      groupMap.get(key)!.entities.push(entity);
+    }
+
+    return Array.from(groupMap.entries()).map(([key, group]) => {
+      const primaryEntity = group.entities.find(
+        (entity) =>
+          normalizeName(getDisplayName(entity)) ===
+          normalizeName(group.deviceName),
+      );
+      return {
+        key,
+        area: group.area,
+        entity: primaryEntity || group.entities[0],
+      };
+    });
   });
 
   const resolvedValue = $derived.by(() => {
     if (!selectedEntity) return "";
-    if (selectedAttribute === "state") return getStateDisplay(selectedEntity) || selectedEntity.state;
+    if (selectedAttribute === "state") {
+      const stateValue = getStateDisplay(selectedEntity) || selectedEntity.state;
+      return truncateNumericValue(stateValue);
+    }
     return selectedAttribute.replace(/_/g, " ");
   });
 
@@ -182,7 +288,7 @@
 
   function resetFilters() {
     selectedDomain = null;
-    selectedDeviceId = null;
+    selectedAreaFilter = "";
     searchQuery = "";
   }
 
@@ -198,11 +304,17 @@
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
       <h2>Insert Entity Value</h2>
-      <button class="modal-close" onclick={onClose}>✕</button>
+      <button class="modal-close" onclick={onClose} aria-label="Close modal">
+        <svg class="icon button-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d={uiIcons.close}></path>
+        </svg>
+      </button>
     </div>
 
     <div class="modal-search">
-      <span class="search-icon">🔍</span>
+      <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d={uiIcons.search}></path>
+      </svg>
       <input
         type="text"
         placeholder="Search entities..."
@@ -210,7 +322,15 @@
         bind:this={inputEl}
       />
       {#if searchQuery}
-        <button class="search-clear" onclick={() => (searchQuery = "")}>✕</button>
+        <button
+          class="search-clear"
+          onclick={() => (searchQuery = "")}
+          aria-label="Clear search"
+        >
+          <svg class="icon button-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d={uiIcons.close}></path>
+          </svg>
+        </button>
       {/if}
     </div>
 
@@ -219,28 +339,39 @@
         <div class="results-panel">
           <div class="panel-header">
             <span>Search Results</span>
-            <span class="result-count">{filteredEntities.length} found</span>
+            <span class="result-count">{searchResultGroups.length} found</span>
           </div>
           <div class="entity-grid">
-            {#each filteredEntities as entity (entity.entity_id)}
+            {#each searchResultGroups as group (group.entity.entity_id)}
               <button
                 class="entity-card"
-                class:selected={selectedEntity?.entity_id === entity.entity_id}
-                onclick={() => selectEntity(entity)}
+                class:selected={selectedEntity?.entity_id === group.entity.entity_id}
+                onclick={() => selectEntity(group.entity)}
               >
-                <span class="entity-icon">{getDomainIcon(entity.domain)}</span>
+                <svg class="icon entity-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d={getDomainIcon(group.entity.domain)}></path>
+                </svg>
                 <div class="entity-info">
-                  <span class="entity-name">{getDisplayName(entity)}</span>
+                  <span class="entity-name">{getDisplayName(group.entity)}</span>
                   <span class="entity-meta">
-                    <span class="entity-state">{getStateDisplay(entity)}</span>
-                    {#if entity.area}
-                      <span class="entity-area">📍 {entity.area}</span>
+                    {#if getStateDisplay(group.entity)}
+                      <span class="entity-state"
+                        >{truncateNumericValue(getStateDisplay(group.entity))}</span
+                      >
+                    {/if}
+                    {#if group.area}
+                      <span class="entity-area">
+                        <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d={uiIcons.location}></path>
+                        </svg>
+                        {group.area}
+                      </span>
                     {/if}
                   </span>
                 </div>
               </button>
             {/each}
-            {#if filteredEntities.length === 0}
+            {#if searchResultGroups.length === 0}
               <div class="no-results">No entities match your search</div>
             {/if}
           </div>
@@ -248,70 +379,53 @@
       {:else}
         <div class="browse-layout">
           <div class="browse-sidebar">
-            <div class="browse-tabs">
-              <button class="browse-tab" class:active={browseMode === "type"} onclick={() => { browseMode = "type"; resetFilters(); }}>📦 Type</button>
-              <button class="browse-tab" class:active={browseMode === "device"} onclick={() => { browseMode = "device"; resetFilters(); }}>🔧 Device</button>
-              <button class="browse-tab" class:active={browseMode === "area"} onclick={() => { browseMode = "area"; resetFilters(); }}>🏠 Room</button>
-            </div>
-
             <div class="filter-list">
-              {#if browseMode === "type"}
-                {#each availableDomains as { domain, count } (domain)}
-                  <button
-                    class="filter-item"
-                    class:active={selectedDomain === domain}
-                    onclick={() => (selectedDomain = domain)}
-                  >
-                    <span class="filter-icon">{getDomainIcon(domain)}</span>
-                    <span class="filter-name">{getDomainLabel(domain)}</span>
-                    <span class="filter-count">{count}</span>
-                  </button>
-                {/each}
-              {:else if browseMode === "device"}
-                {#each availableDevices as device (device.id)}
-                  <button
-                    class="filter-item"
-                    class:active={selectedDeviceId === device.id}
-                    onclick={() => (selectedDeviceId = device.id)}
-                  >
-                    <span class="filter-icon">🔧</span>
-                    <div class="filter-details">
-                      <span class="filter-name">{device.friendly_name}</span>
-                      {#if device.manufacturer}
-                        <span class="filter-subtitle">{device.manufacturer}</span>
-                      {/if}
-                    </div>
-                    <span class="filter-count">{device.entity_ids?.length ?? 0}</span>
-                  </button>
-                {/each}
-              {:else if browseMode === "area"}
-                {#each availableAreas as area (area.id || area.name)}
-                  <button
-                    class="filter-item"
-                    class:active={selectedDomain === area.name}
-                    onclick={() => (selectedDomain = area.name)}
-                  >
-                    <span class="filter-icon">{area.icon || "🏠"}</span>
-                    <span class="filter-name">{area.name}</span>
-                  </button>
-                {/each}
-              {/if}
+              {#each availableDomains as { domain, count } (domain)}
+                <button
+                  class="filter-item"
+                  class:active={selectedDomain === domain}
+                  onclick={() => {
+                    selectedDomain = domain;
+                    selectedAreaFilter = "";
+                  }}
+                >
+                  <svg class="icon filter-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={getDomainIcon(domain)}></path>
+                  </svg>
+                  <span class="filter-name">{getDomainLabel(domain)}</span>
+                  <span class="filter-count">{count}</span>
+                </button>
+              {/each}
             </div>
           </div>
 
           <div class="browse-content">
             {#if filteredEntities.length > 0}
               <div class="panel-header">
-                <span>
-                  {#if browseMode === "type" && selectedDomain}
-                    {getDomainIcon(selectedDomain)} {getDomainLabel(selectedDomain)}
-                  {:else if browseMode === "device" && selectedDeviceId}
-                    {availableDevices.find((d: Device) => d.id === selectedDeviceId)?.friendly_name}
-                  {:else if browseMode === "area" && selectedDomain}
-                    🏠 {selectedDomain}
+                <span class="icon-label-group">
+                  {#if selectedDomain}
+                    <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={getDomainIcon(selectedDomain)}></path>
+                    </svg>
+                    {getDomainLabel(selectedDomain)}
                   {/if}
                 </span>
-                <span class="result-count">{filteredEntities.length} entities</span>
+                <div class="panel-controls">
+                  {#if selectedDomain}
+                    <label class="room-filter">
+                      <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d={uiIcons.location}></path>
+                      </svg>
+                      <select bind:value={selectedAreaFilter}>
+                        <option value="">All rooms</option>
+                        {#each availableTypeAreas as area}
+                          <option value={area}>{area}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  {/if}
+                  <span class="result-count">{filteredEntities.length} entities</span>
+                </div>
               </div>
               <div class="entity-grid">
                 {#each filteredEntities as entity (entity.entity_id)}
@@ -320,13 +434,24 @@
                     class:selected={selectedEntity?.entity_id === entity.entity_id}
                     onclick={() => selectEntity(entity)}
                   >
-                    <span class="entity-icon">{getDomainIcon(entity.domain)}</span>
+                    <svg class="icon entity-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={getDomainIcon(entity.domain)}></path>
+                    </svg>
                     <div class="entity-info">
                       <span class="entity-name">{getDisplayName(entity)}</span>
                       <span class="entity-meta">
-                        <span class="entity-state">{getStateDisplay(entity)}</span>
-                        {#if browseMode !== "area" && entity.area}
-                          <span class="entity-area">📍 {entity.area}</span>
+                        {#if getStateDisplay(entity)}
+                          <span class="entity-state"
+                            >{truncateNumericValue(getStateDisplay(entity))}</span
+                          >
+                        {/if}
+                        {#if entity.area}
+                          <span class="entity-area">
+                            <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                              <path d={uiIcons.location}></path>
+                            </svg>
+                            {entity.area}
+                          </span>
                         {/if}
                       </span>
                     </div>
@@ -335,8 +460,10 @@
               </div>
             {:else}
               <div class="browse-empty">
-                <span class="browse-empty-icon">👈</span>
-                <span class="browse-empty-text">Select a category to browse entities</span>
+                <svg class="icon browse-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d={uiIcons.emptyBrowse}></path>
+                </svg>
+                <span class="browse-empty-text">Select a type to browse entities</span>
               </div>
             {/if}
           </div>
@@ -348,14 +475,18 @@
       <div class="modal-footer">
         <div class="selection-preview">
           <div class="selected-entity-row">
-            <span class="sel-icon">{getDomainIcon(selectedEntity.domain)}</span>
+            <svg class="icon sel-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d={getDomainIcon(selectedEntity.domain)}></path>
+            </svg>
             <div class="sel-info">
               <span class="sel-name">{getDisplayName(selectedEntity)}</span>
               <span class="sel-id">{selectedEntity.entity_id}</span>
             </div>
             <div class="sel-current-value">
               <span class="current-label">current</span>
-              <span class="current-value">{getStateDisplay(selectedEntity) || "—"}</span>
+              <span class="current-value"
+                >{truncateNumericValue(getStateDisplay(selectedEntity)) || "—"}</span
+              >
             </div>
           </div>
 
@@ -364,7 +495,11 @@
               <span class="attribute-label">
                 Showing: <strong>{selectedAttribute === "state" ? "state (main value)" : selectedAttribute.replace(/_/g, " ")}</strong>
               </span>
-              <span class="toggle-arrow">{showAttributes ? "▲" : "▼"}</span>
+              <span class="toggle-arrow">
+                <svg class="icon inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d={showAttributes ? uiIcons.chevronUp : uiIcons.chevronDown}></path>
+                </svg>
+              </span>
             </button>
             {#if showAttributes}
               <div class="attribute-list">
@@ -406,6 +541,22 @@
 </div>
 
 <style>
+  .icon {
+    display: block;
+    fill: currentColor;
+  }
+
+  .inline-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .button-icon {
+    width: 14px;
+    height: 14px;
+  }
+
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -439,7 +590,7 @@
 
   .modal-header h2 {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--color-text-primary);
   }
@@ -471,14 +622,16 @@
   .modal-search .search-icon {
     position: absolute;
     left: 32px;
-    font-size: 13px;
+    width: 13px;
+    height: 13px;
+    color: var(--color-text-muted);
     pointer-events: none;
   }
 
   .modal-search input {
     width: 100%;
     padding: 9px 32px 9px 34px;
-    font-size: 13px;
+    font-size: 14px;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: var(--color-bg-primary);
@@ -503,7 +656,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     padding: 4px 8px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .search-clear:hover {
@@ -530,35 +683,6 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-  }
-
-  .browse-tabs {
-    display: flex;
-    padding: 6px;
-    gap: 3px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .browse-tab {
-    flex: 1;
-    padding: 7px 3px;
-    font-size: 10px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    transition: all 0.15s;
-  }
-
-  .browse-tab:hover {
-    background: var(--color-hover);
-    color: var(--color-text-primary);
-  }
-
-  .browse-tab.active {
-    background: var(--color-primary, #0066cc);
-    color: white;
   }
 
   .filter-list {
@@ -593,32 +717,21 @@
   }
 
   .filter-icon {
-    font-size: 14px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
-  }
-
-  .filter-details {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   .filter-name {
     flex: 1;
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .filter-subtitle {
-    font-size: 9px;
-    opacity: 0.7;
-  }
-
   .filter-count {
-    font-size: 9px;
+    font-size: 10px;
     padding: 1px 6px;
     background: var(--color-bg-primary);
     border-radius: 10px;
@@ -647,12 +760,13 @@
   }
 
   .browse-empty-icon {
-    font-size: 28px;
+    width: 28px;
+    height: 28px;
     opacity: 0.5;
   }
 
   .browse-empty-text {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .results-panel {
@@ -668,7 +782,7 @@
     align-items: center;
     padding: 10px 16px;
     border-bottom: 1px solid var(--color-border);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--color-text-primary);
     position: sticky;
@@ -678,9 +792,43 @@
   }
 
   .result-count {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: normal;
     color: var(--color-text-muted);
+  }
+
+  .panel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .room-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-text-muted);
+  }
+
+  .room-filter select {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    padding: 3px 6px;
+    min-width: 98px;
+    outline: none;
+  }
+
+  .room-filter select:focus {
+    border-color: var(--color-primary, #0066cc);
+  }
+
+  .icon-label-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
 
   .entity-grid {
@@ -714,8 +862,10 @@
   }
 
   .entity-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
+    color: var(--color-text-secondary);
   }
 
   .entity-info {
@@ -727,7 +877,7 @@
   }
 
   .entity-name {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -738,17 +888,22 @@
   .entity-meta {
     display: flex;
     gap: 6px;
-    font-size: 9px;
+    font-size: 10px;
     flex-wrap: wrap;
+    min-height: 1.2em;
   }
 
   .entity-state {
-    color: var(--color-accent, #4ec9b0);
-    font-weight: 500;
+    color: var(--color-text-muted);
+    font-weight: 400;
   }
 
   .entity-area {
-    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
   }
 
   .no-results {
@@ -780,8 +935,10 @@
   }
 
   .sel-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
+    color: var(--color-text-secondary);
   }
 
   .sel-info {
@@ -799,7 +956,7 @@
   }
 
   .sel-id {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--color-text-muted);
     font-family: monospace;
   }
@@ -813,7 +970,7 @@
   }
 
   .current-label {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     color: var(--color-text-muted);
     letter-spacing: 0.5px;
@@ -839,7 +996,7 @@
     border: 1px solid var(--color-border);
     border-radius: 6px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-text-secondary);
     transition: background 0.2s;
   }
@@ -853,7 +1010,8 @@
   }
 
   .toggle-arrow {
-    font-size: 9px;
+    display: inline-flex;
+    align-items: center;
     color: var(--color-text-muted);
   }
 
@@ -892,13 +1050,13 @@
   }
 
   .attr-name {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-text-primary);
     text-transform: capitalize;
   }
 
   .attr-hint {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--color-text-muted);
   }
 
@@ -918,7 +1076,7 @@
   }
 
   .preview-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-text-muted);
     flex-shrink: 0;
   }
@@ -931,7 +1089,7 @@
   }
 
   .preview-hint {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--color-text-muted);
     margin-left: auto;
   }

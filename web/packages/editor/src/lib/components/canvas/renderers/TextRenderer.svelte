@@ -58,7 +58,6 @@
 {#snippet bindingChip(binding: EntityBinding, extraClass = "")}<span
     class="binding-value {extraClass}"
     title={bindingTitle(binding)}
-    ><span class="binding-icon">{getDomainIcon(binding)}</span
     >{getBindingDisplay(binding, getEntity)}</span
   >{/snippet}
 

@@ -147,17 +147,7 @@
 <style>
   .credits-page {
     min-height: 100vh;
-    background: radial-gradient(
-        circle at 20% 0%,
-        rgba(74, 158, 254, 0.17),
-        transparent 42%
-      ),
-      radial-gradient(
-        circle at 80% 100%,
-        rgba(97, 218, 251, 0.12),
-        transparent 50%
-      ),
-      var(--color-bg-primary);
+    background: var(--color-bg-primary);
     color: #fff;
   }
 
@@ -234,11 +224,7 @@
     margin: 1.1rem 0 2rem;
     border-radius: 1rem;
     border: 1px solid rgba(74, 158, 254, 0.3);
-    background: linear-gradient(
-      135deg,
-      rgba(26, 26, 46, 0.85),
-      rgba(20, 20, 36, 0.95)
-    );
+    background: rgba(20, 20, 36, 0.9);
   }
 
   .balance-label {
@@ -300,11 +286,7 @@
 
   .pack-card.popular {
     border-color: rgba(74, 158, 254, 0.45);
-    background: linear-gradient(
-      180deg,
-      rgba(37, 37, 65, 0.92),
-      rgba(27, 27, 46, 0.95)
-    );
+    background: rgba(27, 27, 46, 0.93);
   }
 
   .popular-badge {

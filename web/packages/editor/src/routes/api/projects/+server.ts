@@ -25,7 +25,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   if (!locals.user) error(401);
 
   const body = await request.json();
-  const { name, data } = body;
+  const { id, name, data } = body;
 
   if (!name || !data) {
     return json({ error: 'Missing name or data' }, { status: 400 });
@@ -35,6 +35,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   const [row] = await db
     .insert(projects)
     .values({
+      id,
       userId: locals.user.id,
       name,
       data,

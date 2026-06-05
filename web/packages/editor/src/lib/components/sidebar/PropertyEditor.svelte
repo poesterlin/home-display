@@ -495,24 +495,6 @@
             oninput={(e) => updateProperty("label", e.currentTarget.value)}
           />
         </div>
-        <div class="field-row">
-          <div class="field">
-            <span class="field-label">On Text</span>
-            <input
-              type="text"
-              value={selectedComponent.onText ?? "ON"}
-              oninput={(e) => updateProperty("onText", e.currentTarget.value)}
-            />
-          </div>
-          <div class="field">
-            <span class="field-label">Off Text</span>
-            <input
-              type="text"
-              value={selectedComponent.offText ?? "OFF"}
-              oninput={(e) => updateProperty("offText", e.currentTarget.value)}
-            />
-          </div>
-        </div>
         <div class="field">
           <span class="field-label">Show Icon</span>
           <input
@@ -531,15 +513,6 @@
             />
           </div>
         {/if}
-        <div class="field">
-          <span class="field-label">Brightness</span>
-          <input
-            type="checkbox"
-            checked={selectedComponent.showBrightnessControl === true}
-            onchange={(e) =>
-              updateProperty("showBrightnessControl", e.currentTarget.checked)}
-          />
-        </div>
       </div>
     {/if}
 
@@ -715,15 +688,13 @@
     {/if}
 
     <!-- Entity Binding (only for components that display entity values) -->
-    {#if selectedComponent.type === "text" || selectedComponent.type === "todo_list" || selectedComponent.type === "light_state"}
+    {#if selectedComponent.type === "todo_list" || selectedComponent.type === "light_state"}
       <div class="property-section">
         <label class="section-label">Entity Binding</label>
         <EntityPicker
           component={selectedComponent}
           onUpdate={(binding) => {
-            if (selectedComponent.type === "text") {
-              updateProperty("textBinding", binding);
-            } else if (selectedComponent.type === "todo_list") {
+            if (selectedComponent.type === "todo_list") {
               updateProperty("itemsBinding", binding);
             } else if (selectedComponent.type === "light_state") {
               updateProperty("stateBinding", binding);
@@ -734,7 +705,7 @@
         />
       </div>
     {/if}
-    {#if selectedComponent.type !== "light_state"}
+    {#if selectedComponent.type !== "light_state" && selectedComponent.type !== 'text'}
       <div class="property-section">
         <label class="section-label">Actions</label>
         <ActionEditor
@@ -784,7 +755,10 @@
   .property-section {
     margin-bottom: var(--spacing-md);
     padding-bottom: var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
+    
+    &:not(:last-child){
+      border-bottom: 1px solid var(--color-border);
+    }
   }
 
   .section-label {

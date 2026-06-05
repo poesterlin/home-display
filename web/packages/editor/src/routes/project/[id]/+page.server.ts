@@ -24,7 +24,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       id: row.id,
       name: row.name,
       data: row.data,
-      firmwareToken: row.firmwareToken,
     },
   };
 };
