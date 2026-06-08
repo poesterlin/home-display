@@ -59,6 +59,7 @@ struct UiState {
   UiScreenId current_screen = UiScreenId::Home;
   int home_page_index = 0;
   int home_total_pages = 4;
+  bool api_connected = false;
   Observable<bool> button_a_on{false};
   Observable<bool> button_b_on{false};
   Observable<bool> led_switch{false};

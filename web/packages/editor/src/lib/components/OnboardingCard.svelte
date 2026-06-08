@@ -57,7 +57,7 @@
           <div class="hardware-details">
             <img
               class="hardware-image"
-              src="https://michiel.vanderwulp.be/domotica/Modules/SmartDisplay-ESP32-S3-4.0inch/ESP32-S3-40.jpg"
+              src="/display.jpg"
               alt="Guition ESP32-S3-4848S040 display"
               loading="lazy"
             />

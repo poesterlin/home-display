@@ -148,6 +148,7 @@ struct UiState {
   UiScreenId current_screen = UiScreenId::${screenName};
   int home_page_index = 0;
   int home_total_pages = ${Math.max(1, project.dashboardPages.length)};
+  bool api_connected = false;
 ${observableFields}
 };
 `;
