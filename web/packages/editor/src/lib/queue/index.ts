@@ -329,6 +329,10 @@ export class CompilationQueue extends EventEmitter {
       .delete(schema.compilationJobs)
       .where(inArray(schema.compilationJobs.id, idsToDelete));
 
+    for (const id of idsToDelete) {
+      this.jobs.delete(id);
+    }
+
     console.log(`🧹 Cleaned up ${jobsToDelete.length} old builds for project ${projectId}`);
   }
 
