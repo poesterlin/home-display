@@ -20,7 +20,11 @@ export const POST: RequestHandler = async ({ request }) => {
     await processStripeEvent(body, signature, webhookSecret);
   } catch (err) {
     console.error("[stripe webhook]", err);
-    return json({ error: "Webhook processing failed" }, { status: 400 });
+    const isSignatureError =
+      err && typeof err === 'object' && 'type' in err &&
+      (err as { type?: string }).type?.startsWith('StripeSignatureVerification');
+    const status = isSignatureError ? 400 : 500;
+    return json({ error: "Webhook processing failed" }, { status });
   }
 
   return json({ received: true });

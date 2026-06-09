@@ -101,3 +101,13 @@ export const creditTransactions = pgTable("credit_transaction", {
 });
 
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
+
+export const stripeEvents = pgTable('stripe_event', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .defaultNow(),
+});
+
+export type StripeEvent = typeof stripeEvents.$inferSelect;

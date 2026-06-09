@@ -26,8 +26,8 @@
 ## Payments and Credits
 
 <!-- - [ ] Stripe price IDs are hardcoded in source instead of environment/config. -->
-- [ ] Webhook idempotency relies on DB uniqueness only; no processed-event ledger.
-- [ ] Webhook route returns `400` for all failures, including server-side/transient errors.
+- [x] Webhook idempotency relies on DB uniqueness only; no processed-event ledger.
+- [x] Webhook route returns `400` for all failures, including server-side/transient errors.
 <!-- - [ ] No customer billing portal integration. -->
 
 ## Error Handling

@@ -1,6 +1,9 @@
 import { getStripe } from "./client";
 import { addCredits } from "../credits";
 import { getPackByPriceId } from "../packs";
+import { getDb } from "$lib/db";
+import { stripeEvents } from "$lib/db/schema";
+import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 const trackedEvents = new Set<string>([
@@ -45,14 +48,34 @@ export async function processStripeEvent(
   body: string,
   signature: string,
   webhookSecret: string
-): Promise<void> {
+): Promise<{ alreadyProcessed: boolean }> {
   const stripe = getStripe();
   const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
 
-  if (!isTrackedEvent(event.type)) return;
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: stripeEvents.id })
+    .from(stripeEvents)
+    .where(eq(stripeEvents.id, event.id))
+    .limit(1);
+
+  if (existing) {
+    return { alreadyProcessed: true };
+  }
+
+  if (!isTrackedEvent(event.type)) {
+    return { alreadyProcessed: false };
+  }
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     await handleCompletedCheckout(session.id);
   }
+
+  await db.insert(stripeEvents).values({
+    id: event.id,
+    type: event.type,
+  });
+
+  return { alreadyProcessed: false };
 }
