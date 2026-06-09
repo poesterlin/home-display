@@ -35,8 +35,8 @@
 - [x] API error responses return raw `error.message`, potentially leaking internals.
 - [x] Multiple endpoints use broad catch-and-return patterns without sanitization.
 <!-- - [ ] Project validation runs twice (API and worker), producing inconsistent UX paths. -->
-- [ ] No circuit breaker/backoff when compile environment is consistently broken.
-- [ ] Compile timeout and compile failure are not clearly distinguished in user-facing errors.
+- [x] No circuit breaker/backoff when compile environment is consistently broken.
+- [x] Compile timeout and compile failure are not clearly distinguished in user-facing errors.
 
 ## Logging and Observability
 

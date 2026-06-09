@@ -25,6 +25,11 @@ export class CompilationQueue extends EventEmitter {
   private jobs: Map<string, CompilationJob> = new Map();
   private isStopped = false;
   private pythonSitePackages = '';
+  private consecutiveFailures = 0;
+  private circuitOpenAt: number | null = null;
+
+  private static CIRCUIT_FAILURE_THRESHOLD = 5;
+  private static CIRCUIT_RESET_MS = 5 * 60_000;
 
   constructor(private maxWorkers: number = 2) {
     super();
@@ -165,6 +170,17 @@ export class CompilationQueue extends EventEmitter {
   }
 
   async addJob(job: CompilationJob | NewCompilationJob): Promise<void> {
+    if (this.circuitOpenAt) {
+      const elapsed = Date.now() - this.circuitOpenAt;
+      if (elapsed > CompilationQueue.CIRCUIT_RESET_MS) {
+        this.circuitOpenAt = null;
+        this.consecutiveFailures = 0;
+        console.log('Circuit breaker reset');
+      } else {
+        throw new Error('Compilation service is temporarily unavailable due to repeated failures. Please try again later.');
+      }
+    }
+
     if (job.userId) {
       const hasActive = await this.hasUserActiveJob(job.userId);
       if (hasActive) {
@@ -292,7 +308,7 @@ export class CompilationQueue extends EventEmitter {
         console.error(`[Job ${job.id} ERROR]: ${data}`);
       });
 
-      childProcess.on('exit', async (code) => {
+      childProcess.on('exit', async (code, signal) => {
         this.activeJobs.delete(job.id);
         await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -326,8 +342,12 @@ export class CompilationQueue extends EventEmitter {
 
           await this.handleJobResult(job.id, { output: stdout });
         } else {
+          const reason = signal
+            ? `Compilation timed out and was terminated (signal: ${signal})`
+            : `ESPHome compile failed (exit code ${code})`;
+          const detail = stderr || stdout ? `: ${stderr || stdout}` : '';
           await this.handleJobResult(job.id, {
-            error: `ESPHome compile failed (code ${code}): ${stderr}, ${stdout}`,
+            error: `${reason}${detail}`,
           });
         }
 
@@ -358,6 +378,12 @@ export class CompilationQueue extends EventEmitter {
       job.status = 'failed';
       job.error = result.error;
 
+      this.consecutiveFailures++;
+      if (this.consecutiveFailures >= CompilationQueue.CIRCUIT_FAILURE_THRESHOLD && !this.circuitOpenAt) {
+        this.circuitOpenAt = Date.now();
+        console.warn(`Circuit breaker opened after ${this.consecutiveFailures} consecutive failures`);
+      }
+
       if (env.APP_EDITION === 'cloud' && job.userId) {
         try {
           await addCredits({
@@ -372,6 +398,12 @@ export class CompilationQueue extends EventEmitter {
     } else {
       job.status = 'completed';
       job.output = result.output ?? null;
+
+      if (this.circuitOpenAt) {
+        this.circuitOpenAt = null;
+        console.log('Circuit breaker closed after successful compilation');
+      }
+      this.consecutiveFailures = 0;
     }
     job.completedAt = new Date();
 
