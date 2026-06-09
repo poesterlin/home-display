@@ -66,6 +66,12 @@ class GenericScreen : public Screen {
   }
 
   void draw(display::Display &it, const UiState &state) override {
+    if (!state.ha_connected) {
+      for (auto &w : widgets_) {
+        if (w->is_loading_widget()) { w->draw(it, state); return; }
+      }
+      return;
+    }
     const bool full = UiInvalidation::is_full_dirty();
     const bool legacy_partial =
         !full && UiInvalidation::dirty_count() == 0 && UiInvalidation::needs_redraw();

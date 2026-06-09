@@ -250,6 +250,8 @@ class Widget {
     return true;
   }
 
+  virtual bool is_loading_widget() const { return false; }
+
   void set_visibility_condition(std::function<bool()> check) {
     visibility_check_ = std::move(check);
   }
@@ -1472,6 +1474,8 @@ class LoadingWidget : public Widget {
   bool is_visible(const UiState &state) const override {
     return state.ha_connected == false;
   }
+
+  bool is_loading_widget() const override { return true; }
 
   void update(uint32_t now) override {
     (void)now;

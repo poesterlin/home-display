@@ -455,6 +455,9 @@ interval:
           bool connected = (api != nullptr && api->is_connected());
           if (connected != g_ui_app.state().ha_connected) {
             g_ui_app.state().ha_connected = connected;
+            if (!connected) {
+              g_ui_app.screens().navigate_to(UiScreenId::Home);
+            }
             UiRedraw::request_full();
             id(main_display).update();
             return;
