@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Welcome to ESPHome Display",
-        "description": "This integration simplifies sending notifications to your ESPHome display devices.\n\nNo YAML configuration needed—everything is set up through the web interface!"
+        "description": "This integration simplifies sending notifications to your ESPHome display devices.\n\nNo YAML configuration needed—everything is set up through the web interface!\n\nNotification overlay helper entities (input_text.notification_title, input_text.notification_body, input_select.notification_severity) will be auto-created if they don't already exist."
       },
       "add_device": {
         "title": "Add Display Device",
@@ -12,13 +12,13 @@
           "name": "Display Name",
           "esphome_device": "ESPHome Device Name",
           "default_severity": "Default Notification Severity",
-          "todo_entity": "To-Do List (Optional)"
+          "todo_entities": "To-Do Lists (Optional)"
         },
         "data_description": {
           "name": "A friendly name for this display (e.g., 'Kitchen Display')",
           "esphome_device": "The device name from your ESPHome YAML (e.g., 'kitchen_screen')",
           "default_severity": "Default alert level when not specified: info (blue), warn (amber), alert (red), question (green)",
-          "todo_entity": "Optional: Link a Home Assistant to-do list to display tasks on the device"
+          "todo_entities": "Optional: Comma-separated Home Assistant to-do list entity IDs (e.g. todo.shopping,todo.chores)"
         }
       },
       "add_more_devices": {

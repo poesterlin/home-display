@@ -1,7 +1,6 @@
 import type { CompilationJob, NewCompilationJob } from '$lib/db/schema';
 import { CompilationQueue } from '$lib/queue/index.js';
 import { v4 as uuidv4 } from 'uuid';
-export { getDb, schema } from '$lib/db/index.js';
 
 interface CompilationResult {
   jobId: string | undefined;
@@ -75,14 +74,14 @@ export async function getAllJobs(): Promise<CompilationJob[]> {
   if (!compilationQueue) {
     throw new Error('Compilation queue not started');
   }
-  
+
   return compilationQueue.getAllJobs();
 }
 
-export function getQueueStats() {
+export async function getProjectJobs(projectId: string, limit = 10): Promise<CompilationJob[]> {
   if (!compilationQueue) {
     throw new Error('Compilation queue not started');
   }
-  
-  return compilationQueue.getStats();
+
+  return compilationQueue.getProjectJobs(projectId, limit);
 }

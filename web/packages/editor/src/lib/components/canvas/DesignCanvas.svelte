@@ -10,6 +10,7 @@
     type CanvasPasteTarget,
   } from "$lib/stores/canvas-paste-target.svelte";
   import ComponentRenderer from "./renderers/ComponentRenderer.svelte";
+  import "./renderers/register-all";
   import SelectionOverlay from "./SelectionOverlay.svelte";
   import DetailHeader from "./DetailHeader.svelte";
   import DashboardHeader from "./DashboardHeader.svelte";

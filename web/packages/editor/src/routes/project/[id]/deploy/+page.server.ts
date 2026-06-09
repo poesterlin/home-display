@@ -19,7 +19,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
   if (!row) error(404, 'Project not found');
 
-  // Check for any active (non-terminal) compilation jobs for this project
   const activeJobs = await db
     .select()
     .from(compilationJobs)

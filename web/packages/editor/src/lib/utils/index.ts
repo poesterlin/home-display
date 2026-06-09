@@ -23,7 +23,7 @@ export function toUpperSnakeCase(str: string): string {
 }
 
 
-export type ComponentMap = {
+type ComponentMap = {
   text: TextComponent;
   button: ButtonComponent;
   slider: SliderComponent;

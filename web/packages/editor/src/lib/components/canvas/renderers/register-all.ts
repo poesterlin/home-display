@@ -1,0 +1,31 @@
+import { registerRenderer } from './renderer-registry';
+
+import TextRenderer from './TextRenderer.svelte';
+import AutoLayoutListRenderer from './AutoLayoutListRenderer.svelte';
+import ButtonRenderer from './ButtonRenderer.svelte';
+import SliderRenderer from './SliderRenderer.svelte';
+import GaugeRenderer from './GaugeRenderer.svelte';
+import IconRenderer from './IconRenderer.svelte';
+import ProceduralIconRenderer from './ProceduralIconRenderer.svelte';
+import ContainerRenderer from './ContainerRenderer.svelte';
+import ImageRenderer from './ImageRenderer.svelte';
+import TodoListRenderer from './TodoListRenderer.svelte';
+import LightStateRenderer from './LightStateRenderer.svelte';
+import ConditionalAreaRenderer from './ConditionalAreaRenderer.svelte';
+import TabContainerRenderer from './TabContainerRenderer.svelte';
+import ComponentRenderer from './ComponentRenderer.svelte';
+
+registerRenderer('text', TextRenderer);
+registerRenderer('auto_layout_list', AutoLayoutListRenderer);
+registerRenderer('button', ButtonRenderer);
+registerRenderer('slider', SliderRenderer);
+registerRenderer('gauge', GaugeRenderer);
+registerRenderer('icon', IconRenderer);
+registerRenderer('procedural_icon', ProceduralIconRenderer);
+registerRenderer('container', ContainerRenderer);
+registerRenderer('image', ImageRenderer);
+registerRenderer('todo_list', TodoListRenderer);
+registerRenderer('light_state', LightStateRenderer);
+registerRenderer('conditional_area', ConditionalAreaRenderer);
+registerRenderer('tab_container', TabContainerRenderer);
+registerRenderer('__component_renderer__', ComponentRenderer);

@@ -54,7 +54,7 @@ function componentLabel(c: Component): string {
   return typeLabels[c.type] ?? c.type;
 }
 
-export type ValidationRule = (project: Project) => ValidationError[];
+type ValidationRule = (project: Project) => ValidationError[];
 
 const RULES: ValidationRule[] = [
   validateActionTargets,

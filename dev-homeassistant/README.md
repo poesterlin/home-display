@@ -1,105 +1,62 @@
 # Home Assistant Development Environment
 
-This directory contains everything you need to test your custom `esphome_display` HACS component locally with a development version of Home Assistant.
+Local Home Assistant `dev` container for testing the `esphome_display` custom integration.
 
-## Features
+## Setup
 
-### 🚀 **Auto-Component Mounting**
-Your `custom_components/esphome_display` directory is automatically mounted into the container at `/config/custom_components`. This means:
-
-- **Live Reload**: Changes to your component code are immediately available
-- **No Copying**: Direct development from your project directory
-- **Full Integration**: Component behaves exactly like in production
-
-### 🐛 **Debug Mode Enabled**
-- Debug logging enabled by default
-- Frontend development mode for UI components
-- Access to developer tools
-
-### 🛠️ **Development Tools**
-- **Component Validation**: Run `./scripts/dev.sh check` to validate your component
-- **Shell Access**: Debug inside the container with `./scripts/dev.sh shell`
-- **Log Monitoring**: Real-time logs with `./scripts/dev.sh logs`
-
-## Usage Examples
-
-### Testing Component Changes
-1. Make changes to your component in `custom_components/esphome_display/`
-2. Restart Home Assistant: `./scripts/dev.sh restart`
-3. Test your changes at http://localhost:8123
-
-### Validating Component
 ```bash
-./scripts/dev.sh check
+cd dev-homeassistant
+docker compose up -d
 ```
 
-### Debugging Issues
+Wait ~30 seconds, then open http://localhost:8123 and complete onboarding.
+
+Your `custom_components/esphome_display/` is bind-mounted into the container at `/config/custom_components` — code changes take effect on restart.
+
+## Commands
+
 ```bash
-# Monitor logs
-./scripts/dev.sh logs
-
-# Open shell for debugging
-./scripts/dev.sh shell
-
-# Inside container:
-python -m script.hassfest --config-path /config --domain esphome_display
+docker compose up -d       # start
+docker compose stop         # stop
+docker compose restart      # restart (picks up code changes)
+docker compose logs -f      # tail logs
+docker compose down         # tear down
 ```
 
-## Configuration
+## Testing notification overlay
 
-The `config/configuration.yaml` includes:
-- `default_config` for full Home Assistant experience
-- Debug logging enabled
-- Frontend development mode
-- Your custom component auto-discovery
+After setup, three helper entities are auto-created:
 
-## VS Code Integration (Optional)
+| Entity | Purpose |
+|--------|---------|
+| `input_text.notification_title` | Notification header text |
+| `input_text.notification_body` | Notification body text |
+| `input_select.notification_severity` | Severity level (`info`, `warning`, `question`, `critical`) |
 
-The docker-compose includes a VS Code server:
-1. Start the VS Code container: `docker-compose up -d vscode`
-2. Access at http://localhost:8443
-3. Password: `dev123`
+Send a notification by setting these via any automation or **Developer Tools → Services**:
 
-## Troubleshooting
+```
+Service: input_text.set_value
+  entity_id: input_text.notification_body
+  value: "Laundry is done"
 
-### Port Already in Use
-If port 8123 is already in use:
-```bash
-# Stop other HA instances
-sudo lsof -i :8123
-# Or modify docker-compose.yml to use different ports
+Service: input_select.select_option
+  entity_id: input_select.notification_severity
+  option: warning
 ```
 
-### Component Not Found
-1. Ensure `custom_components/esphome_display/` exists in your project root
-2. Check container logs: `./scripts/dev.sh logs`
-3. Restart container: `./scripts/dev.sh restart`
+No custom services needed — the ESP32 display reads these entities reactively.
 
-### Permission Issues
+## Resetting login
+
+If the session expires or you lose the password:
+
 ```bash
-# Fix permissions
-sudo chown -R $USER:$USER dev-homeassistant/
-chmod +x dev-homeassistant/scripts/dev.sh
+# Stop, delete auth, restart — onboarding reappears
+docker compose stop
+docker run --rm -v ./config:/config alpine:latest \
+  sh -c 'rm -f /config/.storage/auth /config/.storage/auth_provider.homeassistant /config/.storage/onboarding /config/.storage/http.auth'
+docker compose up -d
 ```
 
-## Development Workflow
-
-1. **Initial Setup**: `./scripts/dev.sh setup`
-2. **Start Development**: `./scripts/dev.sh start`
-3. **Make Changes**: Edit component files
-4. **Test Changes**: Restart or watch for reload
-
-## Next Steps
-
-Once your component is working locally:
-1. Test with different Home Assistant versions
-2. Validate with hassfest and hacsfest
-3. Update version in `manifest.json`
-4. Submit to HACS
-
-## Notes
-
-- Uses Home Assistant `dev` image (latest development version)
-- Data persists in Docker volumes
-- Automatic restart on system reboot
-- All ports exposed for integration testing
+All entity state and integrations are preserved — only login credentials are reset.

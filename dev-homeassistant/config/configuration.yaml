@@ -1,8 +1,11 @@
-# Home Assistant Development Configuration
+
+# Loads default set of integrations. Do not remove.
 default_config:
 
-logger:
-  default: info
-  logs:
-    homeassistant.helpers.frame: warning  # Suppress frame warnings
-    homeassistant.components.cloud: info   # Reduce cloud logging
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

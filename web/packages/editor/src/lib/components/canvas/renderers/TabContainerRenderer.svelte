@@ -7,7 +7,7 @@
   import { canvasPasteTargetStore } from "$lib/stores/canvas-paste-target.svelte";
   import { createComponent } from "$lib/utils/component-factory";
   import { colorToCss } from "$lib/utils/color-utils";
-  import ComponentRenderer from "./ComponentRenderer.svelte";
+  import { getRenderer } from "./renderer-registry";
   import Draggable from "../Draggable.svelte";
 
   interface Props {
@@ -19,6 +19,7 @@
 
   let contentEl: HTMLDivElement | undefined = $state();
   let isDragOver = $state(false);
+  let ChildRenderer = $derived(getRenderer('__component_renderer__'));
 
   const theme = $derived(projectStore.theme);
   const accentColor = $derived(colorToCss(theme.colors.accent));
@@ -192,15 +193,17 @@
       onpointerdown={handleContentMouseDown}
     >
       {#if activeTab}
-        {#each activeTab.components as childComponent (childComponent.id)}
-          <ComponentRenderer
-            component={childComponent}
-            parentOffset={{
-              x: (parentOffset?.x ?? 0) + component.position.x,
-              y: (parentOffset?.y ?? 0) + component.position.y + kTabBarHeight,
-            }}
-          />
-        {/each}
+        {#if ChildRenderer}
+          {#each activeTab.components as childComponent (childComponent.id)}
+            <ChildRenderer
+              component={childComponent}
+              parentOffset={{
+                x: (parentOffset?.x ?? 0) + component.position.x,
+                y: (parentOffset?.y ?? 0) + component.position.y + kTabBarHeight,
+              }}
+            />
+          {/each}
+        {/if}
       {/if}
 
       {#if activeTab && activeTab.components.length === 0}

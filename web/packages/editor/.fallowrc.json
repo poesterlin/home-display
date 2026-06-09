@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/hooks.{server,client}.{ts,tsx,js,jsx}",
+    "src/index.{ts,tsx,js,jsx}",
+    "src/main.{ts,tsx,js,jsx}"
+  ],
+  "health": {
+    "ignore": [
+      "src/**/*.test.ts",
+      "src/**/__tests__/**"
+    ],
+    "maxCyclomatic": 30,
+    "maxCognitive": 25,
+    "maxCrap": 100
+  },
+  "duplicates": {
+    "minOccurrences": 3
+  },
+  "rules": {}
+}

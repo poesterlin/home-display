@@ -1,53 +1,53 @@
-# ESPHome Display Notifications & Data Bridge
+# ESPHome Display
 
-A Home Assistant integration that simplifies sending notifications to ESPHome-powered displays and bridges Home Assistant To-Do lists. It replaces cumbersome input helpers with a streamlined service-based architecture and intelligent data translation.
+Home Assistant integration that bridges notifications and to-do lists to ESPHome-powered displays. Uses standard helper entities — no custom services needed.
 
 ## Features
 
-- **Service-based Notifications**: Send notifications via `esphome_display.notify` service
-- **No Persistent Entities**: Notifications are ephemeral—no helpers to manage
-- **Multiple Devices**: Support for multiple ESPHome display devices
-- **Configurable Severity Levels**: `info`, `warn`, `alert`, `question`
-- **Auto-dismiss Support**: Optional auto-dismiss after a specified timeout
-- **To-Do List Bridge**: Automatically bridges Home Assistant To-Do lists to ESP32 displays
-- **Event-Driven Updates**: Instant updates via Home Assistant Native API
-- **Type Safe**: Full type hints and Home Assistant schema validation
+- **Entity-based notifications** — `input_text` and `input_select` helpers auto-created on setup, read reactively by the display
+- **To-Do list bridge** — one sensor per to-do list per device, auto-formatted for ESP32 consumption
+- **Metadata export** — WebSocket API that exposes all HA entities, services, devices, and areas for the web editor
+- **Custom panel** — built-in dashboard panel at `/esphome-display`
+- **Multi-device** — configure as many displays as you want via UI or YAML
 
-## 🎨 No YAML Required!
+## Architecture
 
-Everything is set up through the Home Assistant web interface. **No YAML editing needed!**
+```
+HA automation → input_text.set_value("Back door opened")
+                        ↓
+        input_text.notification_body = "Back door opened"
+                        ↓
+        ESP32 display reads via bind_ha_string → shows notification
+                        ↓
+        User dismisses → ESP32 calls input_text.set_value("") → notification cleared
+```
 
-- **[UI_GUIDE.md](UI_GUIDE.md)** ⭐ **Start here!** - Complete web UI setup guide (no YAML)
-- **[SETUP.md](SETUP.md)** - Installation and optional YAML configuration
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Full-stack blueprint for firmware and integration design
-- **[EXAMPLES.md](EXAMPLES.md)** - 30+ real-world automation and configuration examples
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Developer guide and contribution guidelines
+No custom services. Any HA automation or script can trigger a notification by setting the helper entities.
 
-## Installation
+## Auto-created entities
 
-### HACS Installation
-1. Open Home Assistant → **Settings** → **Devices & Services** → **Custom Integrations**
-2. Click **Create Automation** → search for **ESPHome Display Notifications**
-3. Follow the installation prompts
+| Entity | Domain | Purpose |
+|--------|--------|---------|
+| `notification_title` | `input_text` | Notification header |
+| `notification_body` | `input_text` | Notification text |
+| `notification_severity` | `input_select` | Severity: `info`, `warning`, `question`, `critical` |
 
-### Manual Installation
-1. Create `custom_components/esphome_display/` in your Home Assistant config directory
-2. Copy all files from this directory into that folder
-3. Restart Home Assistant
+Created on integration setup if they don't already exist. Appear under **Settings → Devices & Services → Helpers**.
 
 ## Configuration
 
-### Option 1: Web UI (Recommended - No YAML!)
+### UI (recommended)
 
-See **[UI_GUIDE.md](UI_GUIDE.md)** for complete step-by-step instructions. Just:
-1. Install integration
-2. Go to **Settings → Devices & Services → Integrations**
-3. Click **+ Create Integration** and search for "ESPHome Display"
-4. Fill in the form - done!
+**Settings → Devices & Services → Add Integration → ESPHome Display**
 
-### Option 2: YAML Configuration (Optional)
+| Field | Description |
+|-------|-------------|
+| Display Name | Friendly name (e.g. "Kitchen Display") |
+| ESPHome Device Name | Device name from your ESPHome YAML |
+| Default Severity | `info` / `warn` / `alert` / `question` |
+| To-Do Lists | Comma-separated entity IDs (e.g. `todo.shopping,todo.chores`) |
 
-Add the following to your `configuration.yaml` if you prefer YAML:
+### YAML
 
 ```yaml
 esphome_display:
@@ -55,173 +55,67 @@ esphome_display:
     - name: kitchen_display
       esphome_device: kitchen_screen
       default_severity: info
-    - name: bedroom_display
-      esphome_device: bedroom_screen
-      default_severity: warn
+      todo_entities:
+        - todo.shopping
+        - todo.chores
 ```
 
-### Configuration Parameters
+## Sending notifications
 
-| Parameter | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `name` | Friendly name for this display (used in service calls) | Yes | - |
-| `esphome_device` | The device name from your ESPHome YAML config | Yes | - |
-| `default_severity` | Default severity if not specified in service call | No | `info` |
-
-## ESPHome Setup
-
-Add these API services to your ESPHome YAML configuration:
+Use **Developer Tools → Services** or any automation:
 
 ```yaml
-api:
-  services:
-    - service: notify
-      variables:
-        title: string
-        message: string
-        severity: string
-      then:
-        - lambda: |-
-            gState.notificationTitle = title;
-            gState.notificationBody = message;
-            gState.notificationSeverity = severity.empty() ? "info" : severity;
-            gState.notificationShownAt = millis();
-            gPendingNotificationSound = true;
-            ESP_LOGI("notify", "Notification received: %s", title.c_str());
-
-    - service: clear_notification
-      then:
-        - lambda: |-
-            gState.notificationTitle = "";
-            gState.notificationBody = "";
-            gState.notificationSeverity = "info";
-            gState.notificationLoading = false;
-```
-
-## Usage
-
-### Basic Notification
-
-Send a simple notification:
-
-```yaml
-service: esphome_display.notify
+# Set the message
+service: input_text.set_value
 data:
-  device: kitchen_display
-  title: "Laundry Done"
-  message: "The washing machine has finished its cycle."
-```
+  entity_id: input_text.notification_body
+  value: "Laundry is done"
 
-### With Severity
-
-Highlight important notifications:
-
-```yaml
-service: esphome_display.notify
+# Set the title (optional)
+service: input_text.set_value
 data:
-  device: kitchen_display
-  title: "Security Alert"
-  message: "Motion detected at the front door"
-  severity: alert
-```
+  entity_id: input_text.notification_title
+  value: "Washer"
 
-### With Auto-clear
-
-Automatically clear after a timeout:
-
-```yaml
-service: esphome_display.notify
+# Set severity (optional, defaults to info)
+service: input_select.select_option
 data:
-  device: kitchen_display
-  title: "Update Available"
-  message: "A software update is ready to install"
-  severity: warn
-  timeout: 120  # Clear after 2 minutes
+  entity_id: input_select.notification_severity
+  option: warning
 ```
 
-### In Automations
+All three can be called in one automation action sequence.
 
-Example automation that sends a notification when the washing machine finishes:
+## To-Do bridge sensors
 
-```yaml
-automation:
-  - alias: "Washing Machine Finished"
-    trigger:
-      entity_id: sensor.washing_machine_status
-      platform: state
-      to: "finished"
-    action:
-      - service: esphome_display.notify
-        data:
-          device: kitchen_display
-          title: "Laundry Done"
-          message: "The washing machine has finished its cycle."
-          severity: info
+For each to-do list linked to a device, a sensor entity is created:
+
+- **Entity**: `sensor.kitchen_display_to_do_items` (or `...to_do_items_1`, `...to_do_items_2` for multiples)
+- **State**: count of pending items
+- **Attributes**: `all_items` (pipe-separated format: `summary|due_date|status`)
+
+The ESP32 display can read these via `ha_sensor` bindings to show task lists.
+
+## Metadata export
+
+The integration exposes a WebSocket command `esphome_display/export` that returns all HA metadata (entities, services, devices, areas) with sensitive attributes stripped. Used by the web editor to populate entity pickers.
+
+## ESPHome firmware
+
+The display firmware (generated by the web editor) uses `bind_ha_string` to subscribe to the helper entities. No `api.services` configuration needed on the ESPHome side — the display reads entity state reactively.
+
+## Installation
+
+### HACS
+
+Add this repository as a custom integration in HACS.
+
+### Manual
+
+```bash
+cp -r custom_components/esphome_display/custom_components/
 ```
 
-## Service Parameters
+Restart Home Assistant, then add the integration via UI.
 
-### `esphome_display.notify`
-
-| Parameter | Type | Required | Description | Default |
-| :--- | :--- | :--- | :--- | :--- |
-| `device` | string | Yes | Device name from config | - |
-| `title` | string | No | Bold header text | "" |
-| `message` | string | Yes | Main notification text | - |
-| `severity` | string | No | `info` / `warn` / `alert` / `question` | `info` |
-| `timeout` | integer | No | Seconds until auto-clear (1-3600) | - |
-
-## Dismissal Handling
-
-When a user taps "Dismiss" on the display:
-
-1. The ESPHome device executes its local dismissal logic
-2. You can create an automation to react to the dismissal
-
-```yaml
-automation:
-  - alias: "Handle Display Dismissal"
-    trigger:
-      platform: event
-      event_type: esphome_display.notification_dismissed
-      event_data:
-        device_id: kitchen_screen
-    action:
-      - service: logbook.log
-        data:
-          name: "Display"
-          message: "User dismissed the notification"
-```
-
-## Future Enhancements
-
-The architecture supports planned expansions:
-
-- **Interactive Actions**: Pass buttons to the display and receive responses
-- **Notification Queuing**: Automatic queue management for multiple notifications
-- **Severity-based Themes**: Dynamic colors and animations based on alert level
-- **Response Events**: React to user selections in Home Assistant automations
-
-## Troubleshooting
-
-### "Device not found" error
-- Verify the device name matches your configuration
-- Ensure ESPHome device is online and connected to Home Assistant
-
-### Notifications not appearing
-- Check that the ESPHome device has the `api.services.notify` configured
-- Verify `gState` is properly initialized in your ESPHome code
-- Check the ESPHome logs for errors
-
-### Integration won't load
-- Verify YAML syntax in `configuration.yaml`
-- Check Home Assistant logs for detailed errors
-- Ensure Home Assistant version is 2024.1.0+
-
-## Support
-
-For issues or feature requests, please open an issue on GitHub.
-
-## License
-
-See LICENSE file in the project root.
+**Requires Home Assistant 2024.1.0+**

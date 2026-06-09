@@ -29,9 +29,13 @@ async def async_setup_entry(
     devices = entry.data.get("devices", {})
 
     for device_name, device_config in devices.items():
-        todo_entity = device_config.get("todo_entity")
-        if todo_entity:
-            entities.append(TodoBridgeSensor(hass, device_name, todo_entity))
+        todo_entities = _get_todo_entities(device_config)
+        for i, todo_entity in enumerate(todo_entities):
+            entities.append(_create_sensor(
+                hass, device_name, todo_entity,
+                is_multi=len(todo_entities) > 1,
+                index=i,
+            ))
 
     if entities:
         async_add_entities(entities)
@@ -49,26 +53,62 @@ async def async_setup_platform(
 
     entities = []
     for device_name, device_config in hass.data[DOMAIN].get("devices", {}).items():
-        todo_entity = device_config.get("todo_entity")
-        if todo_entity:
-            entities.append(TodoBridgeSensor(hass, device_name, todo_entity))
+        todo_entities = _get_todo_entities(device_config)
+        for i, todo_entity in enumerate(todo_entities):
+            entities.append(_create_sensor(
+                hass, device_name, todo_entity,
+                is_multi=len(todo_entities) > 1,
+                index=i,
+            ))
 
     if entities:
         async_add_entities(entities)
 
 
+def _get_todo_entities(device_config: dict) -> list[str]:
+    """Extract todo entities from device config with backward compat."""
+    todo_list = list(device_config.get("todo_entities", []))
+    single = device_config.get("todo_entity")
+    if single and single not in todo_list:
+        todo_list.append(single)
+    return [e for e in todo_list if e]
+
+
+def _create_sensor(
+    hass: HomeAssistant,
+    device_name: str,
+    todo_entity: str,
+    is_multi: bool = False,
+    index: int = 0,
+) -> "TodoBridgeSensor":
+    """Create a TodoBridgeSensor with appropriate unique ID and name."""
+    if is_multi:
+        unique_id = f"esphome_display_todo_{device_name}_{index}"
+        name = f"{device_name} To-Do Items ({index + 1})"
+    else:
+        unique_id = f"esphome_display_todo_{device_name}"
+        name = f"{device_name} To-Do Items"
+    return TodoBridgeSensor(hass, name, unique_id, todo_entity)
+
+
 class TodoBridgeSensor(SensorEntity):
     """Sensor that bridges Home Assistant To-Do to ESPHome display."""
 
-    def __init__(self, hass: HomeAssistant, device_name: str, todo_entity_id: str):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        name: str,
+        unique_id: str,
+        todo_entity_id: str,
+    ):
         """Initialize the sensor."""
         self.hass = hass
-        self._device_name = device_name
+        self._device_name = name
         self._todo_entity_id = todo_entity_id
 
         # Entity metadata
-        self._attr_name = f"{device_name} To-Do Items"
-        self._attr_unique_id = f"esphome_display_todo_{device_name}"
+        self._attr_name = name
+        self._attr_unique_id = unique_id
         self._attr_icon = "mdi:clipboard-list"
 
         # State

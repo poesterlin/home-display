@@ -11,8 +11,6 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
-    EntitySelector,
-    EntitySelectorConfig,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -40,8 +38,12 @@ DEVICE_SCHEMA = vol.Schema(
                 mode=SelectSelectorMode.DROPDOWN,
             )
         ),
-        vol.Optional("todo_entity"): EntitySelector(
-            EntitySelectorConfig(domain=["todo"])
+        vol.Optional("todo_entities"): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.TEXT,
+                multiline=False,
+                prefix="todo.",
+            )
         ),
     }
 )
@@ -88,11 +90,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["esphome_device"] = "esphome_device_required"
 
             if not errors:
+                # Parse comma-separated todo entities
+                todo_raw = user_input.get("todo_entities", "").strip()
+                todo_list = [
+                    e.strip() for e in todo_raw.split(",") if e.strip()
+                ] if todo_raw else []
+
                 # Store device config
                 self.devices[name] = {
                     "esphome_device": esphome_device,
                     "default_severity": user_input.get("default_severity", "info"),
-                    "todo_entity": user_input.get("todo_entity"),
+                    "todo_entities": todo_list,
                 }
 
                 # Ask if adding more devices

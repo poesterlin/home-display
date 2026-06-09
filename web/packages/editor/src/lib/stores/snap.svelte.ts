@@ -1,4 +1,4 @@
-export type SnapLine = {
+type SnapLine = {
   type: "v" | "h";
   coord: number;
   start: number;

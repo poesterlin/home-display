@@ -20,12 +20,12 @@ const TAB_HEADER_HEIGHT = 36;
 
 const SAVE_DEBOUNCE_MS = 1500;
 
-export type ProjectConfig = {
+type ProjectConfig = {
   display?: Partial<DisplayConfig>,
   theme?: Theme
 };
 
-export type ComponentLayoutBounds = {
+type ComponentLayoutBounds = {
   id: string;
   component: Component;
   x: number;
@@ -35,7 +35,7 @@ export type ComponentLayoutBounds = {
   ancestorIds: string[];
 };
 
-export type LayoutSurface = {
+type LayoutSurface = {
   x: number;
   y: number;
   width: number;

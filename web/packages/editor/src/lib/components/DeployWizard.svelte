@@ -1,6 +1,8 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { projectStore } from "$lib/stores/project.svelte";
+  import { deploymentStore } from "$lib/stores/deployment.svelte";
+  import ConfirmCompileModal from "$lib/components/ConfirmCompileModal.svelte";
   import {
     generateESPHomeYAML,
     generateUITypesHeader,
@@ -12,10 +14,6 @@
   import { assert } from "$lib/utils";
   import JSZip from "jszip";
 
-  // Static ESPHome template files (base.yaml, hardware.yaml, fonts.yaml,
-  // includes/*.h, ...) bundled at build time. This is the client-side
-  // counterpart of `copyStaticTemplates` used by the server queue and
-  // MUST stay in sync with `$lib/server/esphome-templates.ts`.
   const TEMPLATE_PREFIX = "../templates/";
   const staticTemplates = import.meta.glob("../templates/**/*", {
     query: "?raw",
@@ -24,38 +22,15 @@
   }) as Record<string, string>;
 
   interface Props {
-    onClose: () => void;
-    onCompilingChange?: (isCompiling: boolean) => void;
+    onClose?: () => void;
+    standalone?: boolean;
   }
 
-  let { onClose, onCompilingChange }: Props = $props();
+  let { onClose, standalone = false }: Props = $props();
 
-  // Wizard state
-  type WizardStep = "choose" | "compiling" | "flash" | "publish" | "done";
-  type FlowType = "new" | "update" | null;
-
-  let step = $state<WizardStep>("choose");
-  let flow = $state<FlowType>(null);
-
-  // Compilation state
-  let compiling = $state(false);
-  let compilationProgress = $state(0);
-  let compilationStatus = $state<string>("");
-  let compilationError = $state<string | null>(null);
-  let lastJobId = $state<string | null>(null);
-  let manifestUrl = $state<string | null>(null);
-
-  // Publish state
-  let published = $state(false);
-  let publishing = $state(false);
-
-  // Check for existing builds on mount
   let hasExistingBuild = $state(false);
   let existingBuildPublished = $state(false);
-
-  $effect(() => {
-    onCompilingChange?.(compiling);
-  });
+  let pendingFlow = $state<"new" | "update" | null>(null);
 
   $effect(() => {
     checkExistingBuild();
@@ -77,103 +52,15 @@
     } catch {}
   }
 
-  function startFlow(type: FlowType) {
-    flow = type;
-    compile();
+  function startFlow(type: "new" | "update") {
+    pendingFlow = type;
   }
 
-  async function compile() {
-    assert(projectStore.project, "No project loaded");
-    compiling = true;
-    compilationError = null;
-    compilationProgress = 0;
-    compilationStatus = "Submitting build...";
-    step = "compiling";
-
-    try {
-      const response = await fetch("/api/compile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: projectStore.serverProjectId,
-          projectName: projectStore.project.name,
-          config: projectStore.exportJSON(),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Failed to start compilation");
-
-      lastJobId = data.jobId;
-      published = false;
-      compilationProgress = 10;
-      compilationStatus = "Build queued...";
-      pollStatus(data.jobId);
-    } catch (err: any) {
-      compilationError = err.message;
-      compiling = false;
-    }
-  }
-
-  async function pollStatus(jobId: string) {
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/compile?jobId=${jobId}`);
-        const job = await response.json();
-        if (!response.ok) throw new Error(job.error || "Failed to get status");
-
-        if (job.status === "queued") {
-          compilationStatus = "Waiting in queue...";
-          compilationProgress = 15;
-        } else if (job.status === "running") {
-          compilationStatus = "Compiling firmware...";
-          // Gradually increase progress while running
-          compilationProgress = Math.min(compilationProgress + 5, 85);
-        } else if (job.status === "completed") {
-          compilationProgress = 100;
-          compilationStatus = "Build complete!";
-          compiling = false;
-          manifestUrl = `/api/manifest/${jobId}`;
-          playPling();
-
-          // Move to next step after brief pause
-          setTimeout(() => {
-            step = flow === "new" ? "flash" : "publish";
-          }, 600);
-          return;
-        } else if (job.status === "failed") {
-          compilationError = job.error || "Compilation failed";
-          compiling = false;
-          return;
-        }
-
-        setTimeout(poll, 2000);
-      } catch (err: any) {
-        compilationError = err.message;
-        compiling = false;
-      }
-    };
-
-    poll();
-  }
-
-  async function publishBuild() {
-    if (!lastJobId || publishing) return;
-    publishing = true;
-    try {
-      const res = await fetch(`/api/compile/${lastJobId}/publish`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        published = true;
-        step = "done";
-      }
-    } catch (e) {
-      console.error("Failed to publish", e);
-    } finally {
-      publishing = false;
-    }
+  function confirmFlow() {
+    if (!pendingFlow) return;
+    const type = pendingFlow;
+    pendingFlow = null;
+    deploymentStore.compile(type);
   }
 
   async function downloadProject() {
@@ -184,13 +71,11 @@
         .toLowerCase()
         .replace(/\s+/g, "-");
 
-      // Strip OTA-related secrets so downloaded firmware never includes
-      // OTA functionality. The OTA URL is only baked in at server build time.
-      const project = { ...projectStore.project, secrets: { ...projectStore.project.secrets, firmwareUpdateUrl: undefined } };
+      const project = {
+        ...projectStore.project,
+        secrets: { ...projectStore.project.secrets, firmwareUpdateUrl: undefined },
+      };
 
-      // 1. Copy bundled static templates (base.yaml, hardware.yaml,
-      //    includes/*.h, ...). fonts.yaml is held back so we can append
-      //    per-project MDI icon glyphs below.
       let baseFontsYaml = "";
       for (const [key, content] of Object.entries(staticTemplates)) {
         const relativePath = key.startsWith(TEMPLATE_PREFIX)
@@ -203,25 +88,19 @@
         zip.file(relativePath, content);
       }
 
-      // 2. fonts.yaml augmented with project-specific MDI icons.
       zip.file("fonts.yaml", generateFontsYAML(project, baseFontsYaml));
 
-      // Validate project before codegen
       const validationErrors = validateProject(project);
       if (validationErrors.length > 0) {
-        const messages = validationErrors.map((e) => `[${e.type}] ${e.message}`).join('\n');
-        compilationError = `Project validation failed:\n${messages}`;
+        const messages = validationErrors.map((e) => `[${e.type}] ${e.message}`).join("\n");
+        deploymentStore.state.error = `Project validation failed:\n${messages}`;
         return;
       }
 
-      // 3. Generated dynamic C++ headers (mirrors the queue).
       zip.file("includes/ui_types.h", generateUITypesHeader(project));
       zip.file("includes/ui_state.h", generateUIStateHeader(project));
       zip.file("includes/ui_screens.h", generateUIScreensHeader(project));
-
-      // 4. The main ESPHome config + secrets.
       zip.file(`${fileName}.yaml`, generateESPHomeYAML(project));
-      // zip.file("secrets.yaml", generateSecretsYAML(project));
 
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
@@ -239,10 +118,9 @@
     /Insufficient credits\. Cost: (?<cost>\d+), balance: (?<balance>\d+)/;
 
   let insufficientCreditsDetails = $derived.by(() => {
-    if (!compilationError) return null;
-    const match = compilationError.match(insufficientCreditsRegex);
+    if (!deploymentStore.state.error) return null;
+    const match = deploymentStore.state.error.match(insufficientCreditsRegex);
     if (!match?.groups) return null;
-
     return {
       cost: Number(match.groups.cost),
       balance: Number(match.groups.balance),
@@ -256,7 +134,6 @@
       const ctx = new AudioContextClass();
       const now = ctx.currentTime;
 
-      // Note 1: B5 (987.77 Hz)
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = "sine";
@@ -269,7 +146,6 @@
       osc1.start(now);
       osc1.stop(now + 0.45);
 
-      // Note 2: E6 (1318.51 Hz)
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = "sine";
@@ -287,12 +163,14 @@
   }
 
   function reset() {
-    step = "choose";
-    flow = null;
-    compilationError = null;
-    compilationProgress = 0;
-    compilationStatus = "";
+    deploymentStore.reset();
   }
+
+  $effect(() => {
+    if (deploymentStore.state.step === "done" && deploymentStore.state.published) {
+      playPling();
+    }
+  });
 </script>
 
 <svelte:head>
@@ -302,40 +180,54 @@
   ></script>
 </svelte:head>
 
-<div class="wizard">
+<div class="wizard" class:standalone>
   <!-- Header -->
   <div class="wizard-header">
-    {#if step !== "choose"}
-      <button class="back-btn" onclick={reset} disabled={compiling} aria-label="back">
+    {#if deploymentStore.state.step !== "idle" && deploymentStore.state.step !== "choose"}
+      <button class="back-btn" onclick={reset} disabled={deploymentStore.state.compiling} aria-label="back">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 12L6 8L10 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     {/if}
     <h2>
-      {#if step === "choose"}Deploy{:else if step === "compiling"}Building{:else if step === "flash"}Install{:else if step === "publish"}Publish{:else}Done{/if}
+      {#if deploymentStore.state.step === "idle" || deploymentStore.state.step === "choose"}
+        Deploy
+      {:else if deploymentStore.state.step === "compiling"}
+        Building
+      {:else if deploymentStore.state.step === "flash"}
+        Install
+      {:else if deploymentStore.state.step === "publish"}
+        Publish
+      {:else}
+        Done
+      {/if}
     </h2>
-    <button class="close-btn" onclick={() => !compiling && onClose()} disabled={compiling} aria-label="close">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
+    {#if onClose}
+      <button class="close-btn" onclick={() => !deploymentStore.state.compiling && onClose()} disabled={deploymentStore.state.compiling} aria-label="close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    {:else}
+      <div style="width: 32px"></div>
+    {/if}
   </div>
 
   <!-- Steps indicator -->
-  {#if flow}
+  {#if deploymentStore.state.flow}
     <div class="steps-bar">
-      <div class="step-dot" class:active={step === "compiling"} class:done={step === "flash" || step === "publish" || step === "done"}></div>
-      <div class="step-line" class:done={step === "flash" || step === "publish" || step === "done"}></div>
-      <div class="step-dot" class:active={step === "flash" || step === "publish"} class:done={step === "done"}></div>
-      <div class="step-line" class:done={step === "done"}></div>
-      <div class="step-dot" class:active={step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "compiling"} class:done={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
+      <div class="step-line" class:done={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish"} class:done={deploymentStore.state.step === "done"}></div>
+      <div class="step-line" class:done={deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "done"}></div>
     </div>
   {/if}
 
   <div class="wizard-body">
     <!-- Step: Choose flow -->
-    {#if step === "choose"}
+    {#if deploymentStore.state.step === "idle" || deploymentStore.state.step === "choose"}
       <div class="choose-flow">
         <p class="subtitle">How would you like to deploy <strong>{projectStore.project?.name}</strong>?</p>
 
@@ -386,15 +278,15 @@
       </div>
 
     <!-- Step: Compiling -->
-    {:else if step === "compiling"}
+    {:else if deploymentStore.state.step === "compiling"}
       <div class="compiling-view">
-        <div class="compile-animation" class:error={compilationError}>
-          {#if compilationError}
+        <div class="compile-animation" class:error={deploymentStore.state.error}>
+          {#if deploymentStore.state.error}
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
               <path d="M15 9L9 15M9 9L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
-          {:else if compilationProgress >= 100}
+          {:else if deploymentStore.state.progress >= 100}
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" class="check-icon">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
               <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -404,13 +296,13 @@
           {/if}
         </div>
 
-        <p class="compile-status" class:error={compilationError}>
-          {compilationError ?? compilationStatus}
+        <p class="compile-status" class:error={deploymentStore.state.error}>
+          {deploymentStore.state.error ?? deploymentStore.state.status}
         </p>
 
-        {#if !compilationError}
+        {#if !deploymentStore.state.error}
           <div class="progress-bar">
-            <div class="progress-fill" style="width: {compilationProgress}%"></div>
+            <div class="progress-fill" style="width: {deploymentStore.state.progress}%"></div>
           </div>
           <p class="compile-hint">This can take a few minutes on first build</p>
         {:else}
@@ -423,7 +315,7 @@
               <button class="primary-action" onclick={() => goto("/credits")}>Add Credits</button>
             </div>
           {:else}
-            <button class="retry-btn" onclick={() => compile()}>
+            <button class="retry-btn" onclick={() => startFlow("update")}>
               Try Again
             </button>
           {/if}
@@ -431,7 +323,7 @@
       </div>
 
     <!-- Step: Flash new device -->
-    {:else if step === "flash"}
+    {:else if deploymentStore.state.step === "flash"}
       <div class="flash-view">
         <div class="success-badge">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -459,8 +351,8 @@
           </div>
         </div>
 
-        {#if manifestUrl}
-          <esp-web-install-button manifest={manifestUrl}>
+        {#if deploymentStore.state.manifestUrl}
+          <esp-web-install-button manifest={deploymentStore.state.manifestUrl}>
             <button slot="activate" class="primary-action">
               Install to Device
             </button>
@@ -472,13 +364,13 @@
           Connect to it and enter your WiFi credentials.
         </p>
 
-        <button class="text-action" onclick={() => { step = "done"; }}>
+        <button class="text-action" onclick={() => { deploymentStore.state.step = "done"; }}>
           Skip — I'll flash later
         </button>
       </div>
 
     <!-- Step: Publish OTA -->
-    {:else if step === "publish"}
+    {:else if deploymentStore.state.step === "publish"}
       <div class="publish-view">
         <div class="success-badge">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -499,19 +391,19 @@
 
         <button
           class="primary-action"
-          disabled={publishing}
-          onclick={publishBuild}
+          disabled={deploymentStore.state.publishing}
+          onclick={() => deploymentStore.publishBuild()}
         >
-          {publishing ? "Publishing..." : "Publish Update"}
+          {deploymentStore.state.publishing ? "Publishing..." : "Publish Update"}
         </button>
 
-        <button class="text-action" onclick={() => { step = "done"; }}>
+        <button class="text-action" onclick={() => { deploymentStore.state.step = "done"; }}>
           Skip — don't publish yet
         </button>
       </div>
 
     <!-- Step: Done -->
-    {:else if step === "done"}
+    {:else if deploymentStore.state.step === "done"}
       <div class="done-view">
         <div class="done-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
@@ -520,12 +412,12 @@
           </svg>
         </div>
 
-        {#if published}
+        {#if deploymentStore.state.published}
           <h3>Update Published</h3>
           <p class="done-desc">
             Your devices will show an update notification in Home Assistant. They'll download and install the new firmware automatically.
           </p>
-        {:else if flow === "new"}
+        {:else if deploymentStore.state.flow === "new"}
           <h3>You're All Set</h3>
           <p class="done-desc">
             Your firmware has been built. You can come back here anytime to flash it to a device or publish it for OTA updates.
@@ -537,11 +429,19 @@
           </p>
         {/if}
 
-        <button class="primary-action" onclick={onClose}>Done</button>
+        <button class="primary-action" onclick={onClose ?? (() => { deploymentStore.reset(); })}>Done</button>
       </div>
     {/if}
   </div>
 </div>
+
+{#if pendingFlow}
+  <ConfirmCompileModal
+    flow={pendingFlow}
+    onConfirm={confirmFlow}
+    onCancel={() => (pendingFlow = null)}
+  />
+{/if}
 
 <style>
   .wizard {
@@ -551,6 +451,16 @@
     max-height: 80vh;
     background: var(--color-bg-primary);
     overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+  }
+
+  .wizard.standalone {
+    width: 100%;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+    border: none;
   }
 
   .wizard-header {
