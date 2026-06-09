@@ -12,6 +12,7 @@ import { generateSecretsYAML } from '$lib/codegen/secrets';
 import { validateProject } from '$lib/codegen/validations';
 import { copyStaticTemplates } from '$lib/server/esphome-templates';
 import { uploadBinary, deleteBinaries } from '$lib/server/s3';
+import { addCredits, CREDIT_COSTS } from '$lib/credits';
 
 interface ActiveJob {
   job: CompilationJob;
@@ -302,6 +303,18 @@ export class CompilationQueue extends EventEmitter {
     if (result.error) {
       job.status = 'failed';
       job.error = result.error;
+
+      if (env.APP_EDITION === 'cloud' && job.userId) {
+        try {
+          await addCredits({
+            userId: job.userId,
+            amount: CREDIT_COSTS.compile,
+            reason: `compile-refund:${job.projectId ?? job.id}`,
+          });
+        } catch (refundError) {
+          console.error(`Failed to refund credits for job ${job.id}:`, refundError);
+        }
+      }
     } else {
       job.status = 'completed';
       job.output = result.output ?? null;
