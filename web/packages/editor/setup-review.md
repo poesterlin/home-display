@@ -32,8 +32,8 @@
 
 ## Error Handling
 
-- [ ] API error responses return raw `error.message`, potentially leaking internals.
-- [ ] Multiple endpoints use broad catch-and-return patterns without sanitization.
+- [x] API error responses return raw `error.message`, potentially leaking internals.
+- [x] Multiple endpoints use broad catch-and-return patterns without sanitization.
 <!-- - [ ] Project validation runs twice (API and worker), producing inconsistent UX paths. -->
 - [ ] No circuit breaker/backoff when compile environment is consistently broken.
 - [ ] Compile timeout and compile failure are not clearly distinguished in user-facing errors.

@@ -63,7 +63,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     if (error.message?.includes('already have an active compilation job')) {
       return json({ error: error.message }, { status: 429 });
     }
-    return json({ error: error.message }, { status: 500 });
+    console.error('Compile POST error:', error);
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 };
 
@@ -92,6 +93,7 @@ export const GET: RequestHandler = async ({ url }) => {
     const allJobs = await getAllJobs();
     return json(allJobs);
   } catch (error: any) {
-    return json({ error: error.message }, { status: 500 });
+    console.error('Compile GET error:', error);
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 };

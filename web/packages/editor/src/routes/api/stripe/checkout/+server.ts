@@ -31,6 +31,6 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     return json(session);
   } catch (err: any) {
     console.error("[stripe checkout]", err);
-    return json({ error: err.message }, { status: 500 });
+    return json({ error: "Failed to create checkout session" }, { status: 500 });
   }
 };
