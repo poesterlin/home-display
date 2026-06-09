@@ -86,6 +86,22 @@ export class CompilationQueue extends EventEmitter {
       .where(inArray(schema.compilationJobs.status, ['running', 'pending', 'queued']));
 
     console.log(`🧹 Marked ${inProgress.length} in-progress builds as failed`);
+
+    if (env.APP_EDITION === 'cloud') {
+      for (const job of inProgress) {
+        if (job.userId) {
+          try {
+            await addCredits({
+              userId: job.userId,
+              amount: CREDIT_COSTS.compile,
+              reason: `compile-refund-restart:${job.projectId ?? job.id}`,
+            });
+          } catch (refundError) {
+            console.error(`Failed to refund credits for orphaned job ${job.id}:`, refundError);
+          }
+        }
+      }
+    }
   }
 
   async hasUserActiveJob(userId: string): Promise<boolean> {
