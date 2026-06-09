@@ -203,6 +203,7 @@ export class CompilationQueue extends EventEmitter {
           const candidates = ['firmware.factory.bin', 'firmware.bin'];
 
           let uploaded = false;
+          let uploadError = '';
           for (const name of candidates) {
             const binPath = join(pioDir, name);
             try {
@@ -212,11 +213,13 @@ export class CompilationQueue extends EventEmitter {
               console.log(`Binary uploaded to S3 for job ${job.id} (from ${name})`);
               uploaded = true;
               break;
-            } catch {}
+            } catch (err: any) {
+              uploadError = err.message || String(err);
+            }
           }
           if (!uploaded) {
             const files = await fs.readdir(pioDir).catch(() => []);
-            console.error(`No firmware binary found in ${pioDir}. Files: ${files.join(', ')}`);
+            console.error(`No firmware binary found in ${pioDir}. Files: ${files.join(', ')}. S3 error: ${uploadError}`);
           }
 
           await this.handleJobResult(job.id, { output: stdout });
