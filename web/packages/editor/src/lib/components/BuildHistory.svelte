@@ -11,7 +11,10 @@
   });
 
   async function loadJobs() {
-    if (!projectStore.serverProjectId) return;
+    if (!projectStore.serverProjectId) {
+      loading = false;
+      return;
+    }
     try {
       const res = await fetch(`/api/compile?projectId=${projectStore.serverProjectId}`);
       if (res.ok) {
