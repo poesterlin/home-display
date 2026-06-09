@@ -52,6 +52,7 @@ export const compilationJobs = pgTable('compilation_jobs', {
   template: varchar('template', { length: 50 }), // 'initial' for initial flash firmware, null for full dashboard
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   published: boolean('published').notNull().default(false),
+  pinned: boolean('pinned').notNull().default(false),
   output: text('output'),
   error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -403,9 +403,10 @@ export class CompilationQueue extends EventEmitter {
       .where(eq(schema.compilationJobs.projectId, projectId))
       .orderBy(desc(schema.compilationJobs.createdAt));
 
-    if (allJobs.length <= KEEP_COUNT) return;
+    const unpinned = allJobs.filter((j) => !j.pinned);
+    if (unpinned.length <= KEEP_COUNT) return;
 
-    const jobsToDelete = allJobs.slice(KEEP_COUNT);
+    const jobsToDelete = unpinned.slice(KEEP_COUNT);
     const idsToDelete = jobsToDelete.map((j) => j.id);
 
     await deleteBinaries(idsToDelete);
