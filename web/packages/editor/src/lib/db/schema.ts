@@ -10,6 +10,8 @@ export const usersTable = pgTable('user', {
   passwordHash: text('password_hash').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
   lastLogin: timestamp('last_login', { withTimezone: true, mode: 'date' }),
+  failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
+  lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'date' }),
 });
 
 export type User = typeof usersTable.$inferSelect;
