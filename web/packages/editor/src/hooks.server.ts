@@ -1,5 +1,6 @@
 import { startWorker, stopWorker } from "$lib/utils/worker";
-import { sequence, json, type Handle } from "@sveltejs/kit";
+import { json, type Handle } from "@sveltejs/kit";
+import { sequence } from "@sveltejs/kit/hooks";
 import { getDb } from "./lib/db";
 import * as auth from "$lib/server/auth";
 import { env } from "$env/dynamic/private";
