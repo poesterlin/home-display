@@ -9,7 +9,7 @@
 <!-- - [ ] Worker/db init in `hooks.server.ts` is unawaited; requests can arrive before readiness. -->
 - [~] No per-user rate limiting on compile job submission. make it only 1 job.
 - [x] Job insertion and queue processing can leave orphaned pending jobs after crashes. TODO: check again: web/packages/editor/src/lib/queue/index.ts:51 in failInProgressJobs()
-- [ ] Shutdown uses `process.kill()` with basic handling; child cleanup can be incomplete.
+- [x] Shutdown uses `process.kill()` with basic handling; child cleanup can be incomplete.
 - [ ] Build retention keeps last 10 only; no way to pin/retain important builds.
 
 ## Authentication

@@ -58,8 +58,46 @@ export class CompilationQueue extends EventEmitter {
     console.log('⏹️  Stopping compilation queue');
     this.isStopped = true;
 
-    for (const { process } of this.activeJobs.values()) {
-      process.kill();
+    const activeEntries = Array.from(this.activeJobs.entries());
+    const shutdownTimeout = 5000;
+
+    for (const [, { process }] of activeEntries) {
+      process.kill('SIGTERM');
+    }
+
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        const check = () => {
+          if (this.activeJobs.size === 0) {
+            resolve();
+          } else {
+            setTimeout(check, 100);
+          }
+        };
+        setTimeout(check, 100);
+      }),
+      new Promise<void>((resolve) => setTimeout(resolve, shutdownTimeout)),
+    ]);
+
+    for (const [, { process }] of activeEntries) {
+      try {
+        process.kill('SIGKILL');
+      } catch {
+        // process already exited
+      }
+    }
+
+    if (this.activeJobs.size > 0) {
+      const db = getDb();
+      const orphanedIds = Array.from(this.activeJobs.keys());
+      await db
+        .update(schema.compilationJobs)
+        .set({
+          status: 'failed',
+          error: 'Server shutting down during build',
+          completedAt: new Date(),
+        })
+        .where(inArray(schema.compilationJobs.id, orphanedIds));
     }
 
     this.activeJobs.clear();
