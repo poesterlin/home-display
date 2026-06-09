@@ -14,7 +14,7 @@
 
 ## Authentication
 
-- [ ] Session cookie is missing `httpOnly`, `secure`, and `sameSite` flags.
+- [x] Session cookie is missing `httpOnly`, `secure`, and `sameSite` flags.
 - [ ] No CSRF protection on mutating POST endpoints. TODO: this is checked by sveltekit right?
 - [ ] No login rate limiting or account lockout for brute-force protection. 
 - [ ] Argon2 settings are acceptable but below stronger modern recommendations.
