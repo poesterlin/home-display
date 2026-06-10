@@ -42,6 +42,45 @@ describe("image component codegen", () => {
     expect(out).not.toContain("// TODO: component type 'image'");
   });
 
+  test("rounds fractional UiRect values for generated C++", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Page",
+          components: [
+            {
+              id: "conditional-area",
+              type: "conditional_area",
+              position: { x: 222.5, y: 341 },
+              size: { width: 83.5, height: 80 },
+              variants: [
+                {
+                  id: "default",
+                  components: [
+                    {
+                      id: "icon",
+                      type: "icon",
+                      position: { x: 8, y: 12 },
+                      size: { width: 50, height: 56 },
+                      icon: "home",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const out = generateUIScreensHeader(project);
+    expect(out).toContain("UiRect{223, 341, 84, 80}");
+    expect(out).toContain("UiRect{231, 353, 50, 56}");
+    expect(out).not.toContain("222.5");
+    expect(out).not.toContain("83.5");
+  });
+
   test("emits static image YAML when no HA binding is set", () => {
     const project = makeProject({
       dashboardPages: [
