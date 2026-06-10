@@ -1,8 +1,6 @@
-import { env } from "$env/dynamic/private";
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-const LOG_LEVEL = env.LOG_LEVEL || 'info';
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const LEVELS: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
 function shouldLog(level: LogLevel): boolean {

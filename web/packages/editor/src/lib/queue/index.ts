@@ -5,7 +5,7 @@ import { join } from 'path';
 import { getDb, schema } from '$lib/db/index.js';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import type { CompilationJob, NewCompilationJob } from '$lib/db/schema';
-import { env } from '$env/dynamic/private';
+
 import type { Project } from '@esphome-designer/schema';
 import { generateESPHomeYAML, generateUITypesHeader, generateUIStateHeader, generateUIScreensHeader, generateFontsYAML } from '$lib/codegen/esphome';
 import { generateSecretsYAML } from '$lib/codegen/secrets';
@@ -14,7 +14,6 @@ import { copyStaticTemplates } from '$lib/server/esphome-templates';
 import { uploadBinary, deleteBinaries } from '$lib/server/s3';
 import { addCredits, CREDIT_COSTS } from '$lib/credits';
 import { createLogger } from '$lib/server/logger';
-import type { Logger } from '$lib/server/logger';
 import { assert } from '$lib/utils';
 
 interface ActiveJob {
@@ -47,7 +46,7 @@ export class CompilationQueue extends EventEmitter {
   }
 
   private async resolvePythonSitePackages(): Promise<void> {
-    const venvPath = env.ESPHOME_VENV;
+    const venvPath = process.env.ESPHOME_VENV;
     if (!venvPath) return;
     try {
       const libDir = join(venvPath, 'lib');
@@ -133,7 +132,7 @@ export class CompilationQueue extends EventEmitter {
 
     console.log(`🧹 Marked ${inProgress.length} in-progress builds as failed`);
 
-    if (env.APP_EDITION === 'cloud') {
+    if (process.env.APP_EDITION === 'cloud') {
       for (const job of inProgress) {
         if (job.userId) {
           try {
@@ -252,9 +251,11 @@ export class CompilationQueue extends EventEmitter {
 
         assert(proj, "project not found");
 
-        const baseUrl = env.PUBLIC_BASE_URL || `http://localhost:5173`;
-        logger.debug("BASE_URL:" + baseUrl);
+        const envBaseUrl = process.env.PUBLIC_BASE_URL;
+        const baseUrl = envBaseUrl || `http://localhost:5173`;
+        logger.info(`firmwareUpdateUrl: PUBLIC_BASE_URL=${envBaseUrl ?? '<unset>'} baseUrl=${baseUrl} firmwareToken=${proj.firmwareToken}`);
         firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}`;
+        logger.info(`firmwareUpdateUrl final: ${firmwareUpdateUrl}`);
       }
 
       const project = JSON.parse(job.config) as Project;
@@ -278,9 +279,11 @@ export class CompilationQueue extends EventEmitter {
 
       const esphomeYaml = generateESPHomeYAML(project, job.id);
       const secretsYaml = generateSecretsYAML(project);
+      logger.info(`generated secrets.yaml:\n${secretsYaml}`);
       await fs.writeFile(configFile, esphomeYaml);
       await fs.writeFile(join(tempDir, 'secrets.yaml'), secretsYaml);
 
+      const env = process.env;
       const venvPath = env.ESPHOME_VENV;
       const childProcess = spawn(
         `${venvPath}/bin/python`,
@@ -307,7 +310,7 @@ export class CompilationQueue extends EventEmitter {
 
       childProcess.stdout?.on('data', (data) => {
         stdout += data;
-        logger.info(`stdout: ${data.toString().trim()}`);
+        logger.debug(`stdout: ${data.toString().trim()}`);
       });
 
       childProcess.stderr?.on('data', (data) => {
@@ -392,7 +395,7 @@ export class CompilationQueue extends EventEmitter {
         console.warn(`Circuit breaker opened after ${this.consecutiveFailures} consecutive failures`);
       }
 
-      if (env.APP_EDITION === 'cloud' && job.userId) {
+      if (process.env.APP_EDITION === 'cloud' && job.userId) {
         try {
           await addCredits({
             userId: job.userId,
