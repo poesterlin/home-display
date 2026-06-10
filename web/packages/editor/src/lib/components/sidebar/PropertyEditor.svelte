@@ -389,18 +389,6 @@
             onSelect={(icon) => updateProperty("icon", icon)}
           />
         </div>
-        <div class="field">
-          <span class="field-label">Scale</span>
-          <input
-            type="number"
-            step="0.1"
-            min="0.1"
-            max="5"
-            value={selectedComponent.scale ?? 1}
-            oninput={(e) =>
-              updateProperty("scale", parseFloat(e.currentTarget.value) || 1)}
-          />
-        </div>
       </div>
 
       <div class="property-section">
