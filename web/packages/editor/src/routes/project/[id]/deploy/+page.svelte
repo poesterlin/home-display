@@ -4,7 +4,6 @@
   import { deploymentStore } from "$lib/stores/deployment.svelte";
   import DeployWizard from "$lib/components/DeployWizard.svelte";
   import BuildHistory from "$lib/components/BuildHistory.svelte";
-  import ChangeSummary from "$lib/components/ChangeSummary.svelte";
   import { onMount } from "svelte";
 
   let { data } = $props();
@@ -34,7 +33,7 @@
         Back to Editor
       </button>
     </div>
-    <h1>Deployment Control Room</h1>
+    <h1>Deploy</h1>
     <div class="header-right">
       <span class="project-name">{data.project.name}</span>
     </div>
@@ -42,8 +41,7 @@
 
   <div class="deploy-body">
     <div class="deploy-left">
-      <ChangeSummary lastSavedData={data.lastSavedData} />
-      <DeployWizard standalone />
+      <DeployWizard standalone lastSavedData={data.lastSavedData} />
     </div>
     <div class="deploy-right">
       <BuildHistory />
@@ -123,7 +121,7 @@
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    border-right: 1px solid var(--color-border);
+    padding: var(--spacing-xl);
   }
 
   .deploy-right {

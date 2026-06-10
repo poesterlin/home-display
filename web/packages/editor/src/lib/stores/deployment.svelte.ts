@@ -2,7 +2,7 @@ import { projectStore } from "$lib/stores/project.svelte";
 import { assert } from "$lib/utils";
 
 interface DeploymentState {
-  step: "idle" | "compiling" | "flash" | "publish" | "done";
+  step: "idle" | "compiling" | "ready" | "flash" | "publish" | "done";
   flow: "new" | "update" | null;
   compiling: boolean;
   progress: number;
@@ -58,7 +58,7 @@ function createDeploymentStore() {
     state.publishing = false;
   }
 
-  async function compile(flowType: "new" | "update") {
+  async function compile(flowType: "new" | "update" | null = null) {
     assert(projectStore.project, "No project loaded");
     state.flow = flowType;
     state.compiling = true;
@@ -110,7 +110,7 @@ function createDeploymentStore() {
           state.status = "Build complete!";
           state.compiling = false;
           state.manifestUrl = `/api/manifest/${jobId}`;
-          state.step = state.flow === "new" ? "flash" : "publish";
+          state.step = "ready";
           return;
         } else if (job.status === "failed") {
           state.error = job.error || "Compilation failed";

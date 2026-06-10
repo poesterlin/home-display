@@ -108,6 +108,13 @@
       {:else}
         <span class="hint">{deploymentStore.state.error}</span>
       {/if}
+    {:else if deploymentStore.state.step === "ready"}
+      <div class="status-badge success">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Firmware ready</span>
+      </div>
     {:else if deploymentStore.state.step === "done" || deploymentStore.state.published}
       <div class="status-badge success">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -135,6 +142,9 @@
       <!-- compiling -->
     {:else if deploymentStore.state.error}
       <button class="action-btn" onclick={handleCompile}>Retry</button>
+    {:else if deploymentStore.state.step === "ready"}
+      <button class="action-btn" onclick={handleFlash}>Flash Device</button>
+      <button class="action-btn secondary" onclick={handlePublish}>Publish OTA</button>
     {:else if deploymentStore.state.step === "done" || deploymentStore.state.published}
       <button class="action-btn" onclick={handleFlash}>Flash Device</button>
       <button class="action-btn secondary" onclick={handlePublish}>Publish OTA</button>

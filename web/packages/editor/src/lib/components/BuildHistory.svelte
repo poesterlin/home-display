@@ -1,9 +1,11 @@
 <script lang="ts">
+  import * as mdiIcons from "@mdi/js";
   import { projectStore } from "$lib/stores/project.svelte";
   import { deploymentStore, type JobStatus } from "$lib/stores/deployment.svelte";
 
   let jobs = $state<JobStatus[]>([]);
   let loading = $state(true);
+  let popoverOk = $state(false);
 
   $effect(() => {
     const projectId = projectStore.serverProjectId;
@@ -13,6 +15,10 @@
       return;
     }
     loadJobs(projectId);
+  });
+
+  $effect(() => {
+    popoverOk = typeof HTMLElement !== 'undefined' && 'popover' in HTMLElement.prototype;
   });
 
   async function loadJobs(projectId: string) {
@@ -30,11 +36,6 @@
     }
   }
 
-  function formatDate(dateStr: string) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString();
-  }
-
   function timeAgo(dateStr: string) {
     if (!dateStr) return "";
     const now = new Date().getTime();
@@ -50,19 +51,44 @@
   }
 
   function downloadBin(jobId: string) {
+    if (isBusy) return;
     const a = document.createElement("a");
     a.href = `/api/builds/${jobId}`;
-    a.download = `${jobId}.bin`;
+    a.download = `${projectStore.project?.name?.toLowerCase().replace(/\s+/g, "-") || "firmware"}.bin`;
     a.click();
   }
 
+  async function rollbackProject(job: JobStatus) {
+    if (isBusy || !job.config || !projectStore.serverProjectId) return;
+    const ok = window.confirm("Roll back the project to this build?");
+    if (!ok) return;
+
+    try {
+      const config = JSON.parse(job.config);
+      const name = typeof config.name === "string" ? config.name : projectStore.project?.name;
+      const res = await fetch(`/api/projects/${projectStore.serverProjectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, data: config }),
+      });
+      if (!res.ok) throw new Error("Rollback failed");
+      const saved = await res.json();
+      projectStore.loadFromServer(saved);
+    } catch (e) {
+      console.error("Failed to roll back project", e);
+      window.alert("Could not roll back to this build.");
+    }
+  }
+
   async function publishJob(jobId: string) {
+    if (isBusy) return;
     await deploymentStore.publishBuild(jobId);
     const projectId = projectStore.serverProjectId;
     if (projectId) await loadJobs(projectId);
   }
 
   function flashBuild(jobId: string) {
+    if (isBusy) return;
     deploymentStore.state.jobId = jobId;
     deploymentStore.state.manifestUrl = `/api/manifest/${jobId}`;
     deploymentStore.state.flow = "new";
@@ -70,30 +96,42 @@
   }
 
   const activeJob = $derived(jobs.find((j) => j.published && j.status === "completed"));
+  const isBusy = $derived(deploymentStore.state.compiling || deploymentStore.state.publishing);
 </script>
 
 <div class="build-history">
-  <h2>Build Archives & Release Board</h2>
+  <div class="history-heading">
+    <span>Release Board</span>
+    {#if isBusy}
+      <small>Actions locked while work is running</small>
+    {/if}
+  </div>
 
   <!-- Active Release Spotlight -->
   {#if activeJob}
     <div class="active-card">
       <div class="active-header">
-        <span class="active-badge">Active Release</span>
-        <span class="active-date">{timeAgo(activeJob.createdAt)}</span>
+        <span class="active-badge">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d={mdiIcons.mdiCheckCircle} />
+          </svg>
+          Active Release
+        </span>
+        <span class="active-date">Published {timeAgo(activeJob.createdAt)}</span>
       </div>
       <div class="active-body">
         <div class="active-row">
-          <span class="active-label">Build ID</span>
-          <span class="active-value">{activeJob.id}</span>
-        </div>
-        <div class="active-row">
-          <span class="active-label">Published</span>
-          <span class="active-value">{formatDate(activeJob.createdAt)}</span>
+          <span class="active-label">Delivery</span>
+          <span class="active-value">OTA update channel</span>
         </div>
         <div class="active-row">
           <span class="active-label">Status</span>
-          <span class="status-badge success">OTA Live</span>
+          <span class="status-badge success">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d={mdiIcons.mdiCloudCheck} />
+            </svg>
+            OTA Live
+          </span>
         </div>
       </div>
     </div>
@@ -105,38 +143,119 @@
 
   <!-- Previous Builds List -->
   <div class="builds-section">
-    <h3>Previous Builds</h3>
+    <h3>Builds</h3>
     {#if loading}
       <p class="loading">Loading build history...</p>
     {:else if jobs.length === 0}
       <p class="empty">No builds yet. Compile your project to get started.</p>
     {:else}
       <div class="builds-list">
-        {#each jobs as job (job.id)}
+        {#each jobs as job, index (job.id)}
           <div class="build-item">
             <div class="build-main">
               <div class="build-meta">
-                <span class="build-id">{job.id.slice(0, 8)}</span>
+                <span class="build-name">{jobs.length - index}</span>
                 <span class="status-badge" class:success={job.status === "completed"} class:failed={job.status === "failed"} class:running={job.status === "running"}>
+                  {#if job.status === "completed"}
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={mdiIcons.mdiCheckCircle} />
+                    </svg>
+                  {:else if job.status === "failed"}
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={mdiIcons.mdiAlertCircle} />
+                    </svg>
+                  {:else}
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={mdiIcons.mdiProgressClock} />
+                    </svg>
+                  {/if}
                   {job.status}
                 </span>
                 {#if job.published}
-                  <span class="status-badge published">Published</span>
+                  <span class="status-badge published">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={mdiIcons.mdiCloudCheck} />
+                    </svg>
+                    Published
+                  </span>
                 {/if}
               </div>
-              <div class="build-date">{formatDate(job.createdAt)}</div>
+              <div class="build-date">{timeAgo(job.createdAt)}</div>
             </div>
             {#if job.status === "completed"}
               <div class="build-actions">
-                <button class="action-btn" onclick={() => publishJob(job.id)} disabled={job.published}>
+                <button class="action-btn" onclick={() => publishJob(job.id)} disabled={job.published || isBusy}>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={job.published ? mdiIcons.mdiCheck : mdiIcons.mdiCloudUpload} />
+                  </svg>
                   {job.published ? "Published" : "Publish OTA"}
                 </button>
-                <button class="action-btn secondary" onclick={() => flashBuild(job.id)}>
+                <button class="action-btn secondary" onclick={() => flashBuild(job.id)} disabled={isBusy}>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={mdiIcons.mdiUsbPort} />
+                  </svg>
                   Flash
                 </button>
-                <button class="action-btn secondary" onclick={() => downloadBin(job.id)}>
-                  Download .bin
-                </button>
+                {#if popoverOk}
+                  <button
+                    class="menu-toggle"
+                    command="toggle-popover"
+                    commandfor="power-menu-{job.id}"
+                    popovertarget="power-menu-{job.id}"
+                    style="anchor-name: --power-{job.id};"
+                    aria-label="Power user actions"
+                    title="Power user actions"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={mdiIcons.mdiDotsHorizontal} />
+                    </svg>
+                  </button>
+                  <menu
+                    class="power-menu"
+                    popover
+                    id="power-menu-{job.id}"
+                    style="position-anchor: --power-{job.id};"
+                  >
+                    <li>
+                      <button onclick={() => downloadBin(job.id)} disabled={isBusy}>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d={mdiIcons.mdiDownload} />
+                        </svg>
+                        Download .bin
+                      </button>
+                    </li>
+                    <li>
+                      <button onclick={() => rollbackProject(job)} disabled={isBusy || !job.config}>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d={mdiIcons.mdiRestore} />
+                        </svg>
+                        Roll back project
+                      </button>
+                    </li>
+                  </menu>
+                {:else}
+                  <details class="power-menu-fallback">
+                    <summary aria-label="Power user actions" title="Power user actions">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d={mdiIcons.mdiDotsHorizontal} />
+                      </svg>
+                    </summary>
+                    <div class="power-menu-content">
+                      <button onclick={() => downloadBin(job.id)} disabled={isBusy}>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d={mdiIcons.mdiDownload} />
+                        </svg>
+                        Download .bin
+                      </button>
+                      <button onclick={() => rollbackProject(job)} disabled={isBusy || !job.config}>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d={mdiIcons.mdiRestore} />
+                        </svg>
+                        Roll back project
+                      </button>
+                    </div>
+                  </details>
+                {/if}
               </div>
             {/if}
           </div>
@@ -155,11 +274,29 @@
     overflow-y: auto;
   }
 
-  h2 {
+  .icon {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    flex-shrink: 0;
+  }
+
+  .history-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .history-heading span {
     margin: 0;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 20px;
+    font-weight: 750;
     color: var(--color-text-primary);
+  }
+
+  .history-heading small {
+    color: #ffb74d;
+    font-size: 12px;
   }
 
   h3 {
@@ -195,6 +332,7 @@
   .active-badge {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     padding: 4px 10px;
     background: rgba(76, 175, 80, 0.15);
     color: #66bb6a;
@@ -226,8 +364,8 @@
 
   .active-value {
     color: var(--color-text-primary);
-    font-family: monospace;
-    font-size: 12px;
+    font-weight: 600;
+    font-size: 13px;
   }
 
   .builds-section {
@@ -271,9 +409,16 @@
     flex-wrap: wrap;
   }
 
-  .build-id {
-    font-family: monospace;
-    font-size: 12px;
+  .build-name {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--color-bg-tertiary);
+    font-size: 13px;
+    font-weight: 700;
     color: var(--color-text-primary);
   }
 
@@ -285,6 +430,7 @@
   .status-badge {
     display: inline-flex;
     align-items: center;
+    gap: 4px;
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 11px;
@@ -318,9 +464,13 @@
     display: flex;
     gap: var(--spacing-xs);
     flex-wrap: wrap;
+    align-items: center;
   }
 
   .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 6px 12px;
     border-radius: 6px;
     border: 1px solid var(--color-border);
@@ -350,5 +500,127 @@
 
   .action-btn.secondary:hover {
     color: var(--color-text-primary);
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .menu-toggle:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent);
+  }
+
+  .power-menu {
+    position-area: block-end span-inline-start;
+    position-try: flip-block;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-primary);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    min-width: 180px;
+    list-style: none;
+  }
+
+  .power-menu li button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .power-menu li button:hover:not(:disabled) {
+    background: var(--color-bg-secondary);
+  }
+
+  .power-menu li button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .power-menu-fallback {
+    position: relative;
+  }
+
+  .power-menu-fallback summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .power-menu-fallback summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .power-menu-fallback summary:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent);
+  }
+
+  .power-menu-content {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 10;
+    min-width: 180px;
+    padding: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-primary);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  .power-menu-content button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .power-menu-content button:hover:not(:disabled) {
+    background: var(--color-bg-secondary);
+  }
+
+  .power-menu-content button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

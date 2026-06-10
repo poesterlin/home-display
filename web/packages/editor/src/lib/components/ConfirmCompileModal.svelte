@@ -2,23 +2,21 @@
   import { page } from "$app/state";
 
   interface Props {
-    flow: "new" | "update";
+    flow?: "new" | "update" | null;
     onConfirm: () => void;
     onCancel: () => void;
   }
 
-  let { flow, onConfirm, onCancel }: Props = $props();
+  let { onConfirm, onCancel }: Props = $props();
 
   let creditBalance = $state<number | null>(null);
   let balanceLoading = $state(true);
   const isCloud = page.data.isCloud;
   const cost = 1;
 
-  let title = $derived(flow === "new" ? "Setup New Device" : "Push Update");
+  let title = $derived("Build Firmware");
   let description = $derived(
-    flow === "new"
-      ? "This will compile a new firmware image and prepare it for flashing over USB."
-      : "This will compile an over-the-air update and prepare it for publishing.",
+    "This compiles one firmware image. After the build finishes, you can choose USB install, OTA publish, or download the binary.",
   );
 
   let canAfford = $derived(!isCloud || (creditBalance !== null && creditBalance >= cost));

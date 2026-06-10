@@ -3,6 +3,7 @@
   import { projectStore } from "$lib/stores/project.svelte";
   import { deploymentStore } from "$lib/stores/deployment.svelte";
   import ConfirmCompileModal from "$lib/components/ConfirmCompileModal.svelte";
+  import ChangeSummary from "$lib/components/ChangeSummary.svelte";
   import {
     generateESPHomeYAML,
     generateUITypesHeader,
@@ -24,13 +25,14 @@
   interface Props {
     onClose?: () => void;
     standalone?: boolean;
+    lastSavedData?: unknown;
   }
 
-  let { onClose, standalone = false }: Props = $props();
+  let { onClose, standalone = false, lastSavedData }: Props = $props();
 
   let hasExistingBuild = $state(false);
   let existingBuildPublished = $state(false);
-  let pendingFlow = $state<"new" | "update" | null>(null);
+  let pendingBuild = $state(false);
 
   $effect(() => {
     checkExistingBuild();
@@ -52,15 +54,23 @@
     } catch {}
   }
 
-  function startFlow(type: "new" | "update") {
-    pendingFlow = type;
+  function startBuild() {
+    pendingBuild = true;
   }
 
-  function confirmFlow() {
-    if (!pendingFlow) return;
-    const type = pendingFlow;
-    pendingFlow = null;
-    deploymentStore.compile(type);
+  function confirmBuild() {
+    pendingBuild = false;
+    deploymentStore.compile();
+  }
+
+  function chooseFlash() {
+    deploymentStore.state.flow = "new";
+    deploymentStore.state.step = "flash";
+  }
+
+  function choosePublish() {
+    deploymentStore.state.flow = "update";
+    deploymentStore.state.step = "publish";
   }
 
   async function downloadProject() {
@@ -112,6 +122,13 @@
     } catch (err) {
       console.error("Failed to download project zip:", err);
     }
+  }
+
+  function downloadBin(jobId: string) {
+    const a = document.createElement("a");
+    a.href = `/api/builds/${jobId}`;
+    a.download = `${projectStore.project?.name?.toLowerCase().replace(/\s+/g, "-") || "firmware"}.bin`;
+    a.click();
   }
 
   const insufficientCreditsRegex =
@@ -183,7 +200,7 @@
 <div class="wizard" class:standalone>
   <!-- Header -->
   <div class="wizard-header">
-    {#if deploymentStore.state.step !== "idle" && deploymentStore.state.step !== "choose"}
+    {#if deploymentStore.state.step !== "idle"}
       <button class="back-btn" onclick={reset} disabled={deploymentStore.state.compiling} aria-label="back">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 12L6 8L10 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -191,14 +208,16 @@
       </button>
     {/if}
     <h2>
-      {#if deploymentStore.state.step === "idle" || deploymentStore.state.step === "choose"}
+      {#if deploymentStore.state.step === "idle"}
         Deploy
       {:else if deploymentStore.state.step === "compiling"}
         Building
+      {:else if deploymentStore.state.step === "ready"}
+        Firmware Ready
       {:else if deploymentStore.state.step === "flash"}
-        Install
+        Install over USB
       {:else if deploymentStore.state.step === "publish"}
-        Publish
+        Publish OTA
       {:else}
         Done
       {/if}
@@ -215,11 +234,11 @@
   </div>
 
   <!-- Steps indicator -->
-  {#if deploymentStore.state.flow}
+  {#if deploymentStore.state.step !== "idle"}
     <div class="steps-bar">
-      <div class="step-dot" class:active={deploymentStore.state.step === "compiling"} class:done={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
-      <div class="step-line" class:done={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
-      <div class="step-dot" class:active={deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish"} class:done={deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "compiling"} class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
+      <div class="step-line" class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish"} class:done={deploymentStore.state.step === "done"}></div>
       <div class="step-line" class:done={deploymentStore.state.step === "done"}></div>
       <div class="step-dot" class:active={deploymentStore.state.step === "done"}></div>
     </div>
@@ -227,37 +246,18 @@
 
   <div class="wizard-body">
     <!-- Step: Choose flow -->
-    {#if deploymentStore.state.step === "idle" || deploymentStore.state.step === "choose"}
+    {#if deploymentStore.state.step === "idle"}
       <div class="choose-flow">
-        <p class="subtitle">How would you like to deploy <strong>{projectStore.project?.name}</strong>?</p>
-
-        <button class="flow-card" onclick={() => startFlow("new")}>
-          <div class="flow-icon new-icon">
+        <button class="flow-card primary-flow" onclick={startBuild}>
+          <div class="flow-icon build-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M9 13L11 15L15 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="12" cy="7" r="1" fill="currentColor"/>
+              <path d="M12 3L19 7V15L12 19L5 15V7L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M12 11L19 7M12 11V19M12 11L5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </div>
           <div class="flow-text">
-            <span class="flow-title">Setup New Device</span>
-            <span class="flow-desc">Build firmware and flash it to a new display over USB</span>
-          </div>
-          <svg class="flow-arrow" width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M7 5L12 10L7 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-
-        <button class="flow-card" onclick={() => startFlow("update")}>
-          <div class="flow-icon update-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M22 2L16 8M22 2V8M22 2H16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="flow-text">
-            <span class="flow-title">Push Update</span>
-            <span class="flow-desc">Build and publish an over-the-air update for existing devices</span>
+            <span class="flow-title">Build Firmware</span>
+            <span class="flow-desc">Compile, then flash, publish, or download.</span>
           </div>
           <svg class="flow-arrow" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M7 5L12 10L7 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -273,8 +273,10 @@
             <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M2 12V13C2 13.55 2.45 14 3 14H13C13.55 14 14 13.55 14 13V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          Download project files for manual setup
+          Download project files
         </button>
+
+        <ChangeSummary lastSavedData={lastSavedData} />
       </div>
 
     <!-- Step: Compiling -->
@@ -315,11 +317,28 @@
               <button class="primary-action" onclick={() => goto("/credits")}>Add Credits</button>
             </div>
           {:else}
-            <button class="retry-btn" onclick={() => startFlow("update")}>
+            <button class="retry-btn" onclick={startBuild}>
               Try Again
             </button>
           {/if}
         {/if}
+      </div>
+
+    <!-- Step: Ready -->
+    {:else if deploymentStore.state.step === "ready"}
+      <div class="ready-view">
+        <div class="ready-actions">
+          <button class="choice-card" onclick={chooseFlash}>
+            <span class="choice-title">Install over USB</span>
+          </button>
+          <button class="choice-card" onclick={choosePublish} disabled={deploymentStore.state.publishing}>
+            <span class="choice-title">Publish OTA</span>
+          </button>
+        </div>
+
+        <button class="text-action" onclick={() => deploymentStore.state.jobId && downloadBin(deploymentStore.state.jobId)} disabled={!deploymentStore.state.jobId}>
+          Download .bin
+        </button>
       </div>
 
     <!-- Step: Flash new device -->
@@ -435,11 +454,10 @@
   </div>
 </div>
 
-{#if pendingFlow}
+{#if pendingBuild}
   <ConfirmCompileModal
-    flow={pendingFlow}
-    onConfirm={confirmFlow}
-    onCancel={() => (pendingFlow = null)}
+    onConfirm={confirmBuild}
+    onCancel={() => (pendingBuild = false)}
   />
 {/if}
 
@@ -459,7 +477,7 @@
     width: 100%;
     max-height: none;
     height: 100%;
-    border-radius: 0;
+    border-radius: 24px;
     border: none;
   }
 
@@ -565,13 +583,6 @@
     gap: var(--spacing-md);
   }
 
-  .subtitle {
-    margin: 0 0 var(--spacing-sm);
-    color: var(--color-text-secondary);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
   .flow-card {
     display: flex;
     align-items: center;
@@ -594,6 +605,10 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
+  .primary-flow {
+    min-height: 100px;
+  }
+
   .flow-icon {
     display: flex;
     align-items: center;
@@ -604,14 +619,9 @@
     flex-shrink: 0;
   }
 
-  .new-icon {
-    background: rgba(33, 150, 243, 0.12);
-    color: #64b5f6;
-  }
-
-  .update-icon {
-    background: rgba(255, 152, 0, 0.12);
-    color: #ffb74d;
+  .build-icon {
+    background: rgba(74, 158, 255, 0.14);
+    color: var(--color-accent);
   }
 
   .flow-text {
@@ -802,6 +812,7 @@
   }
 
   /* Flash view */
+  .ready-view,
   .flash-view,
   .publish-view {
     display: flex;
@@ -809,6 +820,45 @@
     align-items: center;
     gap: var(--spacing-lg);
     text-align: center;
+  }
+
+  .ready-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+    width: 100%;
+  }
+
+  .choice-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.18s;
+  }
+
+  .choice-card:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  }
+
+  .choice-card:disabled,
+  .text-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .choice-title {
+    font-size: 14px;
+    font-weight: 700;
   }
 
   .success-badge {
@@ -956,5 +1006,11 @@
     color: var(--color-text-secondary);
     line-height: 1.6;
     max-width: 360px;
+  }
+
+  @media (max-width: 640px) {
+    .ready-actions {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
