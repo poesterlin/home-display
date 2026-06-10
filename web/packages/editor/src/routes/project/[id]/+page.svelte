@@ -84,10 +84,8 @@
   </div>
 {:else if projectStore.project}
   <Toolbar
-    onExport={openExport}
     onSettings={() => (showSettings = !showSettings)}
     onDebug={() => (showDebug = !showDebug)}
-    {showExportInfo}
   />
 
   <div class="editor-container">

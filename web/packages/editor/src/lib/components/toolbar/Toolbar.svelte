@@ -5,17 +5,13 @@
   import { dev } from "$app/environment";
 
   interface Props {
-    onExport: () => void;
     onSettings: () => void;
     onDebug: () => void;
-    showExportInfo?: boolean;
   }
 
   let {
-    onExport,
     onSettings,
     onDebug,
-    showExportInfo = false,
   }: Props = $props();
 </script>
 
@@ -76,25 +72,16 @@
       </svg>
     </button>
     <div class="separator"></div>
-    <button
-      class="primary"
-      onclick={onExport}
-      title={showExportInfo
-        ? "You are currently out of credits for cloud builds"
-        : "Flash Device"}
+    <a
+      class="primary export-link"
+      href="/project/{projectStore.serverProjectId}/deploy"
+      title="Deploy"
     >
-      Export Code
-      {#if showExportInfo}
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          aria-label="Cloud build credits required"
-        >
-          <path d={mdiIcons.mdiInformationOutline} />
-        </svg>
-      {/if}
-    </button>
+      <svg width="16" height="16" viewBox="0 0 24 24" class="icon">
+        <path d={mdiIcons.mdiFlash} />
+      </svg>
+      Deploy
+    </a>
   </div>
 </header>
 
@@ -186,6 +173,20 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .export-link {
+    font-size: 12px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+    color: white;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+
+  .export-link:hover {
+    background: var(--color-accent-hover);
   }
 
   .icon {

@@ -250,7 +250,7 @@ export class CompilationQueue extends EventEmitter {
           .where(eq(schema.projects.id, job.projectId));
         if (proj?.firmwareToken) {
           const baseUrl = env.PUBLIC_BASE_URL || `http://localhost:5173`;
-          firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}/manifest`;
+          firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}`;
         }
       }
 

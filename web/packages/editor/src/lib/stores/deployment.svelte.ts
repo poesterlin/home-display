@@ -111,6 +111,7 @@ function createDeploymentStore() {
           state.compiling = false;
           state.manifestUrl = `/api/manifest/${jobId}`;
           state.step = "ready";
+          publishBuild(jobId);
           return;
         } else if (job.status === "failed") {
           state.error = job.error || "Compilation failed";

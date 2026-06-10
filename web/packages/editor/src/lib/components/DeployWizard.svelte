@@ -68,11 +68,6 @@
     deploymentStore.state.step = "flash";
   }
 
-  function choosePublish() {
-    deploymentStore.state.flow = "update";
-    deploymentStore.state.step = "publish";
-  }
-
   async function downloadProject() {
     if (!projectStore.project) return;
     try {
@@ -216,8 +211,6 @@
         Firmware Ready
       {:else if deploymentStore.state.step === "flash"}
         Install over USB
-      {:else if deploymentStore.state.step === "publish"}
-        Publish OTA
       {:else}
         Done
       {/if}
@@ -236,9 +229,9 @@
   <!-- Steps indicator -->
   {#if deploymentStore.state.step !== "idle"}
     <div class="steps-bar">
-      <div class="step-dot" class:active={deploymentStore.state.step === "compiling"} class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
-      <div class="step-line" class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish" || deploymentStore.state.step === "done"}></div>
-      <div class="step-dot" class:active={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "publish"} class:done={deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "compiling"} class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "done"}></div>
+      <div class="step-line" class:done={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash" || deploymentStore.state.step === "done"}></div>
+      <div class="step-dot" class:active={deploymentStore.state.step === "ready" || deploymentStore.state.step === "flash"} class:done={deploymentStore.state.step === "done"}></div>
       <div class="step-line" class:done={deploymentStore.state.step === "done"}></div>
       <div class="step-dot" class:active={deploymentStore.state.step === "done"}></div>
     </div>
@@ -248,7 +241,8 @@
     <!-- Step: Choose flow -->
     {#if deploymentStore.state.step === "idle"}
       <div class="choose-flow">
-        <button class="flow-card primary-flow" onclick={startBuild}>
+        <div class="build-actions-group">
+          <button class="flow-card primary-flow" onclick={startBuild}>
           <div class="flow-icon build-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
               <path d="M12 3L19 7V15L12 19L5 15V7L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
@@ -275,6 +269,7 @@
           </svg>
           Download project files
         </button>
+        </div>
 
         <ChangeSummary lastSavedData={lastSavedData} />
       </div>
@@ -327,12 +322,18 @@
     <!-- Step: Ready -->
     {:else if deploymentStore.state.step === "ready"}
       <div class="ready-view">
+        <div class="success-badge">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Firmware ready
+        </div>
+
+        <p class="step-instruction">Devices will update automatically when connected.</p>
+
         <div class="ready-actions">
           <button class="choice-card" onclick={chooseFlash}>
             <span class="choice-title">Install over USB</span>
-          </button>
-          <button class="choice-card" onclick={choosePublish} disabled={deploymentStore.state.publishing}>
-            <span class="choice-title">Publish OTA</span>
           </button>
         </div>
 
@@ -388,39 +389,6 @@
         </button>
       </div>
 
-    <!-- Step: Publish OTA -->
-    {:else if deploymentStore.state.step === "publish"}
-      <div class="publish-view">
-        <div class="success-badge">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          Firmware ready
-        </div>
-
-        <p class="step-instruction">
-          Publish this build so your devices can update automatically through Home Assistant.
-        </p>
-
-        {#if existingBuildPublished}
-          <div class="info-note">
-            This will replace the currently published version.
-          </div>
-        {/if}
-
-        <button
-          class="primary-action"
-          disabled={deploymentStore.state.publishing}
-          onclick={() => deploymentStore.publishBuild()}
-        >
-          {deploymentStore.state.publishing ? "Publishing..." : "Publish Update"}
-        </button>
-
-        <button class="text-action" onclick={() => { deploymentStore.state.step = "done"; }}>
-          Skip — don't publish yet
-        </button>
-      </div>
-
     <!-- Step: Done -->
     {:else if deploymentStore.state.step === "done"}
       <div class="done-view">
@@ -431,22 +399,10 @@
           </svg>
         </div>
 
-        {#if deploymentStore.state.published}
-          <h3>Update Published</h3>
-          <p class="done-desc">
-            Your devices will show an update notification in Home Assistant. They'll download and install the new firmware automatically.
-          </p>
-        {:else if deploymentStore.state.flow === "new"}
-          <h3>You're All Set</h3>
-          <p class="done-desc">
-            Your firmware has been built. You can come back here anytime to flash it to a device or publish it for OTA updates.
-          </p>
-        {:else}
-          <h3>Build Complete</h3>
-          <p class="done-desc">
-            Your firmware is ready but hasn't been published yet. Come back when you're ready to push it to your devices.
-          </p>
-        {/if}
+        <h3>Firmware updated</h3>
+        <p class="done-desc">
+          Your devices will update automatically through Home Assistant.
+        </p>
 
         <button class="primary-action" onclick={onClose ?? (() => { deploymentStore.reset(); })}>Done</button>
       </div>
@@ -578,6 +534,13 @@
 
   /* Choose flow */
   .choose-flow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    flex: 1;
+  }
+
+  .build-actions-group {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
@@ -813,8 +776,7 @@
 
   /* Flash view */
   .ready-view,
-  .flash-view,
-  .publish-view {
+  .flash-view {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -823,8 +785,8 @@
   }
 
   .ready-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: var(--spacing-md);
     width: 100%;
   }
@@ -964,15 +926,6 @@
     opacity: 0.7;
   }
 
-  .info-note {
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: rgba(255, 152, 0, 0.1);
-    color: #ffb74d;
-    border-radius: 8px;
-    font-size: 13px;
-    width: 100%;
-  }
-
   :global(esp-web-install-button) {
     display: block;
     width: 100%;
@@ -1006,11 +959,5 @@
     color: var(--color-text-secondary);
     line-height: 1.6;
     max-width: 360px;
-  }
-
-  @media (max-width: 640px) {
-    .ready-actions {
-      grid-template-columns: 1fr;
-    }
   }
 </style>

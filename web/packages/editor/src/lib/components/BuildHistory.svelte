@@ -80,13 +80,6 @@
     }
   }
 
-  async function publishJob(jobId: string) {
-    if (isBusy) return;
-    await deploymentStore.publishBuild(jobId);
-    const projectId = projectStore.serverProjectId;
-    if (projectId) await loadJobs(projectId);
-  }
-
   function flashBuild(jobId: string) {
     if (isBusy) return;
     deploymentStore.state.jobId = jobId;
@@ -115,14 +108,14 @@
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d={mdiIcons.mdiCheckCircle} />
           </svg>
-          Active Release
+          Current firmware
         </span>
-        <span class="active-date">Published {timeAgo(activeJob.createdAt)}</span>
+        <span class="active-date">Updated {timeAgo(activeJob.createdAt)}</span>
       </div>
       <div class="active-body">
         <div class="active-row">
           <span class="active-label">Delivery</span>
-          <span class="active-value">OTA update channel</span>
+          <span class="active-value">Device updates</span>
         </div>
         <div class="active-row">
           <span class="active-label">Status</span>
@@ -130,14 +123,14 @@
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d={mdiIcons.mdiCloudCheck} />
             </svg>
-            OTA Live
+            Live
           </span>
         </div>
       </div>
     </div>
   {:else}
     <div class="active-card empty">
-      <p>No active OTA release published yet.</p>
+      <p>No firmware published yet. Build your project to get started.</p>
     </div>
   {/if}
 
@@ -176,7 +169,7 @@
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                       <path d={mdiIcons.mdiCloudCheck} />
                     </svg>
-                    Published
+                    Live
                   </span>
                 {/if}
               </div>
@@ -184,13 +177,7 @@
             </div>
             {#if job.status === "completed"}
               <div class="build-actions">
-                <button class="action-btn" onclick={() => publishJob(job.id)} disabled={job.published || isBusy}>
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d={job.published ? mdiIcons.mdiCheck : mdiIcons.mdiCloudUpload} />
-                  </svg>
-                  {job.published ? "Published" : "Publish OTA"}
-                </button>
-                <button class="action-btn secondary" onclick={() => flashBuild(job.id)} disabled={isBusy}>
+                <button class="action-btn" onclick={() => flashBuild(job.id)} disabled={isBusy}>
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d={mdiIcons.mdiUsbPort} />
                   </svg>
@@ -491,15 +478,6 @@
   .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  .action-btn.secondary {
-    background: transparent;
-    color: var(--color-text-secondary);
-  }
-
-  .action-btn.secondary:hover {
-    color: var(--color-text-primary);
   }
 
   .menu-toggle {
