@@ -1,24 +1,18 @@
-import { json, error } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { getDb } from '$lib/db';
-import { compilationJobs } from '$lib/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { getStaticBuildsDir } from '$lib/server/static-paths';
-import JSZip from 'jszip';
 import {
   generateESPHomeYAML,
-  generateUITypesHeader,
-  generateUIStateHeader,
-  generateUIScreensHeader,
   generateFontsYAML,
+  generateUIScreensHeader,
+  generateUIStateHeader,
+  generateUITypesHeader,
 } from '$lib/codegen/esphome';
-import { generateSecretsYAML } from '$lib/codegen/secrets';
 import { validateProject } from '$lib/codegen/validations';
-import { copyStaticTemplates } from '$lib/server/esphome-templates';
-import { promises as fs } from 'fs';
+import { getDb } from '$lib/db';
+import { compilationJobs } from '$lib/db/schema';
 import type { Project } from '@esphome-designer/schema';
+import { error, json } from '@sveltejs/kit';
+import { and, eq } from 'drizzle-orm';
+import JSZip from 'jszip';
+import type { RequestHandler } from './$types';
 
 const TEMPLATE_PREFIX = '../templates/';
 const staticTemplates = import.meta.glob('../templates/**/*', {

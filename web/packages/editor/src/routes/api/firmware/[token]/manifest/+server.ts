@@ -3,12 +3,10 @@ import type { RequestHandler } from './$types';
 import { getDb } from '$lib/db';
 import { projects, compilationJobs } from '$lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { createHash } from 'crypto';
-import { getStaticBuildsDir } from '$lib/server/static-paths';
+import { getBinaryStats } from '$lib/server/s3';
+import { createLogger } from '$lib/server/logger';
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
   const db = getDb();
 
   const [project] = await db
@@ -32,11 +30,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
   if (!job) error(404, 'No published firmware');
 
-  const binPath = join(getStaticBuildsDir(), `${job.id}.bin`);
-  if (!existsSync(binPath)) error(404, 'Binary not found');
+  const logger = createLogger(params.token);
+  const userAgent = request.headers.get('user-agent') ?? 'unknown';
+  const { size, md5 } = await getBinaryStats(job.id);
+  logger.info(`manifest check: projectId=${project.id} device="${userAgent}" size=${size}`);
 
-  const firmwareBytes = readFileSync(binPath);
-  const md5 = createHash('md5').update(firmwareBytes).digest('hex');
   const firmwarePath = `${url.origin}/api/firmware/${params.token}`;
 
   return json({

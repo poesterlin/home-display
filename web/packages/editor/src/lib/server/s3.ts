@@ -4,7 +4,7 @@ import { S3Client } from "bun";
 
 let s3: S3Client | null = null;
 
-function ensureS3(): S3Client {
+export function ensureS3(): S3Client {
   if (s3) return s3;
   if (building) throw new Error("S3 client not available during build");
 
@@ -27,7 +27,7 @@ function ensureS3(): S3Client {
   return s3;
 }
 
-function binKey(jobId: string): string {
+export function binKey(jobId: string): string {
   return `builds/${jobId}.bin`;
 }
 
@@ -71,10 +71,29 @@ export async function deleteBinaries(jobIds: string[]): Promise<void> {
 export async function binaryExists(jobId: string): Promise<boolean> {
   try {
     const client = ensureS3();
-    const file = client.file(binKey(jobId));
-    await file.arrayBuffer();
-    return true;
+    return await client.file(binKey(jobId)).exists();
   } catch {
     return false;
   }
+}
+
+export async function getBinaryStats(jobId: string): Promise<{ size: number; md5: string }> {
+  const client = ensureS3();
+  const file = client.file(binKey(jobId));
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { createHash } = await import('crypto');
+  const md5 = createHash('md5').update(buffer).digest('hex');
+  return { size: buffer.byteLength, md5 };
+}
+
+export async function streamFirmware(jobId: string, headers: Record<string, string> = {}): Promise<Response> {
+  const client = ensureS3();
+  const file = client.file(binKey(jobId));
+  return new Response(file.stream(), {
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'Cache-Control': 'no-store',
+      ...headers,
+    },
+  });
 }
