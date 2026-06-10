@@ -3,16 +3,12 @@ import type { RequestHandler } from './$types';
 import { getDb } from '$lib/db';
 import { projects, compilationJobs } from '$lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { ensureS3, otaBinKey } from '$lib/server/s3';
+import { ensureS3, factoryBinKey } from '$lib/server/s3';
 import { createLogger } from '$lib/server/logger';
 
-export const GET: RequestHandler = async ({ params, request, url }) => {
+export const GET: RequestHandler = async ({ params }) => {
   const db = getDb();
   const logger = createLogger(params.token);
-  const userAgent = request.headers.get('user-agent') ?? 'unknown';
-  const ifNoneMatch = request.headers.get('if-none-match');
-
-  logger.info(`firmware request: path=${url.pathname} device="${userAgent}" etag=${ifNoneMatch ?? 'none'}`);
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -20,7 +16,7 @@ export const GET: RequestHandler = async ({ params, request, url }) => {
     .where(eq(projects.firmwareToken, params.token));
 
   if (!project) {
-    logger.warn('firmware request rejected: token not found');
+    logger.warn('factory firmware request rejected: token not found');
     error(404, 'Not found');
   }
 
@@ -37,37 +33,27 @@ export const GET: RequestHandler = async ({ params, request, url }) => {
     .orderBy(desc(compilationJobs.completedAt));
 
   if (!job) {
-    logger.warn(`firmware request rejected: no published firmware for project="${project.name}"`);
+    logger.warn(`factory firmware request rejected: no published firmware for project="${project.name}"`);
     error(404, 'No published firmware');
   }
 
   const s3 = ensureS3();
-  const s3File = s3.file(otaBinKey(job.id));
+  const s3File = s3.file(factoryBinKey(job.id));
   if (!(await s3File.exists())) {
-    logger.warn(`firmware request rejected: S3 OTA binary missing for job=${job.id}`);
-    error(404, 'OTA binary not found');
-  }
-
-  const etag = `"${job.id}"`;
-  const version = job.completedAt?.toISOString() ?? job.id;
-
-  logger.info(`update check: project="${project.name}" device="${userAgent}" etag=${ifNoneMatch ?? 'none'} current=${job.id}`);
-
-  if (ifNoneMatch === etag) {
-    logger.info(`up to date: project="${project.name}"`);
-    return new Response(null, { status: 304 });
+    logger.warn(`factory firmware request rejected: S3 factory binary missing for job=${job.id}`);
+    error(404, 'Factory binary not found');
   }
 
   const { size } = await s3File.stat();
-  logger.info(`serving update: project="${project.name}" size=${size}`);
+  logger.info(`serving factory firmware: project="${project.name}" size=${size}`);
+
+  const deviceName = project.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
   return new Response(s3File.stream(), {
     headers: {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="firmware.bin"`,
+      'Content-Disposition': `attachment; filename="${deviceName}-factory.bin"`,
       'Content-Length': String(size),
-      'ETag': etag,
-      'X-Esphome-Current-Version': version,
       'Cache-Control': 'no-store',
     },
   });

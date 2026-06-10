@@ -11,7 +11,7 @@ import { generateESPHomeYAML, generateUITypesHeader, generateUIStateHeader, gene
 import { generateSecretsYAML } from '$lib/codegen/secrets';
 import { validateProject } from '$lib/codegen/validations';
 import { copyStaticTemplates } from '$lib/server/esphome-templates';
-import { uploadBinary, deleteBinaries } from '$lib/server/s3';
+import { uploadOtaBinary, uploadFactoryBinary, deleteBinaries } from '$lib/server/s3';
 import { addCredits, CREDIT_COSTS } from '$lib/credits';
 import { createLogger } from '$lib/server/logger';
 import { assert } from '$lib/utils';
@@ -328,26 +328,37 @@ export class CompilationQueue extends EventEmitter {
             .replace(/\s+/g, '-')
             .replace(/[^a-z0-9-]/g, '');
           const pioDir = join(tempDir, '.esphome', 'build', deviceName, '.pioenvs', deviceName);
-          const candidates = ['firmware.factory.bin', 'firmware.bin'];
+          const candidates = [
+            { name: 'firmware.bin', upload: (data: Buffer) => uploadOtaBinary(job.id, data) },
+            { name: 'firmware.factory.bin', upload: (data: Buffer) => uploadFactoryBinary(job.id, data) },
+          ];
 
-          let uploaded = false;
+          let otaUploaded = false;
+          let factoryUploaded = false;
           let uploadError = '';
-          for (const name of candidates) {
+          for (const { name, upload } of candidates) {
             const binPath = join(pioDir, name);
             try {
               await fs.access(binPath);
               const data = await fs.readFile(binPath);
-              await uploadBinary(job.id, data);
-              logger.info(`Binary uploaded to S3 (from ${name})`);
-              uploaded = true;
-              break;
+              await upload(data);
+              if (name === 'firmware.bin') otaUploaded = true;
+              if (name === 'firmware.factory.bin') factoryUploaded = true;
+              logger.info(`Binary uploaded to S3 (${name})`);
             } catch (err: any) {
               uploadError = err.message || String(err);
             }
           }
-          if (!uploaded) {
+          if (!otaUploaded) {
             const files = await fs.readdir(pioDir).catch(() => []);
-            logger.error(`No firmware binary found in ${pioDir}. Files: ${files.join(', ')}. S3 error: ${uploadError}`);
+            await this.handleJobResult(job.id, {
+              error: `No OTA firmware binary found in ${pioDir}. Files: ${files.join(', ')}. Error: ${uploadError}`,
+            });
+            this.processQueue();
+            return;
+          }
+          if (!factoryUploaded) {
+            logger.warn(`No factory firmware binary found in ${pioDir}. Error: ${uploadError}`);
           }
 
           logger.info(`Compilation succeeded`);

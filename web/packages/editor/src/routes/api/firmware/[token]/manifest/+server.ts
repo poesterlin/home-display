@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { getDb } from '$lib/db';
 import { projects, compilationJobs } from '$lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { getBinaryStats } from '$lib/server/s3';
+import { getOtaBinaryStats, otaBinaryExists, ensureS3, factoryBinKey } from '$lib/server/s3';
 import { createLogger } from '$lib/server/logger';
 import { diffProject } from '$lib/diff';
 import type { Project } from '@esphome-designer/schema';
@@ -56,10 +56,16 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
     error(404, 'No published firmware');
   }
 
-  const { size, md5 } = await getBinaryStats(job.id);
+  if (!(await otaBinaryExists(job.id))) {
+    logger.warn(`manifest request rejected: OTA binary missing for job=${job.id}`);
+    error(404, 'OTA binary not found');
+  }
+
+  const { size, md5 } = await getOtaBinaryStats(job.id);
   logger.info(`manifest check: projectId=${project.id} device="${userAgent}" size=${size}`);
 
   const firmwarePath = `${url.origin}/api/firmware/${params.token}`;
+  const factoryPath = `${url.origin}/api/firmware/${params.token}/factory`;
   const completedJobs = await db
     .select({ id: compilationJobs.id, config: compilationJobs.config })
     .from(compilationJobs)
@@ -73,12 +79,26 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
   const jobIndex = completedJobs.findIndex((completedJob) => completedJob.id === job.id);
   const summary = releaseSummary(job.config, jobIndex >= 0 ? (completedJobs[jobIndex + 1]?.config ?? null) : null);
 
+  const s3 = ensureS3();
+  const factoryFile = s3.file(factoryBinKey(job.id));
+  const hasFactory = await factoryFile.exists();
+
   return json({
     name: 'ESPHome Designer Firmware',
     version: job.id,
     builds: [
       {
         chipFamily: 'ESP32-S3',
+        ...(hasFactory
+          ? {
+              parts: [
+                {
+                  path: factoryPath,
+                  offset: 0,
+                },
+              ],
+            }
+          : {}),
         ota: {
           md5,
           path: firmwarePath,

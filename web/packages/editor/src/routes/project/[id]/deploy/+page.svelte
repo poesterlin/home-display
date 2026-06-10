@@ -1,17 +1,18 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { projectStore } from "$lib/stores/project.svelte";
-  import { deploymentStore } from "$lib/stores/deployment.svelte";
-  import ConfirmCompileModal from "$lib/components/ConfirmCompileModal.svelte";
-  import BuildHistory from "$lib/components/BuildHistory.svelte";
   import {
     generateESPHomeYAML,
-    generateUITypesHeader,
-    generateUIStateHeader,
-    generateUIScreensHeader,
     generateFontsYAML,
+    generateUIScreensHeader,
+    generateUIStateHeader,
+    generateUITypesHeader,
   } from "$lib/codegen/esphome";
   import { validateProject } from "$lib/codegen/validations";
+  import BuildHistory from "$lib/components/BuildHistory.svelte";
+  import ConfirmCompileModal from "$lib/components/ConfirmCompileModal.svelte";
+  import { deploymentStore } from "$lib/stores/deployment.svelte";
+  import { projectStore } from "$lib/stores/project.svelte";
+  import * as mdiIcons from "@mdi/js";
   import JSZip from "jszip";
   import { onMount } from "svelte";
 
@@ -367,28 +368,13 @@
 
       {#if !deploymentStore.state.compiling}
         <button class="new-build-btn" onclick={handleNewBuild}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M8 3V13M3 8H13"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="icon">
+            <path d={mdiIcons.mdiWrench} />
           </svg>
-          New Build
+          Update Display
         </button>
       {:else}
-        <button class="new-build-btn" disabled>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M8 3V13M3 8H13"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
-          Building…
-        </button>
+        <button class="new-build-btn" disabled> Building… </button>
       {/if}
 
       <BuildHistory onFlash={handleFlash} />
@@ -436,6 +422,13 @@
     border-radius: 8px;
     transition: all 0.15s;
     font-family: inherit;
+  }
+
+  .icon {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    flex-shrink: 0;
   }
 
   .back-btn:hover {
