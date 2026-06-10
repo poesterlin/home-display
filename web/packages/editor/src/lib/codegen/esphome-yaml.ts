@@ -265,9 +265,12 @@ function generateNotificationSubscriptions(project: Project): string {
   return lines.join('\n');
 }
 
-export function generateESPHomeYAML(project: Project, _firmwareVersion?: string): string {
+export function generateESPHomeYAML(project: Project, firmwareVersion?: string): string {
   const deviceName = sanitizeDeviceName(project.name);
   const friendlyName = project.name;
+  const projectVersionYaml = firmwareVersion
+    ? `\n  project:\n    name: "esphome_designer.${deviceName}"\n    version: "${firmwareVersion}"`
+    : '';
   const onlineImagesEnabled = hasOnlineImages(project);
   const onlineImageCount = countOnlineImages(project);
   const httpOtaEnabled = !!(project.secrets?.firmwareUpdateUrl);
@@ -330,6 +333,7 @@ packages:
 ${imageYaml}${onlineImageYaml}${httpRequestYaml}${httpOtaYaml}${httpUpdateYaml}
 
 esphome:
+${projectVersionYaml}
   on_boot:
     priority: -100
     then:

@@ -114,6 +114,14 @@ describe("image component codegen", () => {
     expect(yaml).toContain("source: !secret firmware_manifest_url");
   });
 
+  test("emits ESPHome project version when firmware version is provided", () => {
+    const yaml = generateESPHomeYAML(makeProject(), "job-version-123");
+
+    expect(yaml).toContain("project:");
+    expect(yaml).toContain('name: "esphome_designer.test"');
+    expect(yaml).toContain('version: "job-version-123"');
+  });
+
   test("emits firmware manifest URL secret", () => {
     const project = makeProject({
       secrets: { firmwareUpdateUrl: "https://example.com/api/firmware/token/" },
