@@ -13,6 +13,7 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - PUBLIC_BASE_URL=https://${DOMAIN}
+      - LOG_LEVEL=debug
     networks:
       - traefik_web
     labels:
