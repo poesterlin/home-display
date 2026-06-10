@@ -374,7 +374,6 @@ ${projectVersionYaml}
           UiRedraw::request_full();
           id(main_display).update();
 ${haBaseUrlLocal}
-
           auto bind_ha_bool = [](const std::string& entity_id, Observable<bool>* target) {
             auto *api = esphome::api::global_api_server;
             if (api == nullptr) return;

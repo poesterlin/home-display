@@ -128,6 +128,7 @@ describe("image component codegen", () => {
     expect(yaml).toContain("home_assistant_base_url: !secret home_assistant_base_url");
     expect(yaml).toContain('const std::string ha_base_url = "${home_assistant_base_url}";');
     expect(yaml).toContain('url = ha_base_url + url;');
+    expect(yaml.indexOf('const std::string ha_base_url')).toBeLessThan(yaml.indexOf('auto bind_ha_image_url'));
     expect(secrets).toContain('home_assistant_base_url: "http://homeassistant.local:8123"');
   });
 

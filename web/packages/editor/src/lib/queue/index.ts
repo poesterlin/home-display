@@ -15,6 +15,7 @@ import { uploadBinary, deleteBinaries } from '$lib/server/s3';
 import { addCredits, CREDIT_COSTS } from '$lib/credits';
 import { createLogger } from '$lib/server/logger';
 import type { Logger } from '$lib/server/logger';
+import { assert } from '$lib/utils';
 
 interface ActiveJob {
   job: CompilationJob;
@@ -248,10 +249,12 @@ export class CompilationQueue extends EventEmitter {
           .select({ firmwareToken: schema.projects.firmwareToken })
           .from(schema.projects)
           .where(eq(schema.projects.id, job.projectId));
-        if (proj?.firmwareToken) {
-          const baseUrl = env.PUBLIC_BASE_URL || `http://localhost:5173`;
-          firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}`;
-        }
+
+        assert(proj, "project not found");
+
+        const baseUrl = env.PUBLIC_BASE_URL || `http://localhost:5173`;
+        logger.debug("BASE_URL:" + baseUrl);
+        firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}`;
       }
 
       const project = JSON.parse(job.config) as Project;
