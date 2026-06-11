@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { cpus } from 'os';
 import { getDb, schema } from '$lib/db/index.js';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import type { CompilationJob, NewCompilationJob } from '$lib/db/schema';
@@ -10,6 +11,7 @@ import type { Project } from '@esphome-designer/schema';
 import { generateESPHomeYAML, generateUITypesHeader, generateUIStateHeader, generateUIScreensHeader, generateFontsYAML } from '$lib/codegen/esphome';
 import { generateSecretsYAML } from '$lib/codegen/secrets';
 import { validateProject } from '$lib/codegen/validations';
+import { sanitizeDeviceName } from '$lib/codegen/utils';
 import { copyStaticTemplates } from '$lib/server/esphome-templates';
 import { uploadOtaBinary, uploadFactoryBinary, deleteBinaries } from '$lib/server/s3';
 import { addCredits, CREDIT_COSTS } from '$lib/credits';
@@ -19,6 +21,7 @@ import { assert } from '$lib/utils';
 interface ActiveJob {
   job: CompilationJob;
   process: ChildProcess;
+  cpuSlot: number;
 }
 
 export class CompilationQueue extends EventEmitter {
@@ -29,9 +32,16 @@ export class CompilationQueue extends EventEmitter {
   private pythonSitePackages = '';
   private consecutiveFailures = 0;
   private circuitOpenAt: number | null = null;
+  private cpuSlotFree: boolean[] = [];
+  private totalCores = 0;
+  private coresPerSlot = 0;
 
   private static CIRCUIT_FAILURE_THRESHOLD = 5;
   private static CIRCUIT_RESET_MS = 5 * 60_000;
+
+  private static formatDurationMs(ms: number): string {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
 
   constructor(private maxWorkers: number = 2) {
     super();
@@ -40,6 +50,13 @@ export class CompilationQueue extends EventEmitter {
   async start(): Promise<void> {
     console.log(`🚀 Starting compilation queue with ${this.maxWorkers} slots`);
     this.isStopped = false;
+
+    const cpuCount = parseInt(process.env.ESPHOME_COMPILE_CPUS || '0', 10) || cpus().length;
+    this.totalCores = cpuCount;
+    this.coresPerSlot = Math.max(1, Math.floor(cpuCount / this.maxWorkers));
+    this.cpuSlotFree = Array(this.maxWorkers).fill(true);
+    console.log(`   ${cpuCount} CPUs → ${this.coresPerSlot} cores per slot (${this.maxWorkers} slots)`);
+
     await this.resolvePythonSitePackages();
     await this.failInProgressJobs();
     this.processQueue();
@@ -215,8 +232,13 @@ export class CompilationQueue extends EventEmitter {
     if (this.isStopped || this.queue.length === 0) return;
     if (this.activeJobs.size >= this.maxWorkers) return;
 
+    const slotIndex = this.cpuSlotFree.findIndex((f) => f);
+    if (slotIndex === -1) return;
+
     const job = this.queue.shift();
     if (!job) return;
+
+    this.cpuSlotFree[slotIndex] = false;
 
     job.status = 'running';
     job.startedAt = new Date();
@@ -228,19 +250,29 @@ export class CompilationQueue extends EventEmitter {
       .where(eq(schema.compilationJobs.id, job.id));
 
     this.emit('jobStarted', job);
-    this.runCompilation(job);
+    this.runCompilation(job, slotIndex);
     this.processQueue();
   }
 
-  private async runCompilation(job: CompilationJob): Promise<void> {
+  private async runCompilation(job: CompilationJob, slotIndex: number): Promise<void> {
     const logger = createLogger(job.id);
     const tempDir = join('/tmp/esphome-builds', job.projectId ?? job.id);
     const configFile = join(tempDir, 'config.yaml');
+    const timings = {
+      startedAt: Date.now(),
+      templateCopyMs: 0,
+      configPrepMs: 0,
+      compileMs: 0,
+      uploadMs: 0,
+    };
 
     try {
+      const templateCopyStart = Date.now();
       await fs.mkdir(tempDir, { recursive: true });
       await copyStaticTemplates(tempDir);
+      timings.templateCopyMs = Date.now() - templateCopyStart;
 
+      const configPrepStart = Date.now();
       let firmwareUpdateUrl: string | undefined;
       if (job.projectId) {
         const db = getDb();
@@ -269,9 +301,11 @@ export class CompilationQueue extends EventEmitter {
         throw new Error(`Project validation failed: ${messages}`);
       }
 
-      await fs.writeFile(join(tempDir, 'includes', 'ui_types.h'), generateUITypesHeader(project));
-      await fs.writeFile(join(tempDir, 'includes', 'ui_state.h'), generateUIStateHeader(project));
-      await fs.writeFile(join(tempDir, 'includes', 'ui_screens.h'), generateUIScreensHeader(project));
+      await Promise.all([
+        fs.writeFile(join(tempDir, 'includes', 'ui_types.h'), generateUITypesHeader(project)),
+        fs.writeFile(join(tempDir, 'includes', 'ui_state.h'), generateUIStateHeader(project)),
+        fs.writeFile(join(tempDir, 'includes', 'ui_screens.h'), generateUIScreensHeader(project)),
+      ]);
 
       const fontsPath = join(tempDir, 'fonts.yaml');
       const baseFontsYaml = await fs.readFile(fontsPath, 'utf-8');
@@ -280,30 +314,58 @@ export class CompilationQueue extends EventEmitter {
       const esphomeYaml = generateESPHomeYAML(project, job.id);
       const secretsYaml = generateSecretsYAML(project);
       logger.info(`generated secrets.yaml:\n${secretsYaml}`);
-      await fs.writeFile(configFile, esphomeYaml);
-      await fs.writeFile(join(tempDir, 'secrets.yaml'), secretsYaml);
+      await Promise.all([
+        fs.writeFile(configFile, esphomeYaml),
+        fs.writeFile(join(tempDir, 'secrets.yaml'), secretsYaml),
+      ]);
+      timings.configPrepMs = Date.now() - configPrepStart;
 
       const env = process.env;
       const venvPath = env.ESPHOME_VENV;
+      const coreDir = env.PLATFORMIO_CORE_DIR || '/data/platformio';
+      const buildCacheDir = env.PLATFORMIO_BUILD_CACHE_DIR || '/data/pio-build-cache';
+      const ccacheDir = env.CCACHE_DIR || '/data/ccache';
+
+      const concurrentActive = this.activeJobs.size + 1;
+      const buildJobs = concurrentActive > 1
+        ? String(Math.max(1, Math.floor(this.totalCores / concurrentActive)))
+        : undefined;
+
+      const buildEnv: Record<string, string> = {
+        ...env,
+        PATH: `${venvPath}/bin:${env.PATH}`,
+        VIRTUAL_ENV: venvPath!,
+        PYTHONPATH: this.pythonSitePackages || `${venvPath}/lib/python3.12/site-packages`,
+        PLATFORMIO_PENV_NOT_USED: 'true',
+        PLATFORMIO_CORE_DIR: coreDir,
+        PLATFORMIO_BUILD_CACHE_DIR: buildCacheDir,
+        IDF_CCACHE_ENABLE: '1',
+        CCACHE_DIR: ccacheDir,
+        CCACHE_BASEDIR: '/tmp/esphome-builds',
+        CCACHE_NOHASHDIR: 'true',
+        CCACHE_SLOPPINESS: 'pch_defines,time_macros,include_file_mtime,include_file_ctime',
+        CCACHE_MAXSIZE: '10G',
+        CCACHE_COMPRESS: 'true',
+        CCACHE_COMPRESSLEVEL: '1',
+      };
+      if (buildJobs) {
+        buildEnv.IDF_BUILD_JOBS = buildJobs;
+        logger.info(`build parallelism capped to ${buildJobs} jobs (${concurrentActive} concurrent builds, ${this.totalCores} cores)`);
+      }
+
       const childProcess = spawn(
         `${venvPath}/bin/python`,
         ['-m', 'esphome', 'compile', configFile],
         {
           cwd: tempDir,
           timeout: 300000,
-          env: {
-            ...env,
-            PATH: `${venvPath}/bin:${env.PATH}`,
-            VIRTUAL_ENV: venvPath,
-            PYTHONPATH: this.pythonSitePackages || `${venvPath}/lib/python3.12/site-packages`,
-            PLATFORMIO_PENV_NOT_USED: 'true',
-            PLATFORMIO_CORE_DIR: join(tempDir, '.platformio'),
-          },
+          env: buildEnv,
           stdio: ['inherit', 'pipe', 'pipe'],
         },
       );
 
-      this.activeJobs.set(job.id, { job, process: childProcess });
+      this.activeJobs.set(job.id, { job, process: childProcess, cpuSlot: slotIndex });
+      const compileStart = Date.now();
 
       let stdout = '';
       let stderr = '';
@@ -319,16 +381,18 @@ export class CompilationQueue extends EventEmitter {
       });
 
       childProcess.on('exit', async (code, signal) => {
+        const active = this.activeJobs.get(job.id);
         this.activeJobs.delete(job.id);
+        if (active) this.cpuSlotFree[active.cpuSlot] = true;
         await new Promise((resolve) => setTimeout(resolve, 100));
+        timings.compileMs = Date.now() - compileStart;
 
         if (code === 0) {
-          const deviceName = job.projectName
-            .toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9-]/g, '');
+          const uploadStart = Date.now();
+          const deviceName = sanitizeDeviceName(job.projectName);
           const pioDir = join(tempDir, '.esphome', 'build', deviceName, '.pioenvs', deviceName);
           const candidates = [
+            { name: 'firmware.ota.bin', upload: (data: Buffer) => uploadOtaBinary(job.id, data) },
             { name: 'firmware.bin', upload: (data: Buffer) => uploadOtaBinary(job.id, data) },
             { name: 'firmware.factory.bin', upload: (data: Buffer) => uploadFactoryBinary(job.id, data) },
           ];
@@ -336,24 +400,30 @@ export class CompilationQueue extends EventEmitter {
           let otaUploaded = false;
           let factoryUploaded = false;
           let uploadError = '';
-          for (const { name, upload } of candidates) {
-            const binPath = join(pioDir, name);
-            try {
-              await fs.access(binPath);
-              const data = await fs.readFile(binPath);
-              await upload(data);
-              if (name === 'firmware.bin') otaUploaded = true;
-              if (name === 'firmware.factory.bin') factoryUploaded = true;
-              logger.info(`Binary uploaded to S3 (${name})`);
-            } catch (err: any) {
-              uploadError = err.message || String(err);
-            }
-          }
+          await Promise.all(
+            candidates.map(async ({ name, upload }) => {
+              const binPath = join(pioDir, name);
+              try {
+                await fs.access(binPath);
+                const data = await fs.readFile(binPath);
+                await upload(data);
+                if (name === 'firmware.ota.bin' || name === 'firmware.bin') otaUploaded = true;
+                if (name === 'firmware.factory.bin') factoryUploaded = true;
+                logger.info(`Binary uploaded to S3 (${name})`);
+              } catch (err: any) {
+                uploadError = err.message || String(err);
+              }
+            }),
+          );
+          timings.uploadMs = Date.now() - uploadStart;
           if (!otaUploaded) {
             const files = await fs.readdir(pioDir).catch(() => []);
             await this.handleJobResult(job.id, {
               error: `No OTA firmware binary found in ${pioDir}. Files: ${files.join(', ')}. Error: ${uploadError}`,
             });
+            logger.info(
+              `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} upload=${CompilationQueue.formatDurationMs(timings.uploadMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
+            );
             this.processQueue();
             return;
           }
@@ -362,12 +432,18 @@ export class CompilationQueue extends EventEmitter {
           }
 
           logger.info(`Compilation succeeded`);
+          logger.info(
+            `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} upload=${CompilationQueue.formatDurationMs(timings.uploadMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
+          );
           await this.handleJobResult(job.id, { output: stdout });
         } else {
           const reason = signal
             ? `Compilation timed out and was terminated (signal: ${signal})`
             : `ESPHome compile failed (exit code ${code})`;
           const detail = stderr || stdout ? `: ${stderr || stdout}` : '';
+          logger.info(
+            `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
+          );
           await this.handleJobResult(job.id, {
             error: `${reason}${detail}`,
           });
@@ -377,11 +453,20 @@ export class CompilationQueue extends EventEmitter {
       });
 
       childProcess.on('error', async (error) => {
+        const active = this.activeJobs.get(job.id);
         this.activeJobs.delete(job.id);
+        if (active) this.cpuSlotFree[active.cpuSlot] = true;
+        timings.compileMs = Date.now() - compileStart;
+        logger.info(
+          `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
+        );
         await this.handleJobResult(job.id, { error: error.message });
         this.processQueue();
       });
     } catch (error) {
+      logger.info(
+        `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
+      );
       await this.handleJobResult(job.id, {
         error: error instanceof Error ? error.message : 'Unknown error',
       });

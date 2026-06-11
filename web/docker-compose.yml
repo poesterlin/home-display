@@ -20,11 +20,17 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.esphome.rule=Host(`${DOMAIN}`)"
       - "traefik.http.services.esphome.loadbalancer.server.port=3000"
+    tmpfs:
+      - /tmp/esphome-builds:size=12g
     volumes:
-      - esphome_builds:/tmp/esphome-builds
+      - platformio_data:/data/platformio
+      - pio_cache:/data/pio-build-cache
+      - ccache_data:/data/ccache
 
 volumes:
-  esphome_builds:
+  platformio_data:
+  pio_cache:
+  ccache_data:
 
 networks:
   traefik_web:
