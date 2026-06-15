@@ -54,6 +54,21 @@ export function stateVarFromEntity(entityId: string): string {
   return entityId.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 }
 
+export function safeCppIdentifier(value: string, prefix = 'id'): string {
+  const safe = value.replace(/[^a-zA-Z0-9_]/g, '_');
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(safe)) return safe;
+  return `${prefix}_${safe.replace(/^_+/, '') || 'value'}`;
+}
+
+export function escapeYAMLDoubleQuoted(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
 export function imageIdFromComponentId(id: string): string {
   const safe = stateVarFromEntity(id).toLowerCase();
   return `img_${safe || "image"}`;

@@ -2,11 +2,13 @@ import { json, error } from '@sveltejs/kit';
 import { getJobStatus } from '$lib/utils/worker';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async ({ params, locals }) => {
+  if (!locals.user) throw error(401);
+
   const { jobId } = params;
 
   const job = await getJobStatus(jobId);
-  if (!job || job.status !== 'completed') {
+  if (!job || job.userId !== locals.user.id || job.status !== 'completed') {
     throw error(404, 'Firmware binary not found');
   }
 

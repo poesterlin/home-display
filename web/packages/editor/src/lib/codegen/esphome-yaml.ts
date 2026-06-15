@@ -1,5 +1,5 @@
 import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent, ImageComponent } from "@esphome-designer/schema";
-import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey, imageIdFromComponentId, imageFallbackIdFromComponentId, escapeCString } from "./utils";
+import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey, imageIdFromComponentId, imageFallbackIdFromComponentId, escapeCString, escapeYAMLDoubleQuoted } from "./utils";
 import { collectConditionEntities, type ConditionEntityType } from "./condition-expr";
 import { ICON_FONT_ID, getIconGlyphs } from "./mdi-icons";
 import { extractBindings, parseTemplate } from "../utils/template-utils";
@@ -49,7 +49,7 @@ function generateStaticImagesYAML(project: Project): string {
   const lines: string[] = [];
   for (const c of collectImageComponents(project)) {
     if (isHomeAssistantImage(c)) continue;
-    lines.push(`  - file: "${escapeCString(c.file)}"`);
+    lines.push(`  - file: "${escapeYAMLDoubleQuoted(c.file)}"`);
     lines.push(`    id: ${imageIdFromComponentId(c.id)}`);
     lines.push(`    type: ${c.image_type}`);
     lines.push(`    resize: ${imageResize(c)}`);
@@ -158,7 +158,7 @@ function generateBindings(project: Project): string {
     const stateVar = stateVarFromEntity(entityId);
     if (claimed.has(stateVar)) continue;
     claimed.add(stateVar);
-    lines.push(`          bind_ha_bool("${entityId}", &g_ui_app.state().${stateVar});`);
+    lines.push(`          bind_ha_bool("${escapeCString(entityId)}", &g_ui_app.state().${stateVar});`);
   }
 
   for (const c of allComponents) {
@@ -170,7 +170,7 @@ function generateBindings(project: Project): string {
     if (claimed.has(stateVar)) continue;
     claimed.add(stateVar);
     const attribute = tc.itemsBinding?.attribute ?? "all_items";
-    lines.push(`          bind_ha_string_attr("${entityId}", "${attribute}", &g_ui_app.state().${stateVar});`);
+    lines.push(`          bind_ha_string_attr("${escapeCString(entityId)}", "${escapeCString(attribute)}", &g_ui_app.state().${stateVar});`);
   }
 
   for (const c of allComponents) {
@@ -181,9 +181,9 @@ function generateBindings(project: Project): string {
       if (claimed.has(stateVar)) continue;
       claimed.add(stateVar);
       if (b.attribute) {
-        lines.push(`          bind_ha_string_attr("${b.entityId}", "${b.attribute}", &g_ui_app.state().${stateVar});`);
+        lines.push(`          bind_ha_string_attr("${escapeCString(b.entityId)}", "${escapeCString(b.attribute)}", &g_ui_app.state().${stateVar});`);
       } else {
-        lines.push(`          bind_ha_string("${b.entityId}", &g_ui_app.state().${stateVar});`);
+        lines.push(`          bind_ha_string("${escapeCString(b.entityId)}", &g_ui_app.state().${stateVar});`);
       }
     }
   }
@@ -198,7 +198,7 @@ function generateBindings(project: Project): string {
     const key = `${entityId}::${attribute}::${imageIdFromComponentId(ic.id)}`;
     if (claimed.has(key)) continue;
     claimed.add(key);
-    lines.push(`          bind_ha_image_url("${entityId}", "${attribute}", id(${imageIdFromComponentId(ic.id)}), id(${imageFallbackIdFromComponentId(ic.id)}));`);
+    lines.push(`          bind_ha_image_url("${escapeCString(entityId)}", "${escapeCString(attribute)}", id(${imageIdFromComponentId(ic.id)}), id(${imageFallbackIdFromComponentId(ic.id)}));`);
   }
 
   for (const f of (project.state?.fields ?? []) as StateField[]) {
@@ -207,7 +207,7 @@ function generateBindings(project: Project): string {
     const binder = BINDER_BY_TYPE[f.cppType];
     if (!binder) continue;
     claimed.add(f.name);
-    lines.push(`          ${binder}("${f.haEntity}", &g_ui_app.state().${f.name});`);
+    lines.push(`          ${binder}("${escapeCString(f.haEntity)}", &g_ui_app.state().${f.name});`);
   }
 
   for (const e of collectConditionEntities(project)) {
@@ -216,7 +216,7 @@ function generateBindings(project: Project): string {
     const binder = BINDER_BY_TYPE[cppType];
     if (!binder) continue;
     claimed.add(e.varName);
-    lines.push(`          ${binder}("${e.entityId}", &g_ui_app.state().${e.varName});`);
+    lines.push(`          ${binder}("${escapeCString(e.entityId)}", &g_ui_app.state().${e.varName});`);
   }
 
   return lines.join('\n');
@@ -227,22 +227,22 @@ function generateNotificationSubscriptions(project: Project): string {
   if (!overlay || overlay.enabled === false) return '';
   const lines: string[] = [];
   if (overlay.titleEntityId) {
-    lines.push(`          bind_ha_string("${overlay.titleEntityId}", &g_ui_app.state().notification_title);`);
+    lines.push(`          bind_ha_string("${escapeCString(overlay.titleEntityId)}", &g_ui_app.state().notification_title);`);
   }
   if (overlay.bodyEntityId) {
-    lines.push(`          bind_ha_string("${overlay.bodyEntityId}", &g_ui_app.state().notification_body);`);
+    lines.push(`          bind_ha_string("${escapeCString(overlay.bodyEntityId)}", &g_ui_app.state().notification_body);`);
   }
   if (overlay.severityEntityId) {
-    lines.push(`          bind_ha_string("${overlay.severityEntityId}", &g_ui_app.state().notification_severity);`);
+    lines.push(`          bind_ha_string("${escapeCString(overlay.severityEntityId)}", &g_ui_app.state().notification_severity);`);
   }
   // Dismiss action: clears HA title/body entities via input_text.set_value
   if (overlay.titleEntityId || overlay.bodyEntityId) {
     const clearLines: string[] = [];
     if (overlay.titleEntityId) {
-      clearLines.push(`          clear_text_entity("${overlay.titleEntityId}");`);
+      clearLines.push(`          clear_text_entity("${escapeCString(overlay.titleEntityId)}");`);
     }
     if (overlay.bodyEntityId) {
-      clearLines.push(`          clear_text_entity("${overlay.bodyEntityId}");`);
+      clearLines.push(`          clear_text_entity("${escapeCString(overlay.bodyEntityId)}");`);
     }
     lines.push('');
     lines.push('          auto clear_text_entity = [](const std::string& entity_id) {');
@@ -267,7 +267,8 @@ function generateNotificationSubscriptions(project: Project): string {
 
 export function generateESPHomeYAML(project: Project, firmwareVersion?: string): string {
   const deviceName = sanitizeDeviceName(project.name);
-  const friendlyName = project.name;
+  const friendlyName = escapeYAMLDoubleQuoted(project.name);
+  const timezone = escapeYAMLDoubleQuoted(project.timezone || "UTC");
   const projectVersionYaml = firmwareVersion
     ? `\n  project:\n    name: "esphome_designer.${deviceName}"\n    version: "${firmwareVersion}"`
     : '';
@@ -335,7 +336,7 @@ ${relativeImageHandling}
   return `substitutions:
   device_name: ${deviceName}
   friendly_name: "${friendlyName}"
-  timezone: "${project.timezone || "UTC"}"${homeAssistantBaseUrlSubstitution}
+  timezone: "${timezone}"${homeAssistantBaseUrlSubstitution}
 
 packages:
   base: !include base.yaml

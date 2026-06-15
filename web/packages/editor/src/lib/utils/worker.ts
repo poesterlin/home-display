@@ -55,7 +55,7 @@ export async function submitCompilationJob(
     createdAt: new Date()
   };
   
-  compilationQueue.addJob(job);
+  await compilationQueue.addJob(job);
   
   return {
     jobId: job.id,

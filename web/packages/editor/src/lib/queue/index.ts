@@ -13,6 +13,7 @@ import { generateSecretsYAML } from '$lib/codegen/secrets';
 import { validateProject } from '$lib/codegen/validations';
 import { sanitizeDeviceName } from '$lib/codegen/utils';
 import { copyStaticTemplates } from '$lib/server/esphome-templates';
+import { validateProjectSchema } from '$lib/server/project-schema';
 import { uploadOtaBinary, uploadFactoryBinary, deleteBinaries } from '$lib/server/s3';
 import { addCredits, CREDIT_COSTS } from '$lib/credits';
 import { createLogger } from '$lib/server/logger';
@@ -23,6 +24,9 @@ interface ActiveJob {
   process: ChildProcess;
   cpuSlot: number;
 }
+
+const USER_VISIBLE_COMPILE_ERROR = 'Compilation failed. Please check your project configuration and try again.';
+const USER_VISIBLE_UPLOAD_ERROR = 'Compilation succeeded but the firmware binary could not be packaged.';
 
 export class CompilationQueue extends EventEmitter {
   private activeJobs: Map<string, ActiveJob> = new Map();
@@ -41,6 +45,48 @@ export class CompilationQueue extends EventEmitter {
 
   private static formatDurationMs(ms: number): string {
     return `${(ms / 1000).toFixed(2)}s`;
+  }
+
+  private static buildCompileEnv(options: {
+    venvPath: string;
+    pythonSitePackages: string;
+    coreDir: string;
+    buildCacheDir: string;
+    ccacheDir: string;
+    tempDir: string;
+    buildJobs?: string;
+  }): Record<string, string> {
+    const env = process.env;
+    const compileEnv: Record<string, string> = {
+      PATH: `${options.venvPath}/bin:${env.PATH ?? '/usr/local/bin:/usr/bin:/bin'}`,
+      VIRTUAL_ENV: options.venvPath,
+      PYTHONPATH: options.pythonSitePackages || `${options.venvPath}/lib/python3.12/site-packages`,
+      HOME: options.tempDir,
+      TMPDIR: options.tempDir,
+      USER: 'esphome',
+      LOGNAME: 'esphome',
+      PLATFORMIO_PENV_NOT_USED: 'true',
+      PLATFORMIO_CORE_DIR: options.coreDir,
+      PLATFORMIO_BUILD_CACHE_DIR: options.buildCacheDir,
+      IDF_CCACHE_ENABLE: '1',
+      CCACHE_DIR: options.ccacheDir,
+      CCACHE_BASEDIR: '/tmp/esphome-builds',
+      CCACHE_NOHASHDIR: 'true',
+      CCACHE_SLOPPINESS: 'pch_defines,time_macros,include_file_mtime,include_file_ctime',
+      CCACHE_MAXSIZE: '10G',
+      CCACHE_COMPRESS: 'true',
+      CCACHE_COMPRESSLEVEL: '1',
+    };
+
+    for (const key of ['LANG', 'LC_ALL', 'TZ'] as const) {
+      if (env[key]) compileEnv[key] = env[key];
+    }
+
+    if (options.buildJobs) {
+      compileEnv.IDF_BUILD_JOBS = options.buildJobs;
+    }
+
+    return compileEnv;
   }
 
   constructor(private maxWorkers: number = 2) {
@@ -256,7 +302,7 @@ export class CompilationQueue extends EventEmitter {
 
   private async runCompilation(job: CompilationJob, slotIndex: number): Promise<void> {
     const logger = createLogger(job.id);
-    const tempDir = join('/tmp/esphome-builds', job.projectId ?? job.id);
+    const tempDir = join('/tmp/esphome-builds', job.id);
     const configFile = join(tempDir, 'config.yaml');
     const timings = {
       startedAt: Date.now(),
@@ -285,14 +331,17 @@ export class CompilationQueue extends EventEmitter {
 
         const envBaseUrl = process.env.PUBLIC_BASE_URL;
         const baseUrl = envBaseUrl || `http://localhost:5173`;
-        logger.info(`firmwareUpdateUrl: PUBLIC_BASE_URL=${envBaseUrl ?? '<unset>'} baseUrl=${baseUrl} firmwareToken=${proj.firmwareToken}`);
         firmwareUpdateUrl = `${baseUrl}/api/firmware/${proj.firmwareToken}`;
-        logger.info(`firmwareUpdateUrl final: ${firmwareUpdateUrl}`);
       }
 
       const project = JSON.parse(job.config) as Project;
       if (firmwareUpdateUrl) {
         project.secrets = { ...project.secrets, firmwareUpdateUrl };
+      }
+
+      const schemaValidation = validateProjectSchema(project);
+      if (!schemaValidation.valid) {
+        throw new Error(`Project schema validation failed: ${schemaValidation.errors.join('; ')}`);
       }
 
       const validationErrors = validateProject(project);
@@ -313,7 +362,6 @@ export class CompilationQueue extends EventEmitter {
 
       const esphomeYaml = generateESPHomeYAML(project, job.id);
       const secretsYaml = generateSecretsYAML(project);
-      logger.info(`generated secrets.yaml:\n${secretsYaml}`);
       await Promise.all([
         fs.writeFile(configFile, esphomeYaml),
         fs.writeFile(join(tempDir, 'secrets.yaml'), secretsYaml),
@@ -331,25 +379,20 @@ export class CompilationQueue extends EventEmitter {
         ? String(Math.max(1, Math.floor(this.totalCores / concurrentActive)))
         : undefined;
 
-      const buildEnv: Record<string, string> = {
-        ...env,
-        PATH: `${venvPath}/bin:${env.PATH}`,
-        VIRTUAL_ENV: venvPath!,
-        PYTHONPATH: this.pythonSitePackages || `${venvPath}/lib/python3.12/site-packages`,
-        PLATFORMIO_PENV_NOT_USED: 'true',
-        PLATFORMIO_CORE_DIR: coreDir,
-        PLATFORMIO_BUILD_CACHE_DIR: buildCacheDir,
-        IDF_CCACHE_ENABLE: '1',
-        CCACHE_DIR: ccacheDir,
-        CCACHE_BASEDIR: '/tmp/esphome-builds',
-        CCACHE_NOHASHDIR: 'true',
-        CCACHE_SLOPPINESS: 'pch_defines,time_macros,include_file_mtime,include_file_ctime',
-        CCACHE_MAXSIZE: '10G',
-        CCACHE_COMPRESS: 'true',
-        CCACHE_COMPRESSLEVEL: '1',
-      };
+      if (!venvPath) {
+        throw new Error('ESPHOME_VENV is not set');
+      }
+
+      const buildEnv = CompilationQueue.buildCompileEnv({
+        venvPath,
+        pythonSitePackages: this.pythonSitePackages,
+        coreDir,
+        buildCacheDir,
+        ccacheDir,
+        tempDir,
+        buildJobs,
+      });
       if (buildJobs) {
-        buildEnv.IDF_BUILD_JOBS = buildJobs;
         logger.info(`build parallelism capped to ${buildJobs} jobs (${concurrentActive} concurrent builds, ${this.totalCores} cores)`);
       }
 
@@ -419,8 +462,9 @@ export class CompilationQueue extends EventEmitter {
           if (!otaUploaded) {
             const files = await fs.readdir(pioDir).catch(() => []);
             await this.handleJobResult(job.id, {
-              error: `No OTA firmware binary found in ${pioDir}. Files: ${files.join(', ')}. Error: ${uploadError}`,
+              error: USER_VISIBLE_UPLOAD_ERROR,
             });
+            logger.warn(`No OTA firmware binary found in ${pioDir}. Files: ${files.join(', ')}. Error: ${uploadError}`);
             logger.info(
               `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} upload=${CompilationQueue.formatDurationMs(timings.uploadMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
             );
@@ -435,17 +479,18 @@ export class CompilationQueue extends EventEmitter {
           logger.info(
             `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} upload=${CompilationQueue.formatDurationMs(timings.uploadMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
           );
-          await this.handleJobResult(job.id, { output: stdout });
+          await this.handleJobResult(job.id, { output: null });
         } else {
           const reason = signal
             ? `Compilation timed out and was terminated (signal: ${signal})`
             : `ESPHome compile failed (exit code ${code})`;
           const detail = stderr || stdout ? `: ${stderr || stdout}` : '';
+          logger.warn(`${reason}${detail}`);
           logger.info(
             `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} compile=${CompilationQueue.formatDurationMs(timings.compileMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
           );
           await this.handleJobResult(job.id, {
-            error: `${reason}${detail}`,
+            error: signal ? reason : USER_VISIBLE_COMPILE_ERROR,
           });
         }
 
@@ -464,6 +509,9 @@ export class CompilationQueue extends EventEmitter {
         this.processQueue();
       });
     } catch (error) {
+      if (!this.activeJobs.has(job.id)) {
+        this.cpuSlotFree[slotIndex] = true;
+      }
       logger.info(
         `phase timings: templateCopy=${CompilationQueue.formatDurationMs(timings.templateCopyMs)} configPrep=${CompilationQueue.formatDurationMs(timings.configPrepMs)} total=${CompilationQueue.formatDurationMs(Date.now() - timings.startedAt)}`,
       );
@@ -476,7 +524,7 @@ export class CompilationQueue extends EventEmitter {
 
   private async handleJobResult(
     jobId: string,
-    result: { output?: string; error?: string },
+    result: { output?: string | null; error?: string },
   ): Promise<void> {
     const job = this.jobs.get(jobId);
     if (!job) return;

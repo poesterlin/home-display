@@ -21,6 +21,7 @@ import {
   textBindingVar,
   imageIdFromComponentId,
   imageFallbackIdFromComponentId,
+  safeCppIdentifier,
   type ScreenDescriptor,
   type WidgetFactory,
 } from "./utils";
@@ -145,6 +146,10 @@ function rect(x: number, y: number, w: number, h: number): string {
   return `UiRect{${Math.round(x)}, ${Math.round(y)}, ${Math.round(w)}, ${Math.round(h)}}`;
 }
 
+function cppLineCommentText(s: string): string {
+  return s.replace(/[\r\n]/g, ' ');
+}
+
 function detailScreenId(id: string, title: string): string {
   return 'Detail' + (toCppIdentifier(id) || toCppIdentifier(title) || 'View');
 }
@@ -170,7 +175,7 @@ function emitTapAction(action: OnTapAction | undefined): string {
   if (!action) return '';
   if (action.type === 'SERVICE_CALL') {
     const entity = action.target?.entityId ?? action.target?.deviceId ?? '';
-    return `make_ha_callback("${entity}", "${action.service}")`;
+    return `make_ha_callback("${escapeCString(entity)}", "${escapeCString(action.service)}")`;
   }
   if (action.type === 'OPEN_DETAIL') {
     const detailId = detailScreenId(action.targetId ?? '', '');
@@ -205,7 +210,7 @@ function emitLightToggleAction(c: LightStateComponent): string {
 
   // Default behavior for light-state components:
   // if no explicit onTap is configured, toggle the bound entity.
-  return `make_ha_callback("${entityId}", "${domain}.toggle")`;
+  return `make_ha_callback("${escapeCString(entityId)}", "${escapeCString(`${domain}.toggle`)}")`;
 }
 
 function generateLightWidget(c: LightStateComponent, stateVar: string,
@@ -224,7 +229,7 @@ function generateLightWidget(c: LightStateComponent, stateVar: string,
   const offColor = c.offColor ? emitColor(c.offColor) : 'Color(80, 80, 80)';
   const iconName = c.icon ?? 'lightbulb';
   const iconGlyph = getMdiUtf8CEscape(iconName);
-  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const idSafe = safeCppIdentifier(c.id, 'component');
   const dirtyLine = (name: string) => dirtyBoundsExpr
     ? `${indent}${name}->set_dirty_bounds(${dirtyBoundsExpr});\n`
     : '';
@@ -282,7 +287,7 @@ function generateTodoListWidget(
   const incompleteIcon = getMdiUtf8CEscape("checkbox-blank-outline") ?? "";
   const completeIcon = getMdiUtf8CEscape("checkbox-marked") ?? "";
   const todoEntity = c.todoEntityId ?? "";
-  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const idSafe = safeCppIdentifier(c.id, 'component');
   let out = `${indent}auto *todo_${idSafe} = ${factory('TodoPreviewWidget', `${rect(x, y, w, h)}, state.${itemsVar}.ptr(), ${maxItems}, ${rowHeight}, ${scrollable}, ${checkable}, ${onTap || '[](){}'}, "${incompleteIcon}", "${completeIcon}", "${escapeCString(todoEntity)}"`)};\n`;
   if (visibilityExpr) {
     out += `${indent}todo_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
@@ -307,7 +312,7 @@ function generateImageWidget(
   const y = c.position.y + offY;
   const w = c.size?.width ?? 100;
   const h = c.size?.height ?? 100;
-  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const idSafe = safeCppIdentifier(c.id, 'component');
   const imageId = imageIdFromComponentId(c.id);
   const fallbackImageId = imageFallbackIdFromComponentId(c.id);
   const isHaImage = c.imageSource === "ha" || (c.imageSource == null && !!c.imageBinding?.entityId);
@@ -489,7 +494,7 @@ function generateConditionalAreaWidget(
   offsetX = 0,
   offsetY = 0,
 ): string {
-  const areaIdSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const areaIdSafe = safeCppIdentifier(c.id, 'area');
   const areaX = c.position.x + offsetX;
   const areaY = c.position.y + offsetY;
   const areaW = c.size?.width ?? 0;
@@ -520,7 +525,7 @@ function generateConditionalAreaWidget(
 
   for (let i = 0; i < variantsInOrder.length; i++) {
     const variant = variantsInOrder[i]!;
-    const variantIdSafe = variant.id.replace(/[^a-zA-Z0-9_]/g, '_');
+    const variantIdSafe = safeCppIdentifier(variant.id, 'variant');
     const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
     const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
 
@@ -552,7 +557,7 @@ function generateTabContainerWidget(
   const w = c.size?.width ?? 200;
   const h = c.size?.height ?? 200;
   const clip = c.clipContent ?? false;
-  const varName = `tc_${c.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  const varName = `tc_${safeCppIdentifier(c.id, 'tab_container')}`;
   const bgVar = `${varName}_bg`;
 
   let out = '';
@@ -592,7 +597,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
   const y = c.position.y + offsetY;
   const w = c.size?.width ?? 60;
   const h = c.size?.height ?? 20;
-  const idSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const idSafe = safeCppIdentifier(c.id, 'component');
 
   const factory: WidgetFactory = (typeName, args) =>
     `${containerVar}->emplace_child<${typeName}>(${tabIndex}, ${args})`;
@@ -687,7 +692,7 @@ function generateConditionalAreaNested(
   offsetY: number,
   tabBgVar?: string,
 ): string {
-  const areaIdSafe = c.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  const areaIdSafe = safeCppIdentifier(c.id, 'area');
   const areaX = c.position.x + offsetX;
   const areaY = c.position.y + offsetY;
   const areaW = c.size?.width ?? 0;
@@ -713,7 +718,7 @@ function generateConditionalAreaNested(
 
   for (let i = 0; i < variantsInOrder.length; i++) {
     const variant = variantsInOrder[i]!;
-    const variantIdSafe = variant.id.replace(/[^a-zA-Z0-9_]/g, '_');
+    const variantIdSafe = safeCppIdentifier(variant.id, 'variant');
     const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
     const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
 
@@ -778,7 +783,7 @@ export function generateUIScreensHeader(project: Project): string {
     for (const [index, page] of project.dashboardPages.entries()) {
       setupBody += `  {\n`;
       setupBody += `    auto p${index} = [&state]() { return state.home_page_index == ${index}; };\n`;
-      setupBody += `    // Page: ${page.name}\n`;
+      setupBody += `    // Page: ${cppLineCommentText(page.name)}\n`;
       for (const c of page.components) {
         setupBody += generateComponentSetup(c, 'home', '    ', `p${index}`, 0, dashboardOffsetY);
         setupBody += '\n';
@@ -799,7 +804,7 @@ export function generateUIScreensHeader(project: Project): string {
       setupBody += '\n';
       continue;
     }
-    setupBody += `  // Detail: ${view.title}\n`;
+    setupBody += `  // Detail: ${cppLineCommentText(view.title)}\n`;
     for (const c of view.components) {
       setupBody += generateComponentSetup(c, screenVar, '  ');
       setupBody += '\n';
