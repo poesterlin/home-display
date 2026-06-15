@@ -2,7 +2,7 @@ import { generateState, getTailscaleAuthUrl } from "$lib/auth"
 import { redirect } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 
-export const load: PageServerLoad = async ({ cookies, locals }) => {
+export const load: PageServerLoad = async ({ cookies, locals, url }) => {
     if (locals.user) redirect(302, "/")
 
     const state = generateState()
@@ -14,5 +14,5 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
         maxAge: 10 * 60
     })
 
-    return { authUrl: getTailscaleAuthUrl(state) }
+    return { authUrl: getTailscaleAuthUrl(state, url.origin) }
 }

@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
         throw new Error("Invalid state or missing code")
     }
 
-    const claims = await getTailscaleIdToken(code)
+    const claims = await getTailscaleIdToken(code, url.origin)
 
     cookies.set("session", JSON.stringify({
         sub: claims.sub,
