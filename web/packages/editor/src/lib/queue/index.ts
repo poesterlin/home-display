@@ -66,6 +66,7 @@ export class CompilationQueue extends EventEmitter {
       USER: 'esphome',
       LOGNAME: 'esphome',
       PLATFORMIO_PENV_NOT_USED: 'true',
+      PLATFORMIO_SETTING_ENABLE_TELEMETRY: 'false',
       PLATFORMIO_CORE_DIR: options.coreDir,
       PLATFORMIO_BUILD_CACHE_DIR: options.buildCacheDir,
       IDF_CCACHE_ENABLE: '1',
@@ -370,9 +371,9 @@ export class CompilationQueue extends EventEmitter {
 
       const env = process.env;
       const venvPath = env.ESPHOME_VENV;
-      const coreDir = env.PLATFORMIO_CORE_DIR || '/data/platformio';
-      const buildCacheDir = env.PLATFORMIO_BUILD_CACHE_DIR || '/data/pio-build-cache';
-      const ccacheDir = env.CCACHE_DIR || '/data/ccache';
+      const coreDir = env.PLATFORMIO_CORE_DIR || '/tmp/esphome-platformio-core';
+      const buildCacheDir = env.PLATFORMIO_BUILD_CACHE_DIR || '/tmp/esphome-platformio-build-cache';
+      const ccacheDir = env.CCACHE_DIR || '/tmp/esphome-ccache';
 
       const concurrentActive = this.activeJobs.size + 1;
       const buildJobs = concurrentActive > 1

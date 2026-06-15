@@ -327,7 +327,7 @@ export interface ServiceTarget {
 export interface NavigationAction {
   type: "OPEN_DETAIL" | "GO_BACK" | "NEXT_PAGE" | "PREV_PAGE";
   /**
-   * Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL.
+   * Detail view ID. Required for OPEN_DETAIL.
    */
   targetId?: string;
 }
@@ -462,7 +462,7 @@ export interface TabItem {
 }
 export interface DetailView {
   /**
-   * Short view name in UPPER_SNAKE_CASE (e.g., TEMPS, VACUUM). Generator prepends VIEW_DETAIL_ prefix for enum.
+   * Stable detail view ID. Codegen sanitizes this into a C++ enum name.
    */
   id: string;
   title: string;

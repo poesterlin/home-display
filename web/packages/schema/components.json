@@ -65,8 +65,8 @@
         "type": { "enum": ["OPEN_DETAIL", "GO_BACK", "NEXT_PAGE", "PREV_PAGE"] },
         "targetId": {
           "type": "string",
-          "pattern": "^[A-Z_]+$",
-          "description": "Detail view ID (without VIEW_DETAIL_ prefix). Required for OPEN_DETAIL."
+          "minLength": 1,
+          "description": "Detail view ID. Required for OPEN_DETAIL."
         }
       },
       "required": ["type"],
@@ -674,8 +674,8 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[A-Z_]+$",
-          "description": "Short view name in UPPER_SNAKE_CASE (e.g., TEMPS, VACUUM). Generator prepends VIEW_DETAIL_ prefix for enum."
+          "minLength": 1,
+          "description": "Stable detail view ID. Codegen sanitizes this into a C++ enum name."
         },
         "title": { "type": "string" },
         "height": {

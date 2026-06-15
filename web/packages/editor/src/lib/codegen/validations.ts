@@ -277,11 +277,11 @@ function validateAction(action: OnTapAction | ActionBinding | undefined, fieldNa
   }
 
   if (action.type === "SERVICE_CALL") {
-    if (!action.target?.entityId && !action.target?.deviceId) {
+    if (!action.service) {
       return [
         {
           type: "error" as const,
-          message: `"${fieldLabel}" needs a target entity or device`,
+          message: `"${fieldLabel}" needs a service`,
           componentId,
           componentLabel: compLabel,
           field: fieldName,

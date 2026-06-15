@@ -64,7 +64,7 @@ describe("validateActionTargets", () => {
     expect(validateProject(project)).toEqual([]);
   });
 
-  test("fails when SERVICE_CALL has no target", () => {
+  test("passes when SERVICE_CALL has no target", () => {
     const project = makeProject({
       dashboardPages: [
         {
@@ -79,6 +79,30 @@ describe("validateActionTargets", () => {
               onTap: {
                 type: "SERVICE_CALL",
                 service: "light.toggle",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(validateProject(project)).toEqual([]);
+  });
+
+  test("fails when SERVICE_CALL has no service", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "btn1",
+              type: "button",
+              position: { x: 10, y: 10 },
+              size: { width: 80, height: 36 },
+              onTap: {
+                type: "SERVICE_CALL",
+                service: "",
               },
             },
           ],
@@ -186,9 +210,7 @@ describe("validateActionTargets", () => {
         },
       ],
     });
-    const errors = validateProject(project);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]!.field).toBe("pressAction");
+    expect(validateProject(project)).toEqual([]);
   });
 
   test("validates holdAction on buttons", () => {
@@ -237,10 +259,7 @@ describe("validateActionTargets", () => {
         },
       ],
     });
-    const errors = validateProject(project);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]!.componentId).toBe("txt1");
-    expect(errors[0]!.field).toBe("onHold");
+    expect(validateProject(project)).toEqual([]);
   });
 
   test("validates nested components in tab_container", () => {
@@ -278,9 +297,7 @@ describe("validateActionTargets", () => {
         },
       ],
     });
-    const errors = validateProject(project);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]!.componentId).toBe("btn_nested");
+    expect(validateProject(project)).toEqual([]);
   });
 
   test("validates nested components in conditional_area", () => {
@@ -343,9 +360,7 @@ describe("validateActionTargets", () => {
         },
       ],
     });
-    const errors = validateProject(project);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]!.componentId).toBe("btn_detail");
+    expect(validateProject(project)).toEqual([]);
   });
 
   test("validates components in page header", () => {
@@ -366,9 +381,7 @@ describe("validateActionTargets", () => {
         ],
       },
     });
-    const errors = validateProject(project);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]!.componentId).toBe("btn_header");
+    expect(validateProject(project)).toEqual([]);
   });
 
   test("reports multiple errors from different components", () => {
@@ -397,7 +410,7 @@ describe("validateActionTargets", () => {
       ],
     });
     const errors = validateProject(project);
-    expect(errors).toHaveLength(2);
+    expect(errors).toHaveLength(1);
   });
 
   test("returns empty array for project with no issues", () => {
