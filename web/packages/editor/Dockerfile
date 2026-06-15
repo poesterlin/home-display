@@ -72,6 +72,7 @@ COPY packages/db/package.json ./packages/db/package.json
 COPY packages/email/package.json ./packages/email/package.json
 COPY packages/editor/package.json ./packages/editor/package.json
 COPY packages/schema/package.json ./packages/schema/package.json
+COPY packages/admin/package.json ./packages/admin/package.json
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \

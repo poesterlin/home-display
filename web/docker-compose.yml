@@ -27,6 +27,23 @@ services:
       - pio_cache:/data/pio-build-cache
       - ccache_data:/data/ccache
 
+  admin:
+    build:
+      dockerfile: packages/admin/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/esphome
+      - TSIDP_ISSUER=${TSIDP_ISSUER}
+      - TSIDP_CLIENT_ID=${TSIDP_CLIENT_ID}
+      - TSIDP_CLIENT_SECRET=${TSIDP_CLIENT_SECRET}
+      - URL=https://admin.${DOMAIN}
+      - NODE_ENV=production
+    networks:
+      - traefik_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.esphome-admin.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.services.esphome-admin.loadbalancer.server.port=3000"
+
 volumes:
   platformio_data:
   pio_cache:
