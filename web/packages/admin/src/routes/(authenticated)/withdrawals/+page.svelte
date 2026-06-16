@@ -93,6 +93,9 @@
             {#if withdrawal.amountPaid}
               ({currency.format(withdrawal.amountPaid)})
             {/if}
+            {#if withdrawal.creditsConsumed != null && withdrawal.creditsConsumed > 0}
+              <div class="subtle">{withdrawal.creditsConsumed} credits used at withdrawal</div>
+            {/if}
             <div class="subtle">{formatDate(withdrawal.purchasedAt)}</div>
           {:else}
             <span class="subtle">Not found</span>

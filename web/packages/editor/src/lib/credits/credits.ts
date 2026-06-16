@@ -8,6 +8,9 @@ interface AddCreditsParams {
   amount: number;
   reason: string;
   stripeSessionId?: string;
+  packKey?: string;
+  amountPaidCents?: number;
+  currency?: string;
 }
 
 function isUniqueStripeSessionViolation(err: unknown): boolean {
@@ -65,6 +68,9 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditBalanc
           balanceAfter: params.amount,
           reason: params.reason,
           stripeSessionId: params.stripeSessionId ?? null,
+          packKey: params.packKey ?? null,
+          amountPaidCents: params.amountPaidCents ?? null,
+          currency: params.currency ?? null,
         });
 
         return { userId: params.userId, balance: params.amount, updatedAt: new Date() };
@@ -83,6 +89,9 @@ export async function addCredits(params: AddCreditsParams): Promise<CreditBalanc
         balanceAfter: newBalance,
         reason: params.reason,
         stripeSessionId: params.stripeSessionId ?? null,
+        packKey: params.packKey ?? null,
+        amountPaidCents: params.amountPaidCents ?? null,
+        currency: params.currency ?? null,
       });
 
       return { userId: params.userId, balance: newBalance, updatedAt: new Date() };

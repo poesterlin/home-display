@@ -87,8 +87,13 @@
             ? "Payment successful! Credits have been added to your balance."
             : "Payment successful! Credits will appear shortly."}
           <span class="toast-detail">
-            Your order confirmation was sent by Stripe. Use the order ID from that email if you need to
-            <a href="/withdrawal">withdraw from your purchase</a>.
+            {#if data.orderId}
+              Order ID: <code>{data.orderId}</code> — save this if you need to
+              <a href="/withdrawal">withdraw from your purchase</a>.
+            {:else}
+              Your order confirmation was sent by Stripe. Use the order ID from that email if you need to
+              <a href="/withdrawal">withdraw from your purchase</a>.
+            {/if}
           </span>
         </div>
       </div>
@@ -315,6 +320,11 @@
   .toast-detail a {
     color: inherit;
     text-decoration: underline;
+  }
+
+  .toast-detail code {
+    font-size: 0.78rem;
+    word-break: break-all;
   }
 
   .packs-grid {

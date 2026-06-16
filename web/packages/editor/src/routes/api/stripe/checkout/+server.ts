@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     const session = await createCheckoutSession({
       userId: locals.user.id,
       priceId,
-      successUrl: `${origin}/credits?checkout=success`,
+      successUrl: `${origin}/credits?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${origin}/credits?checkout=cancelled`,
       immediatePerformanceConsent: true,
     });

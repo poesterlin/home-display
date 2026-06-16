@@ -91,6 +91,23 @@ export const stripeCustomers = pgTable("stripe_customer", {
 
 export type StripeCustomer = typeof stripeCustomers.$inferSelect;
 
+// ── Stripe Checkout Sessions ────────────────────────────────────────────────
+export const stripeCheckoutSessions = pgTable('stripe_checkout_session', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => usersTable.id, { onDelete: 'cascade' }),
+  priceId: text('price_id').notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('open'),
+  consentAt: timestamp('consent_at', { withTimezone: true, mode: 'date' }),
+  completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .defaultNow(),
+});
+
+export type StripeCheckoutSession = typeof stripeCheckoutSessions.$inferSelect;
+
 // ── Credit Balances ─────────────────────────────────────────────────────────
 export const creditBalances = pgTable("credit_balance", {
   userId: text("user_id").primaryKey(),
@@ -110,6 +127,9 @@ export const creditTransactions = pgTable("credit_transaction", {
   balanceAfter: integer("balance_after").notNull(),
   reason: text("reason").notNull(),
   stripeSessionId: text("stripe_session_id").unique(),
+  packKey: text("pack_key"),
+  amountPaidCents: integer("amount_paid_cents"),
+  currency: varchar("currency", { length: 3 }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),
@@ -136,6 +156,9 @@ export const withdrawalRequests = pgTable(
     userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
     email: text('email').notNull(),
     status: varchar('status', { length: 20 }).notNull().default('pending'),
+    creditsPurchased: integer('credits_purchased'),
+    amountPaidCents: integer('amount_paid_cents'),
+    creditsConsumed: integer('credits_consumed'),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'date' }),
     processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
     notes: text('notes'),

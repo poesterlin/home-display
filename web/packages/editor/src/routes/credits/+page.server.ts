@@ -12,10 +12,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const balance = await getBalance(locals.user.id);
   const checkoutStatus = url.searchParams.get("checkout");
+  const orderId = url.searchParams.get("session_id");
 
   return {
     balance,
     checkoutStatus,
+    orderId,
     creditCosts: CREDIT_COSTS,
     packs: CREDIT_PACKS,
   };

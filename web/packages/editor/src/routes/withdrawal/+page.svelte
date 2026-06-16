@@ -11,22 +11,34 @@
   });
 
   const step = $derived(
-    form?.step === 'confirm'
-      ? 'confirm'
-      : form?.step === 'success'
-        ? 'success'
-        : data.step,
+    form?.step === 'select'
+      ? 'select'
+      : form?.step === 'confirm'
+        ? 'confirm'
+        : form?.step === 'success'
+          ? 'success'
+          : data.step,
   );
 
   const token = $derived(form?.token ?? data.token ?? '');
+  const listToken = $derived(form?.listToken ?? data.listToken ?? '');
+  const orders = $derived(data.orders ?? []);
   const alreadySubmitted = $derived(form?.alreadySubmitted ?? data.alreadySubmitted ?? false);
   const errorMessage = $derived(form?.message ?? data.error ?? null);
+
+  let selectedOrderId = $state('');
+  let showManualEntry = $state(false);
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleString('en-GB', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+  }
+
+  function shortOrderId(id: string) {
+    if (id.length <= 16) return id;
+    return `${id.slice(0, 10)}…${id.slice(-6)}`;
   }
 </script>
 
@@ -48,11 +60,70 @@
 
     {#if step === 'identify'}
       <section class="card">
-        <h2>Step 1: Identify your purchase</h2>
-        <p>
-          Enter the email address used for your account and the order ID from your Stripe receipt email
-          (starts with <code>cs_</code>).
-        </p>
+        <h2>Step 1: Find your purchase</h2>
+        <p>Enter the email address on your account. We will show your credit pack orders.</p>
+
+        <form
+          method="POST"
+          action="?/listOrders"
+          use:enhance={() => {
+            return async ({ result }) => {
+              if (result.type === 'success' && result.data?.step === 'select' && typeof result.data.listToken === 'string') {
+                await goto(`/withdrawal?step=select&listToken=${encodeURIComponent(result.data.listToken)}`);
+              }
+            };
+          }}
+        >
+          <div class="field">
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" autocomplete="email" required />
+          </div>
+
+          <button type="submit" class="primary">Find my orders</button>
+        </form>
+
+        <details class="manual-entry" bind:open={showManualEntry}>
+          <summary>Have your order ID already?</summary>
+          <p>Enter the order ID from your Stripe receipt email (starts with <code>cs_</code>).</p>
+
+          <form
+            method="POST"
+            action="?/identify"
+            use:enhance={() => {
+              return async ({ result }) => {
+                if (result.type === 'success' && result.data?.step === 'confirm' && typeof result.data.token === 'string') {
+                  await goto(`/withdrawal?step=confirm&token=${encodeURIComponent(result.data.token)}`);
+                } else if (result.type === 'success' && result.data?.step === 'success') {
+                  await goto('/withdrawal?step=success');
+                }
+              };
+            }}
+          >
+            <div class="field">
+              <label for="manual-email">Email address</label>
+              <input id="manual-email" name="email" type="email" autocomplete="email" required />
+            </div>
+
+            <div class="field">
+              <label for="orderId">Order ID</label>
+              <input
+                id="orderId"
+                name="orderId"
+                type="text"
+                placeholder="cs_test_..."
+                autocomplete="off"
+                required
+              />
+            </div>
+
+            <button type="submit" class="secondary">Continue with order ID</button>
+          </form>
+        </details>
+      </section>
+    {:else if step === 'select' && orders.length > 0}
+      <section class="card">
+        <h2>Step 1: Select your purchase</h2>
+        <p>Choose the order you want to withdraw from.</p>
 
         <form
           method="POST"
@@ -67,25 +138,44 @@
             };
           }}
         >
-          <div class="field">
-            <label for="email">Email address</label>
-            <input id="email" name="email" type="email" autocomplete="email" required />
+          <input type="hidden" name="listToken" value={listToken} />
+
+          <div class="order-list" role="radiogroup" aria-label="Your orders">
+            {#each orders as order (order.stripeSessionId)}
+              <label class="order-option" class:disabled={order.withdrawalActive}>
+                <input
+                  type="radio"
+                  name="orderId"
+                  value={order.stripeSessionId}
+                  bind:group={selectedOrderId}
+                  disabled={order.withdrawalActive}
+                  required
+                />
+                <div class="order-body">
+                  <div class="order-top">
+                    <strong>{order.packName}</strong>
+                    <span>{currency.format(order.amountPaid)}</span>
+                  </div>
+                  <div class="order-meta">
+                    {order.creditsPurchased} credits · {formatDate(order.purchasedAt)}
+                  </div>
+                  <div class="order-id">
+                    <code>{shortOrderId(order.stripeSessionId)}</code>
+                  </div>
+                  {#if order.withdrawalActive}
+                    <div class="order-badge">Withdrawal already submitted</div>
+                  {/if}
+                </div>
+              </label>
+            {/each}
           </div>
 
-          <div class="field">
-            <label for="orderId">Order ID (Stripe Checkout Session)</label>
-            <input
-              id="orderId"
-              name="orderId"
-              type="text"
-              placeholder="cs_test_..."
-              autocomplete="off"
-              required
-            />
-          </div>
-
-          <button type="submit" class="primary">Continue</button>
+          <button type="submit" class="primary" disabled={!selectedOrderId}>Continue</button>
         </form>
+
+        <p class="helper">
+          <a href="/withdrawal">Use a different email</a>
+        </p>
       </section>
     {:else if step === 'confirm' && data.purchase}
       <section class="card">
@@ -226,7 +316,8 @@
     color: var(--color-text-muted);
   }
 
-  input {
+  input[type='email'],
+  input[type='text'] {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 0.6rem;
@@ -249,8 +340,20 @@
     font: inherit;
   }
 
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .primary {
     background: var(--color-accent);
+    color: #fff;
+    width: 100%;
+  }
+
+  .secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     color: #fff;
     width: 100%;
   }
@@ -259,6 +362,84 @@
     background: #dc2626;
     color: #fff;
     width: 100%;
+  }
+
+  .manual-entry {
+    margin-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 1rem;
+  }
+
+  .manual-entry summary {
+    cursor: pointer;
+    color: #9fd2ff;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .order-list {
+    display: grid;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .order-option {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+  }
+
+  .order-option:has(input:checked) {
+    border-color: rgba(74, 158, 254, 0.55);
+    background: rgba(74, 158, 254, 0.08);
+  }
+
+  .order-option.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .order-option input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .order-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .order-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: #fff;
+    margin-bottom: 0.2rem;
+  }
+
+  .order-meta {
+    font-size: 0.84rem;
+    color: var(--color-text-muted);
+  }
+
+  .order-id {
+    margin-top: 0.35rem;
+  }
+
+  .order-id code {
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+  }
+
+  .order-badge {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    color: #f5d78e;
   }
 
   .summary {

@@ -9,6 +9,11 @@ interface WithdrawalTokenPayload {
   exp: number;
 }
 
+interface ListTokenPayload {
+  email: string;
+  exp: number;
+}
+
 function decodeBase64url(value: string): Uint8Array {
   const padded = value + '='.repeat((4 - (value.length % 4)) % 4);
   const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
@@ -29,21 +34,14 @@ async function importHmacKey(secret: string) {
   );
 }
 
-export async function createWithdrawalToken(stripeSessionId: string, email: string): Promise<string> {
-  const payload: WithdrawalTokenPayload = {
-    stripeSessionId,
-    email: email.toLowerCase(),
-    exp: Date.now() + TOKEN_TTL_MS,
-  };
+async function signPayload(payload: object): Promise<string> {
   const body = encodeBase64url(new TextEncoder().encode(JSON.stringify(payload)));
   const key = await importHmacKey(getSigningSecret());
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
   return `${body}.${encodeBase64url(new Uint8Array(signature))}`;
 }
 
-export async function verifyWithdrawalToken(
-  token: string,
-): Promise<WithdrawalTokenPayload | null> {
+async function verifyPayload<T extends { exp: number }>(token: string): Promise<T | null> {
   const dot = token.lastIndexOf('.');
   if (dot === -1) return null;
 
@@ -61,14 +59,42 @@ export async function verifyWithdrawalToken(
   if (!valid) return null;
 
   try {
-    const payload = JSON.parse(new TextDecoder().decode(decodeBase64url(body))) as WithdrawalTokenPayload;
-
-    if (!payload.stripeSessionId || !payload.email || !payload.exp) return null;
+    const payload = JSON.parse(new TextDecoder().decode(decodeBase64url(body))) as T;
     if (Date.now() >= payload.exp) return null;
-
     return payload;
   } catch {
     return null;
   }
+}
+
+export async function createListToken(email: string): Promise<string> {
+  const payload: ListTokenPayload = {
+    email: email.toLowerCase(),
+    exp: Date.now() + TOKEN_TTL_MS,
+  };
+  return signPayload(payload);
+}
+
+export async function verifyListToken(token: string): Promise<ListTokenPayload | null> {
+  const payload = await verifyPayload<ListTokenPayload>(token);
+  if (!payload?.email) return null;
+  return payload;
+}
+
+export async function createWithdrawalToken(stripeSessionId: string, email: string): Promise<string> {
+  const payload: WithdrawalTokenPayload = {
+    stripeSessionId,
+    email: email.toLowerCase(),
+    exp: Date.now() + TOKEN_TTL_MS,
+  };
+  return signPayload(payload);
+}
+
+export async function verifyWithdrawalToken(
+  token: string,
+): Promise<WithdrawalTokenPayload | null> {
+  const payload = await verifyPayload<WithdrawalTokenPayload>(token);
+  if (!payload?.stripeSessionId || !payload.email) return null;
+  return payload;
 }
 

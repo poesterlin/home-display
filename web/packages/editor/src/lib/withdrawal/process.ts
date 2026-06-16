@@ -37,6 +37,10 @@ export async function confirmWithdrawal(
       userId: purchase.userId,
       email,
       status: 'confirmed',
+      creditsPurchased: purchase.creditsPurchased,
+      amountPaidCents:
+        purchase.amountPaidCents ?? Math.round(purchase.amountPaid * 100),
+      creditsConsumed: purchase.creditsConsumed,
       confirmedAt,
     });
   } catch (err) {

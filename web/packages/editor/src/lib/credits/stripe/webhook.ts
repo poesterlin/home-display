@@ -2,7 +2,7 @@ import { getStripe } from "./client";
 import { addCredits } from "../credits";
 import { getPackByPriceId } from "../packs";
 import { getDb } from "@esphome-designer/db";
-import { stripeEvents } from "@esphome-designer/db/schema";
+import { stripeCheckoutSessions, stripeEvents } from "@esphome-designer/db/schema";
 import { eq } from "drizzle-orm";
 import { createLogger } from "$lib/server/logger";
 import type Stripe from "stripe";
@@ -41,11 +41,20 @@ export async function handleCompletedCheckout(
   const pack = getPackByPriceId(priceId);
   if (!pack) { logger.warn(`Unknown price: ${priceId}`); return; }
 
+  const completedAt = new Date();
+  await getDb()
+    .update(stripeCheckoutSessions)
+    .set({ status: 'complete', completedAt })
+    .where(eq(stripeCheckoutSessions.id, session.id));
+
   await addCredits({
     userId,
     amount: pack.credits,
     reason: `purchase:${pack.priceKey}`,
     stripeSessionId: session.id,
+    packKey: pack.priceKey,
+    amountPaidCents: session.amount_total ?? pack.price * 100,
+    currency: session.currency ?? 'eur',
   });
 
   logger.info(`Credited ${pack.credits} credits to user ${userId} for pack ${pack.priceKey}`);

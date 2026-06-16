@@ -1,6 +1,6 @@
 import { getStripe } from "./client";
 import { getDb } from "@esphome-designer/db";
-import { stripeCustomers } from "@esphome-designer/db/schema";
+import { stripeCheckoutSessions, stripeCustomers } from "@esphome-designer/db/schema";
 import { eq } from "drizzle-orm";
 import { getPackByPriceId } from "../packs";
 import { createLogger } from "$lib/server/logger";
@@ -63,5 +63,14 @@ export async function createCheckoutSession(params: CreateCheckoutParams) {
   });
 
   logger.info(`Checkout session created: ${session.id} for pack ${pack.priceKey}`);
-  return { url: session.url };
+
+  await db.insert(stripeCheckoutSessions).values({
+    id: session.id,
+    userId: params.userId,
+    priceId: params.priceId,
+    status: 'open',
+    consentAt: params.immediatePerformanceConsent ? new Date() : null,
+  });
+
+  return { url: session.url, sessionId: session.id };
 }

@@ -10,12 +10,6 @@ import { desc, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import type { Actions, PageServerLoad } from './$types';
 
-const PACK_PRICES: Record<number, number> = {
-  10: 5,
-  50: 20,
-  200: 60,
-};
-
 const STATUSES = ['confirmed', 'pending', 'processed', 'rejected'] as const;
 type WithdrawalStatus = (typeof STATUSES)[number];
 type WithdrawalFilter = WithdrawalStatus | 'all';
@@ -41,9 +35,13 @@ export const load: PageServerLoad = async ({ url }) => {
       processedAt: withdrawalRequests.processedAt,
       notes: withdrawalRequests.notes,
       createdAt: withdrawalRequests.createdAt,
+      snapshotCreditsPurchased: withdrawalRequests.creditsPurchased,
+      snapshotAmountPaidCents: withdrawalRequests.amountPaidCents,
+      snapshotCreditsConsumed: withdrawalRequests.creditsConsumed,
       username: usersTable.username,
       accountEmail: usersTable.email,
       creditsPurchased: creditTransactions.amount,
+      amountPaidCents: creditTransactions.amountPaidCents,
       purchasedAt: creditTransactions.createdAt,
       currentBalance: creditBalances.balance,
     })
@@ -74,8 +72,12 @@ export const load: PageServerLoad = async ({ url }) => {
       createdAt: row.createdAt.toISOString(),
       username: row.username,
       accountEmail: row.accountEmail,
-      creditsPurchased: row.creditsPurchased,
-      amountPaid: row.creditsPurchased ? (PACK_PRICES[row.creditsPurchased] ?? null) : null,
+      creditsPurchased: row.snapshotCreditsPurchased ?? row.creditsPurchased,
+      amountPaid:
+        (row.snapshotAmountPaidCents ?? row.amountPaidCents) != null
+          ? (row.snapshotAmountPaidCents ?? row.amountPaidCents)! / 100
+          : null,
+      creditsConsumed: row.snapshotCreditsConsumed,
       purchasedAt: row.purchasedAt?.toISOString() ?? null,
       currentBalance: row.currentBalance ?? 0,
     })),
