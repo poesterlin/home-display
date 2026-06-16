@@ -401,7 +401,7 @@ ${haBaseUrlLocal}
             float v = strtof(c, &end);
             if (end == c || *end != '\\0') return s;
             auto dot = s.find('.');
-            if (dot == std::string::npos || s.size() - dot <= 2) return s;
+            if (dot == std::string::npos) return s;
             char buf[32];
             snprintf(buf, sizeof(buf), "%.1f", v);
             std::string out(buf);

@@ -148,6 +148,29 @@ describe("text component template codegen", () => {
     expect(yaml).toContain('bind_ha_string_attr("sensor.bar", "attributes.unit"');
   });
 
+  test("HA string bindings strip trailing .0 from numeric strings", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "lbl",
+              type: "text",
+              position: { x: 10, y: 10 },
+              text: "{{sensor.count}}",
+            },
+          ],
+        },
+      ],
+    });
+    const yaml = generateESPHomeYAML(project);
+    expect(yaml).toContain("if (dot == std::string::npos) return s;");
+    expect(yaml).toContain('out.compare(out.size() - 2, 2, ".0") == 0');
+    expect(yaml).not.toContain("s.size() - dot <= 2");
+  });
+
   test("declared Observables match the bindings parsed from the template", () => {
     const project = makeProject({
       dashboardPages: [
