@@ -19,6 +19,10 @@
       <span class="stat-label">Total Credits</span>
     </div>
     <div class="stat-card">
+      <span class="stat-value">{data.pendingWithdrawals}</span>
+      <span class="stat-label">Pending Withdrawals</span>
+    </div>
+    <div class="stat-card">
       <span class="stat-value">{data.jobCounts.completed}</span>
       <span class="stat-label">Completed Jobs</span>
     </div>
@@ -35,6 +39,32 @@
       <span class="stat-label">Pending</span>
     </div>
   </div>
+
+  <h3 style="margin-top: 32px; margin-bottom: 12px;">
+    Pending Withdrawals
+    <a href="/withdrawals" style="font-size: 13px; margin-left: 8px;">View all</a>
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Order ID</th>
+        <th>Confirmed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each data.recentWithdrawals as withdrawal}
+        <tr>
+          <td>{withdrawal.email}</td>
+          <td><code style="font-size: 11px;">{withdrawal.stripeSessionId}</code></td>
+          <td>{withdrawal.confirmedAt ? new Date(withdrawal.confirmedAt).toLocaleString() : '—'}</td>
+        </tr>
+      {/each}
+      {#if data.recentWithdrawals.length === 0}
+        <tr><td colspan="3" style="color: var(--text-muted); text-align: center;">No pending withdrawals</td></tr>
+      {/if}
+    </tbody>
+  </table>
 
   <h3 style="margin-top: 32px; margin-bottom: 12px;">Recent Jobs</h3>
   <table>

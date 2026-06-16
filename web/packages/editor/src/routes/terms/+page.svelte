@@ -2,7 +2,7 @@
   <header class="terms-header">
     <a href="/" class="back-link">Back to App</a>
     <h1>Terms of Service</h1>
-    <p>Last updated: June 3, 2026</p>
+    <p>Last updated: June 16, 2026</p>
   </header>
 
   <main class="terms-content">
@@ -30,6 +30,9 @@
       </p>
       <p>
         Pricing and credit packs may change over time. Changes do not apply retroactively to credits already purchased.
+      </p>
+      <p>
+        Statutory withdrawal rights for consumers are described in section 8 below.
       </p>
     </section>
 
@@ -71,7 +74,53 @@
     <section>
       <h2>7. Contact</h2>
       <p>
-        For billing or account issues, contact support through your normal project support channel.
+        For billing, withdrawal, or account issues, contact
+        <a href="mailto:support@esphome-designer.com">support@esphome-designer.com</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Right of Withdrawal (Consumers)</h2>
+      <p>
+        If you are a consumer in the European Union or another jurisdiction that grants a statutory right of
+        withdrawal, you may withdraw from a credit pack purchase within 14 days of purchase without giving a reason.
+      </p>
+      <p>
+        To exercise this right, use our
+        <a href="/withdrawal">withdrawal form</a>. You will need the email address associated with your account
+        and the order ID from your Stripe receipt email (starts with <code>cs_</code>). After you confirm your
+        withdrawal, you will receive a confirmation email.
+      </p>
+      <p>
+        The withdrawal period expires 14 days after the day of purchase. To meet the deadline, it is sufficient
+        that you submit the withdrawal request before the period expires.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Digital Services and Immediate Performance</h2>
+      <p>
+        Build credits are digital content delivered immediately after payment. At checkout, you are asked to
+        consent to immediate delivery and acknowledge that your right of withdrawal may be lost once you use
+        credits to run a build.
+      </p>
+      <p>
+        If you have consented to immediate performance and have begun using credits, your statutory withdrawal
+        right may no longer apply to the portion of the service already performed. Any remaining unused credits
+        may still be reviewed on a case-by-case basis where required by law.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Refund Processing</h2>
+      <p>
+        Approved withdrawals are refunded to your original payment method. Processing typically takes a
+        few business days after review. If credits from the purchase have already been used, any refund may be
+        reduced accordingly.
+      </p>
+      <p>
+        Credits are normally non-refundable outside of statutory withdrawal rights or other legal requirements.
+        Nothing in these terms limits your mandatory consumer rights under applicable law.
       </p>
     </section>
   </main>
@@ -134,5 +183,13 @@
 
   section p + p {
     margin-top: 0.5rem;
+  }
+
+  a {
+    color: #9fd2ff;
+  }
+
+  code {
+    font-size: 0.9em;
   }
 </style>

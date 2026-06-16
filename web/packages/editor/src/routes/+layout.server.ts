@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/reset-password',
   '/terms',
   '/intro',
+  '/withdrawal',
   '/api/firmware',
   '/api/stripe/webhook',
 ];

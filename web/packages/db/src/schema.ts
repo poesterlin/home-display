@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, timestamp, varchar, jsonb, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, varchar, jsonb, boolean, integer, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 const fullCascade = { onDelete: 'cascade', onUpdate: 'cascade' } as const;
 
@@ -125,3 +126,27 @@ export const stripeEvents = pgTable('stripe_event', {
 });
 
 export type StripeEvent = typeof stripeEvents.$inferSelect;
+
+// ── Withdrawal Requests ─────────────────────────────────────────────────────
+export const withdrawalRequests = pgTable(
+  'withdrawal_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stripeSessionId: text('stripe_session_id').notNull(),
+    userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
+    email: text('email').notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'date' }),
+    processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('withdrawal_request_stripe_session_active_idx')
+      .on(table.stripeSessionId)
+      .where(sql`${table.status} <> 'rejected'`),
+  ],
+);
+
+export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
+export type NewWithdrawalRequest = typeof withdrawalRequests.$inferInsert;

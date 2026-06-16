@@ -169,7 +169,11 @@
               </div>
             {/each}
           </div>
-          <p class="pricing-note">No subscription. Pay only for what you use. <a href="/terms" class="terms-link">Terms of Service</a></p>
+          <p class="pricing-note">
+            No subscription. Pay only for what you use.
+            <a href="/terms" class="terms-link">Terms of Service</a>.
+            EU consumers can <a href="/withdrawal" class="terms-link">withdraw from a purchase</a> within 14 days.
+          </p>
         </div>
       </div>
 

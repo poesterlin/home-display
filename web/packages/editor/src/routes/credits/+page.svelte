@@ -6,6 +6,7 @@
   let checkoutStatus = $state<string | null>(data.checkoutStatus);
   let purchasing = $state<string | null>(null);
   let error = $state<string | null>(null);
+  let consentChecked = $state(false);
 
   $effect(() => {
     if (!checkoutStatus) return;
@@ -32,6 +33,11 @@
   );
 
   async function buyPack(pack: { priceId: string; priceKey: string }) {
+    if (!consentChecked) {
+      error = "Please accept immediate delivery of digital credits before purchasing.";
+      return;
+    }
+
     purchasing = pack.priceKey;
     error = null;
 
@@ -39,7 +45,7 @@
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId: pack.priceId }),
+        body: JSON.stringify({ priceId: pack.priceId, immediatePerformanceConsent: true }),
       });
 
       const json = await res.json();
@@ -76,9 +82,15 @@
         <svg width="18" height="18" viewBox="0 0 24 24">
           <path d={mdiIcons.mdiCheckCircle} />
         </svg>
-        {balance > 0
-          ? "Payment successful! Credits have been added to your balance."
-          : "Payment successful! Credits will appear shortly."}
+        <div>
+          {balance > 0
+            ? "Payment successful! Credits have been added to your balance."
+            : "Payment successful! Credits will appear shortly."}
+          <span class="toast-detail">
+            Your order confirmation was sent by Stripe. Use the order ID from that email if you need to
+            <a href="/withdrawal">withdraw from your purchase</a>.
+          </span>
+        </div>
       </div>
     {:else if checkoutStatus === "cancelled"}
       <div class="toast muted">
@@ -107,10 +119,18 @@
         Top up your account and keep your firmware build workflow moving.
       </p>
       <p class="legal-note">
-        By purchasing credits, you agree to our <a href="/terms"
-          >Terms of Service</a
-        >. Credits are non-refundable except where required by law.
+        By purchasing credits, you agree to our <a href="/terms">Terms of Service</a>. Credits are
+        non-refundable except where required by law. EU consumers may
+        <a href="/withdrawal">withdraw from their purchase</a> within 14 days.
       </p>
+
+      <label class="consent">
+        <input type="checkbox" bind:checked={consentChecked} />
+        <span>
+          I agree to immediate delivery of digital build credits and acknowledge that I may lose my right
+          of withdrawal once I use credits to run a build.
+        </span>
+      </label>
 
       <div class="packs-grid">
         {#each packs as pack (pack.priceKey)}
@@ -128,7 +148,7 @@
             <button
               class="buy-btn"
               class:popular-btn={popular}
-              disabled={purchasing === pack.priceKey}
+              disabled={purchasing === pack.priceKey || !consentChecked}
               onclick={() => buyPack(pack)}
             >
               {#if purchasing === pack.priceKey}
@@ -267,6 +287,34 @@
 
   .legal-note a {
     color: #9fd2ff;
+  }
+
+  .consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    color: var(--color-text-secondary);
+    font-size: 0.84rem;
+    line-height: 1.45;
+    margin-bottom: 1.2rem;
+    cursor: pointer;
+  }
+
+  .consent input {
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+  }
+
+  .toast-detail {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    opacity: 0.9;
+  }
+
+  .toast-detail a {
+    color: inherit;
+    text-decoration: underline;
   }
 
   .packs-grid {

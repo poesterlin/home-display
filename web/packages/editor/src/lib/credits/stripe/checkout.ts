@@ -10,6 +10,7 @@ export interface CreateCheckoutParams {
   priceId: string;
   successUrl: string;
   cancelUrl: string;
+  immediatePerformanceConsent?: boolean;
 }
 
 export async function createCheckoutSession(params: CreateCheckoutParams) {
@@ -51,6 +52,12 @@ export async function createCheckoutSession(params: CreateCheckoutParams) {
     cancel_url: params.cancelUrl,
     metadata: {
       userId: params.userId,
+      ...(params.immediatePerformanceConsent
+        ? {
+            immediatePerformanceConsent: "true",
+            consentAt: new Date().toISOString(),
+          }
+        : {}),
     },
     allow_promotion_codes: true,
   });

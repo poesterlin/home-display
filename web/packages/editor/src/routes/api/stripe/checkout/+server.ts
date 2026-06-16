@@ -20,12 +20,17 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
       return json({ error: "Unknown priceId" }, { status: 400 });
     }
 
+    if (body.immediatePerformanceConsent !== true) {
+      return json({ error: "Immediate delivery consent is required" }, { status: 400 });
+    }
+
     const origin = url.origin;
     const session = await createCheckoutSession({
       userId: locals.user.id,
       priceId,
       successUrl: `${origin}/credits?checkout=success`,
       cancelUrl: `${origin}/credits?checkout=cancelled`,
+      immediatePerformanceConsent: true,
     });
 
     return json(session);
