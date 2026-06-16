@@ -241,7 +241,7 @@
             Your withdrawal has been recorded and a confirmation email has been sent to your inbox.
           </p>
           <p>
-            Refund processing is handled manually and may take a few business days. You will be contacted if
+            Refund processing may take a few business days. You will be contacted if
             we need additional information.
           </p>
         {/if}

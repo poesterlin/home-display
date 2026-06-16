@@ -50,7 +50,7 @@
 
   <Text class="mt-8 text-[14px] leading-[1.7] text-[#374151]">
     <strong>What happens next</strong><br />
-    We will review your withdrawal and process any applicable refund manually. Refunds typically take a few business days to appear on your original payment method once approved.
+    We will review your withdrawal and process any applicable refund. Refunds typically take a few business days to appear on your original payment method once approved.
   </Text>
 
   <Text class="mt-6 text-[14px] leading-[1.7] text-[#374151]">
