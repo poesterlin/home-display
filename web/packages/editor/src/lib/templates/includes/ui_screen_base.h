@@ -15,7 +15,7 @@ class Screen {
   virtual void enter() {}
   virtual void exit() {}
   virtual void layout() {}
-  virtual void update(uint32_t now) = 0;
+  virtual void update(uint32_t now, const UiState &state) = 0;
   virtual bool handle_touch(const TouchEvent &event, uint32_t now, const UiState &state) = 0;
   virtual void draw(display::Display &it, const UiState &state) = 0;
 
@@ -69,8 +69,12 @@ class GenericScreen : public Screen {
     for (auto &w : widgets_) w->layout();
   }
 
-  void update(uint32_t now) override {
-    for (auto &w : widgets_) w->update(now);
+  void update(uint32_t now, const UiState &state) override {
+    for (auto &w : widgets_) {
+      const bool visible = w->poll_visibility(state);
+      if (!visible) continue;
+      w->update(now);
+    }
   }
 
   bool handle_touch(const TouchEvent &event, uint32_t now, const UiState &state) override {
@@ -79,6 +83,16 @@ class GenericScreen : public Screen {
     if (scroll_enabled_) {
       for (auto &w : widgets_) {
         if (w->scroll_exempt() && w->is_visible(state) && w->handle_touch(event, now)) return true;
+      }
+
+      // Give scrollable/non-exempt widgets first chance to claim touch
+      // sequences (e.g. nested TodoPreviewWidget scrolling) before the
+      // screen-level drag handler starts capturing the gesture.
+      if (!dragging_scroll_) {
+        for (auto &w : widgets_) {
+          if (w->scroll_exempt()) continue;
+          if (w->is_visible(state) && w->handle_touch(event, now)) return true;
+        }
       }
 
       const bool in_scroll_area = event.y >= scroll_area_y_ && event.y < scroll_area_y_ + scroll_area_h_;
@@ -103,6 +117,8 @@ class GenericScreen : public Screen {
         dragging_scroll_ = false;
         return true;
       }
+
+      return false;
     }
 
     for (auto &w : widgets_) {

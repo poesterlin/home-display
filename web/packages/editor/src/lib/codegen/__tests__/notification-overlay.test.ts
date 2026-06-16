@@ -76,6 +76,26 @@ describe("notification overlay state fields", () => {
 });
 
 describe("notification overlay HA subscriptions", () => {
+  test("service dispatcher only sends entity_id when non-empty", () => {
+    const out = generateESPHomeYAML(makeProject({}));
+    expect(out).toContain("if (!effective_entity_id.empty()) {");
+    expect(out).toContain('call.add_data("entity_id", effective_entity_id);');
+    expect(out).toContain("call.init_data(0);");
+  });
+
+  test("service dispatcher infers default vacuum entity when unique", () => {
+    const project = makeProject({
+      state: {
+        fields: [
+          { name: "vacuum_robo", cppType: "std::string", haEntity: "vacuum.roborock_qrevo_curv_series" },
+        ],
+      } as any,
+    });
+    const out = generateESPHomeYAML(project);
+    expect(out).toContain('const std::string default_vacuum_entity = "vacuum.roborock_qrevo_curv_series";');
+    expect(out).toContain('if (effective_entity_id.empty() && service.rfind("vacuum.", 0) == 0)');
+  });
+
   test("emits HA string subscriptions for configured entities", () => {
     const project = makeProject({
       notificationOverlay: {
@@ -87,7 +107,8 @@ describe("notification overlay HA subscriptions", () => {
 
     const out = generateESPHomeYAML(project);
     expect(out).toContain('bind_ha_string("input_text.notification_title", &g_ui_app.state().notification_title)');
-    expect(out).toContain('bind_ha_string("input_text.notification_body", &g_ui_app.state().notification_body)');
+    expect(out).toContain('"input_text.notification_body", esphome::optional<std::string>()');
+    expect(out).toContain('g_ui_app.state().notification_dismissed.set("")');
     expect(out).toContain('bind_ha_string("input_text.notification_severity", &g_ui_app.state().notification_severity)');
   });
 
@@ -104,7 +125,7 @@ describe("notification overlay HA subscriptions", () => {
     expect(out).toContain('call.add_data("value", "")');
     expect(out).toContain('clear_text_entity("input_text.notification_title")');
     expect(out).toContain('clear_text_entity("input_text.notification_body")');
-    expect(out).toContain("g_ui_app.dismiss_notification = [&clear_text_entity]()");
+    expect(out).toContain("g_ui_app.dismiss_notification = [clear_text_entity]()");
   });
 
   test("dismiss notification helper clears only the configured entities", () => {
@@ -156,10 +177,10 @@ describe("notification overlay screen header wiring", () => {
     });
 
     const out = generateUIScreensHeader(project);
-    expect(out).toContain("NotificationOverlayWidget* notification_overlay_");
-    expect(out).toContain("if (notification_overlay_ != nullptr) notification_overlay_->update(now);");
-    expect(out).toContain("if (notification_overlay_ != nullptr && notification_overlay_->is_visible(state))");
-    expect(out).toContain("if (notification_overlay_ != nullptr) notification_overlay_->draw(it, state);");
+    expect(out).toContain("std::unique_ptr<NotificationOverlayWidget> notification_overlay_");
+    expect(out).toContain("if (notification_overlay_) notification_overlay_->update(now);");
+    expect(out).toContain("if (notification_overlay_ && notification_overlay_->is_visible(state))");
+    expect(out).toContain("if (notification_overlay_) notification_overlay_->draw(it, state);");
   });
 
   test("draws overlay after current screen (topmost)", () => {

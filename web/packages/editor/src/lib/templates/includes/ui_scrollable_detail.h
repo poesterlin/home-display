@@ -49,7 +49,8 @@ class ScrollableDetailScreen : public Screen {
     if (max_scroll_ < 0) max_scroll_ = 0;
   }
 
-  void update(uint32_t now) override {
+  void update(uint32_t now, const UiState &state) override {
+    (void)state;
     for (size_t i = 0; i < entries_.size(); i++) {
       auto &e = entries_[i];
       if (e.loading && e.loading_timeout_ms > 0
@@ -114,8 +115,9 @@ class ScrollableDetailScreen : public Screen {
           snprintf(name_buf, sizeof(name_buf), "se_%p", &e);
           const int idx = static_cast<int>(i);
           esphome::App.scheduler.set_timeout(nullptr, name_buf, e.loading_timeout_ms,
-              [this, &e, idx]() {
-                e.loading = false;
+              [this, idx]() {
+                if (idx < 0 || idx >= static_cast<int>(entries_.size())) return;
+                entries_[idx].loading = false;
                 mark_entry_dirty(idx);
                 UiRedraw::trigger_display_update();
               });
@@ -136,17 +138,6 @@ class ScrollableDetailScreen : public Screen {
     const bool legacy_partial =
         !full && UiInvalidation::dirty_count() == 0 && UiInvalidation::needs_redraw();
     const bool draw_all = full || legacy_partial;
-
-    if (fast_scroll_ && !full && millis() - last_full_draw_ms_ < 1000) {
-      if (max_scroll_ > 0) {
-        ui_fast_filled_rectangle(it, 475, content_y_, 3, content_area_h_, RetroColors::DARK);
-        int sb_h = content_area_h_ * content_area_h_ / content_height_;
-        int sb_y = content_y_ + (-scroll_y_ * content_area_h_ / content_height_);
-        if (sb_h < 20) sb_h = 20;
-        ui_fast_filled_rectangle(it, 475, sb_y, 3, sb_h, RetroColors::DIMMER);
-      }
-      return;
-    }
 
     last_full_draw_ms_ = millis();
 

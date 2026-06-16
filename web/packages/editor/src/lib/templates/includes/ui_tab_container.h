@@ -194,13 +194,14 @@ class TabContainerWidget : public Widget {
 
   int hit_test_tab(int tx, int ty) const {
     if (tabs_.empty()) return -1;
-    if (ty < rect_.y || ty > rect_.y + kTabBarHeight) return -1;
+    const UiRect r = screen_rect(rect_);
+    if (ty < r.y || ty > r.y + kTabBarHeight) return -1;
 
     int tab_count = static_cast<int>(tabs_.size());
-    int tab_w = (rect_.w - kTabPadding * (tab_count + 1)) / tab_count;
+    int tab_w = (r.w - kTabPadding * (tab_count + 1)) / tab_count;
 
     for (int i = 0; i < tab_count; i++) {
-      int tab_x = rect_.x + kTabPadding + i * (tab_w + kTabPadding);
+      int tab_x = r.x + kTabPadding + i * (tab_w + kTabPadding);
       if (tx >= tab_x && tx <= tab_x + tab_w) return i;
     }
     return -1;

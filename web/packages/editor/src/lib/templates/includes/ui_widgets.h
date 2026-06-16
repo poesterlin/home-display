@@ -199,14 +199,7 @@ class Widget {
   // end (or beginning) or they'll lose visibility-driven dirty marking.
   virtual void update(uint32_t now) {
     (void)now;
-    if (visibility_check_) {
-      const bool current = visibility_check_();
-      if (!visibility_baseline_set_ || current != last_visibility_) {
-        mark_dirty();
-        last_visibility_ = current;
-        visibility_baseline_set_ = true;
-      }
-    }
+    (void)this->poll_visibility_state();
   }
 
   virtual bool handle_touch(const TouchEvent &event, uint32_t now) { return false; }
@@ -256,6 +249,14 @@ class Widget {
 
   virtual bool is_loading_widget() const { return false; }
 
+  // Poll visibility condition and mark dirty on edge changes. This can be
+  // called by screens before deciding whether to run the heavier update() on
+  // hidden widgets.
+  bool poll_visibility(const UiState &state) {
+    (void)state;
+    return poll_visibility_state();
+  }
+
   void set_visibility_condition(std::function<bool()> check) {
     visibility_check_ = std::move(check);
   }
@@ -273,6 +274,18 @@ class Widget {
   bool scroll_exempt_ = false;
   bool last_visibility_ = false;
   bool visibility_baseline_set_ = false;
+
+ private:
+  bool poll_visibility_state() {
+    if (!visibility_check_) return true;
+    const bool current = visibility_check_();
+    if (!visibility_baseline_set_ || current != last_visibility_) {
+      mark_dirty();
+      last_visibility_ = current;
+      visibility_baseline_set_ = true;
+    }
+    return current;
+  }
 };
 
 class RectWidget : public Widget {

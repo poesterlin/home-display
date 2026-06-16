@@ -32,6 +32,40 @@ function collectProjectComponents(project: Project) {
   ]);
 }
 
+function resolveDefaultEntityForDomain(project: Project, domain: string): string | undefined {
+  const entities = new Set<string>();
+  const allComponents = collectProjectComponents(project);
+
+  for (const f of (project.state?.fields ?? []) as StateField[]) {
+    if (!f.haEntity) continue;
+    if (f.haEntity.startsWith(`${domain}.`)) entities.add(f.haEntity);
+  }
+
+  for (const c of allComponents) {
+    if (c.type === "light_state") {
+      const entityId = (c as LightStateComponent).stateBinding?.entityId;
+      if (entityId?.startsWith(`${domain}.`)) entities.add(entityId);
+    } else if (c.type === "todo_list") {
+      const entityId = (c as TodoListComponent).itemsBinding?.entityId;
+      if (entityId?.startsWith(`${domain}.`)) entities.add(entityId);
+    } else if (c.type === "text") {
+      for (const b of collectTextBindings(c as TextComponent)) {
+        if (b.entityId.startsWith(`${domain}.`)) entities.add(b.entityId);
+      }
+    } else if (c.type === "image") {
+      const entityId = (c as ImageComponent).imageBinding?.entityId;
+      if (entityId?.startsWith(`${domain}.`)) entities.add(entityId);
+    }
+  }
+
+  for (const e of collectConditionEntities(project)) {
+    if (e.entityId.startsWith(`${domain}.`)) entities.add(e.entityId);
+  }
+
+  if (entities.size !== 1) return undefined;
+  return Array.from(entities)[0];
+}
+
 function collectImageComponents(project: Project): ImageComponent[] {
   return collectProjectComponents(project)
     .filter((c): c is ImageComponent => c.type === "image");
@@ -232,7 +266,22 @@ function generateNotificationSubscriptions(project: Project): string {
     lines.push(`          bind_ha_string("${escapeCString(overlay.titleEntityId)}", &g_ui_app.state().notification_title);`);
   }
   if (overlay.bodyEntityId) {
-    lines.push(`          bind_ha_string("${escapeCString(overlay.bodyEntityId)}", &g_ui_app.state().notification_body);`);
+    lines.push(`          {`);
+    lines.push(`            auto *api = esphome::api::global_api_server;`);
+    lines.push(`            if (api != nullptr) {`);
+    lines.push(`              api->subscribe_home_assistant_state(`);
+    lines.push(`                  "${escapeCString(overlay.bodyEntityId)}", esphome::optional<std::string>(),`);
+    lines.push(`                  [trim_numeric](esphome::StringRef state) {`);
+    lines.push(`                    std::string next = trim_numeric(state);`);
+    lines.push(`                    const bool changed = (*g_ui_app.state().notification_body.ptr() != next);`);
+    lines.push(`                    g_ui_app.state().notification_body.set(next);`);
+    lines.push(`                    if (changed) {`);
+    lines.push(`                      g_ui_app.state().notification_dismissed.set("");`);
+    lines.push(`                    }`);
+    lines.push(`                    UiRedraw::trigger_display_update();`);
+    lines.push(`                  });`);
+    lines.push(`            }`);
+    lines.push(`          }`);
   }
   if (overlay.severityEntityId) {
     lines.push(`          bind_ha_string("${escapeCString(overlay.severityEntityId)}", &g_ui_app.state().notification_severity);`);
@@ -258,7 +307,7 @@ function generateNotificationSubscriptions(project: Project): string {
     lines.push('            call.play();');
     lines.push('          };');
     lines.push('');
-    lines.push('          g_ui_app.dismiss_notification = [&clear_text_entity]() {');
+    lines.push('          g_ui_app.dismiss_notification = [clear_text_entity]() {');
     for (const l of clearLines) {
       lines.push(l);
     }
@@ -334,6 +383,16 @@ ${relativeImageHandling}
           };
 `
     : '';
+  const defaultVacuumEntity = resolveDefaultEntityForDomain(project, "vacuum");
+  const vacuumFallbackEntityLine = defaultVacuumEntity
+    ? `\n          const std::string default_vacuum_entity = "${escapeCString(defaultVacuumEntity)}";`
+    : '';
+  const vacuumFallbackResolution = defaultVacuumEntity
+    ? `
+            if (effective_entity_id.empty() && service.rfind("vacuum.", 0) == 0) {
+              effective_entity_id = default_vacuum_entity;
+            }`
+    : '';
 
   return `substitutions:
   device_name: ${deviceName}
@@ -361,11 +420,17 @@ ${projectVersionYaml}
           g_ui_app.on_action = [](const std::string& entity_id, const std::string& service) {
             auto *api = esphome::api::global_api_server;
             if (api == nullptr || !api->is_connected()) return;
+${vacuumFallbackEntityLine}
+            std::string effective_entity_id = entity_id;${vacuumFallbackResolution}
 
             esphome::api::HomeAssistantServiceCallAction<> call(api, false);
             call.set_service(service);
-            call.init_data(1);
-            call.add_data("entity_id", entity_id);
+            if (!effective_entity_id.empty()) {
+              call.init_data(1);
+              call.add_data("entity_id", effective_entity_id);
+            } else {
+              call.init_data(0);
+            }
             call.play();
           };
           UiRedraw::set_display_updater([]() { id(main_display).update(); });

@@ -45,7 +45,7 @@ class UiApp {
 
   void update(uint32_t now) {
     init();
-    screens_.update(now);
+    screens_.update(now, state_);
   }
 
   void draw(display::Display &it, uint32_t now) {

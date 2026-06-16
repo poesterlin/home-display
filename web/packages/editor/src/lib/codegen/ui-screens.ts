@@ -552,6 +552,7 @@ function generateConditionalAreaWidget(
 
   for (let i = 0; i < variantsInOrder.length; i++) {
     const variant = variantsInOrder[i]!;
+    if (variant.components.length === 0) continue;
     const variantIdSafe = safeCppIdentifier(variant.id, 'variant');
     const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
     const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
@@ -746,6 +747,7 @@ function generateConditionalAreaNested(
 
   for (let i = 0; i < variantsInOrder.length; i++) {
     const variant = variantsInOrder[i]!;
+    if (variant.components.length === 0) continue;
     const variantIdSafe = safeCppIdentifier(variant.id, 'variant');
     const variantLambdaVar = `cv_${areaIdSafe}_${variantIdSafe}`;
     const activeExpr = variantActiveExpression(variantsInOrder, i, defaultIndex);
@@ -783,22 +785,22 @@ export function generateUIScreensHeader(project: Project): string {
     current_ = screens_.at(UiScreenId::${firstScreen});`
 
   const overlayMember = overlayEnabled
-    ? '\n  NotificationOverlayWidget* notification_overlay_ = nullptr;'
+    ? '\n  std::unique_ptr<NotificationOverlayWidget> notification_overlay_;'
     : '';
 
   const overlayPostUpdate = overlayEnabled
-    ? '\n    if (notification_overlay_ != nullptr) notification_overlay_->update(now);'
+    ? '\n    if (notification_overlay_) notification_overlay_->update(now);'
     : '';
 
   const overlayPreTouch = overlayEnabled
-    ? `    if (notification_overlay_ != nullptr && notification_overlay_->is_visible(state)) {
+    ? `    if (notification_overlay_ && notification_overlay_->is_visible(state)) {
       if (notification_overlay_->handle_touch(event, now)) return true;
     }
 `
     : '';
 
   const overlayPostDraw = overlayEnabled
-    ? '\n    if (notification_overlay_ != nullptr) notification_overlay_->draw(it, state);'
+    ? '\n    if (notification_overlay_) notification_overlay_->draw(it, state);'
     : '';
 
   let setupBody = '';
@@ -848,7 +850,7 @@ export function generateUIScreensHeader(project: Project): string {
   let overlaySetup = '';
   if (overlayEnabled) {
     overlaySetup = `
-  screens.notification_overlay_ = new NotificationOverlayWidget(
+  screens.notification_overlay_ = std::make_unique<NotificationOverlayWidget>(
       state.notification_title.ptr(),
       state.notification_body.ptr(),
       state.notification_severity.ptr(),
@@ -928,8 +930,8 @@ ${screenCtor}
 
   UiScreenId current_id() const { return current_id_; }
 
-  void update(uint32_t now) {
-    current_->update(now);${overlayPostUpdate}
+  void update(uint32_t now, const UiState &state) {
+    current_->update(now, state);${overlayPostUpdate}
   }
 
   bool handle_touch(const TouchEvent &event, uint32_t now, const UiState &state) {

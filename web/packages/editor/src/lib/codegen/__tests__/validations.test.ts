@@ -443,4 +443,59 @@ describe("validateActionTargets", () => {
     });
     expect(validateProject(project)).toEqual([]);
   });
+
+  test("warns when service and target entity domains differ", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "btn_mismatch",
+              type: "button",
+              position: { x: 10, y: 10 },
+              size: { width: 80, height: 36 },
+              onTap: {
+                type: "SERVICE_CALL",
+                service: "scene.turn_on",
+                target: { entityId: "switch.alles_aus_stateful_scene" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const errors = validateProject(project);
+    const warning = errors.find((e) => e.componentId === "btn_mismatch" && e.type === "warning");
+    expect(warning).toBeDefined();
+    expect(warning?.message).toContain('service domain "scene"');
+    expect(warning?.message).toContain('entity domain "switch"');
+  });
+
+  test("warns for button without any action", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "btn_noop",
+              type: "button",
+              position: { x: 10, y: 10 },
+              size: { width: 80, height: 36 },
+              label: "",
+            },
+          ],
+        },
+      ],
+    });
+
+    const errors = validateProject(project);
+    const warning = errors.find((e) => e.componentId === "btn_noop" && e.type === "warning");
+    expect(warning).toBeDefined();
+    expect(warning?.message).toContain("no action configured");
+  });
 });
