@@ -326,6 +326,61 @@
       }
     }
 
+    // Nudge selected components with arrow keys
+    if (!isFormInput && selectionStore.hasSelection) {
+      const step = e.shiftKey ? 10 : 1;
+      const deltaByKey: Record<string, { x: number; y: number }> = {
+        ArrowLeft: { x: -step, y: 0 },
+        ArrowRight: { x: step, y: 0 },
+        ArrowUp: { x: 0, y: -step },
+        ArrowDown: { x: 0, y: step },
+      };
+      const delta = deltaByKey[e.key];
+      if (delta) {
+        e.preventDefault();
+        const updates: Array<{ id: string; updates: Partial<Component> }> = [];
+
+        for (const id of selectionStore.selectedIds) {
+          const component = projectStore.getComponent(id);
+          if (!component) continue;
+
+          const parentSurface = projectStore.getComponentParentLayoutSurface(id);
+          const width = component.size?.width ?? 50;
+          const height = component.size?.height ?? 20;
+          const maxX = parentSurface
+            ? Math.max(0, parentSurface.width - width)
+            : Number.POSITIVE_INFINITY;
+          const maxY = parentSurface
+            ? Math.max(0, parentSurface.height - height)
+            : Number.POSITIVE_INFINITY;
+
+          const nextX = Math.max(
+            0,
+            Math.min(component.position.x + delta.x, maxX),
+          );
+          const nextY = Math.max(
+            0,
+            Math.min(component.position.y + delta.y, maxY),
+          );
+
+          if (nextX === component.position.x && nextY === component.position.y) {
+            continue;
+          }
+
+          updates.push({
+            id,
+            updates: { position: { x: nextX, y: nextY } },
+          });
+        }
+
+        if (updates.length > 0) {
+          historyStore.record("Nudge components");
+          projectStore.batchUpdateComponents(updates);
+        }
+        return;
+      }
+    }
+
     // Clipboard operations
     if (
       (e.ctrlKey || e.metaKey) &&
