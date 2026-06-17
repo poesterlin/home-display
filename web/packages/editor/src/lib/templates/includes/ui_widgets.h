@@ -508,6 +508,7 @@ class LabelWidget : public Widget {
     // than at a random later moment when we'd lose the call site.
     if (text_fn_) {
       last_text_ = text_fn_();
+      text_baseline_set_ = true;
     }
   }
 
@@ -530,7 +531,10 @@ class LabelWidget : public Widget {
     const bool currently_visible = !visibility_check_ || visibility_check_();
     if (text_fn_ && currently_visible) {
       std::string current = text_fn_();
-      if (current != last_text_) {
+      if (!text_baseline_set_) {
+        last_text_ = std::move(current);
+        text_baseline_set_ = true;
+      } else if (current != last_text_) {
         last_text_ = std::move(current);
         mark_dirty();
       }
@@ -628,6 +632,7 @@ class LabelWidget : public Widget {
   std::function<void(display::Display&, int, int, esphome::font::Font*, Color, TextAlign)> printer_;
   std::function<std::string()> text_fn_;
   std::string last_text_;
+  bool text_baseline_set_ = false;
   Color bg_color_{RetroColors::VOID};
   TextAlign align_ = TextAlign::TOP_LEFT;
   bool has_align_override_ = false;
