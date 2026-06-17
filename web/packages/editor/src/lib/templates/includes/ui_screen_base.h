@@ -143,42 +143,47 @@ class GenericScreen : public Screen {
       ui_fast_filled_rectangle(it, scroll_area_x_, scroll_area_y_, scroll_area_w_, scroll_area_h_,
                                RetroColors::VOID);
     }
-    for (auto &w : widgets_) {
-      if (!w->is_visible(state)) continue;
-      // During a scroll-only repaint we erase + redraw just the scroll area,
-      // so fixed (exempt) widgets are untouched and must NOT be repainted --
-      // repainting them every scroll frame is what caused header flicker.
-      if (scroll_partial && w->scroll_exempt()) continue;
-      bool clip_to_scroll_area = false;
-      if (scroll_enabled_ && !w->scroll_exempt()) {
-        const auto b = w->bounds();
-        const int view_top = scroll_area_y_;
-        const int view_bottom = scroll_area_y_ + scroll_area_h_;
-        // Draw only when the widget intersects the viewport. Rendering is
-        // clipped to the scroll area so partially visible widgets remain
-        // smooth while fixed header/footer regions stay protected.
-        const bool intersects = (b.y < view_bottom) && (b.y + b.h > view_top);
-        if (!intersects) continue;
-        clip_to_scroll_area = true;
-      }
-      if (!full && !legacy_partial) {
-        const auto b = w->bounds();
-        if (!scroll_partial) {
-          if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
+    auto draw_pass = [&](bool background_only) {
+      for (auto &w : widgets_) {
+        if (w->is_background_widget() != background_only) continue;
+        if (!w->is_visible(state)) continue;
+        // During a scroll-only repaint we erase + redraw just the scroll area,
+        // so fixed (exempt) widgets are untouched and must NOT be repainted --
+        // repainting them every scroll frame is what caused header flicker.
+        if (scroll_partial && w->scroll_exempt()) continue;
+        bool clip_to_scroll_area = false;
+        if (scroll_enabled_ && !w->scroll_exempt()) {
+          const auto b = w->bounds();
+          const int view_top = scroll_area_y_;
+          const int view_bottom = scroll_area_y_ + scroll_area_h_;
+          // Draw only when the widget intersects the viewport. Rendering is
+          // clipped to the scroll area so partially visible widgets remain
+          // smooth while fixed header/footer regions stay protected.
+          const bool intersects = (b.y < view_bottom) && (b.y + b.h > view_top);
+          if (!intersects) continue;
+          clip_to_scroll_area = true;
+        }
+        if (!full && !legacy_partial) {
+          const auto b = w->bounds();
+          if (!scroll_partial) {
+            if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
+          }
+        }
+        if (clip_to_scroll_area) {
+          // ESPHome start_clipping(l, t, r, b) treats r/b as exclusive edges
+          // (it stores w = r - l), so pass x + w / y + h directly.
+          const int clip_right = scroll_area_x_ + scroll_area_w_;
+          const int clip_bottom = scroll_area_y_ + scroll_area_h_;
+          it.start_clipping(scroll_area_x_, scroll_area_y_, clip_right, clip_bottom);
+        }
+        w->draw(it, state);
+        if (clip_to_scroll_area) {
+          it.end_clipping();
         }
       }
-      if (clip_to_scroll_area) {
-        // ESPHome start_clipping(l, t, r, b) treats r/b as exclusive edges
-        // (it stores w = r - l), so pass x + w / y + h directly.
-        const int clip_right = scroll_area_x_ + scroll_area_w_;
-        const int clip_bottom = scroll_area_y_ + scroll_area_h_;
-        it.start_clipping(scroll_area_x_, scroll_area_y_, clip_right, clip_bottom);
-      }
-      w->draw(it, state);
-      if (clip_to_scroll_area) {
-        it.end_clipping();
-      }
-    }
+    };
+    draw_pass(true);
+    draw_pass(false);
     scroll_dirty_ = false;
   }
 

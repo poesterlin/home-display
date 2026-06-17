@@ -7,6 +7,7 @@
   import { canvasPasteTargetStore } from "$lib/stores/canvas-paste-target.svelte";
   import { createComponent } from "$lib/utils/component-factory";
   import { colorToCss } from "$lib/utils/color-utils";
+  import { sortComponentsForRender } from "$lib/utils/component-layering";
   import ComponentRenderer from "./ComponentRenderer.svelte";
   import Draggable from "../Draggable.svelte";
 
@@ -30,6 +31,9 @@
   );
 
   const activeTab = $derived(component.tabs.find((tab) => tab.id === activeTabId) || component.tabs[0]);
+  const orderedTabComponents = $derived(
+    activeTab ? sortComponentsForRender(activeTab.components) : [],
+  );
   const isSelected = $derived(selectionStore.selectedIds.has(component.id));
   const width = $derived(component.size?.width ?? 150);
   const height = $derived(component.size?.height ?? 100);
@@ -192,7 +196,7 @@
       onpointerdown={handleContentMouseDown}
     >
       {#if activeTab}
-        {#each activeTab.components as childComponent (childComponent.id)}
+        {#each orderedTabComponents as childComponent (childComponent.id)}
           <ComponentRenderer
             component={childComponent}
             parentOffset={{

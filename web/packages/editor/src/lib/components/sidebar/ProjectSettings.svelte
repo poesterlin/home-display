@@ -2,9 +2,9 @@
   import { projectStore } from "$lib/stores/project.svelte";
   import { RETRO_THEME } from "$lib/themes/retro";
   import { MODERN_THEME } from "$lib/themes/modern";
-  import type { Theme, FontDefinition } from "@esphome-designer/schema";
   import { fade } from "svelte/transition";
   import TimezoneEditor from "$lib/components/TimezoneEditor.svelte";
+  import { goto } from "$app/navigation";
 
   interface Props {
     onClose: () => void;
@@ -18,42 +18,57 @@
     bodyEntityId: "input_text.notification_body",
     severityEntityId: "input_select.notification_severity",
   };
-  
+
   let projectName = $state(projectStore.project?.name ?? "");
   let selectedThemeId = $state(projectStore.theme.id);
-  let notificationOverlayEnabled = $state(projectStore.project?.notificationOverlay?.enabled !== false);
+  let notificationOverlayEnabled = $state(
+    projectStore.project?.notificationOverlay?.enabled !== false,
+  );
   let notificationTitleEntityId = $state(
-    projectStore.project?.notificationOverlay?.titleEntityId ?? defaultNotificationOverlay.titleEntityId
+    projectStore.project?.notificationOverlay?.titleEntityId ??
+      defaultNotificationOverlay.titleEntityId,
   );
   let notificationBodyEntityId = $state(
-    projectStore.project?.notificationOverlay?.bodyEntityId ?? defaultNotificationOverlay.bodyEntityId
+    projectStore.project?.notificationOverlay?.bodyEntityId ??
+      defaultNotificationOverlay.bodyEntityId,
   );
   let notificationSeverityEntityId = $state(
-    projectStore.project?.notificationOverlay?.severityEntityId ?? defaultNotificationOverlay.severityEntityId
+    projectStore.project?.notificationOverlay?.severityEntityId ??
+      defaultNotificationOverlay.severityEntityId,
   );
-  let homeAssistantBaseUrl = $state(projectStore.project?.secrets?.homeAssistantBaseUrl ?? "");
-  
-  let newFontId = $state("");
-  let newFontFile = $state("");
-  let newFontSize = $state(16);
+  let homeAssistantBaseUrl = $state(
+    projectStore.project?.secrets?.homeAssistantBaseUrl ?? "",
+  );
 
   let timezone = $state(projectStore.project?.timezone ?? "");
 
   function handleSave() {
-    const theme = themes.find(t => t.id === selectedThemeId) ?? RETRO_THEME;
+    const theme = themes.find((t) => t.id === selectedThemeId) ?? RETRO_THEME;
 
     const notificationOverlay = notificationOverlayEnabled
       ? {
           enabled: true,
-          titleEntityId: notificationTitleEntityId.trim() || defaultNotificationOverlay.titleEntityId,
-          bodyEntityId: notificationBodyEntityId.trim() || defaultNotificationOverlay.bodyEntityId,
-          severityEntityId: notificationSeverityEntityId.trim() || defaultNotificationOverlay.severityEntityId,
+          titleEntityId:
+            notificationTitleEntityId.trim() ||
+            defaultNotificationOverlay.titleEntityId,
+          bodyEntityId:
+            notificationBodyEntityId.trim() ||
+            defaultNotificationOverlay.bodyEntityId,
+          severityEntityId:
+            notificationSeverityEntityId.trim() ||
+            defaultNotificationOverlay.severityEntityId,
         }
       : {
           enabled: false,
-          titleEntityId: notificationTitleEntityId.trim() || defaultNotificationOverlay.titleEntityId,
-          bodyEntityId: notificationBodyEntityId.trim() || defaultNotificationOverlay.bodyEntityId,
-          severityEntityId: notificationSeverityEntityId.trim() || defaultNotificationOverlay.severityEntityId,
+          titleEntityId:
+            notificationTitleEntityId.trim() ||
+            defaultNotificationOverlay.titleEntityId,
+          bodyEntityId:
+            notificationBodyEntityId.trim() ||
+            defaultNotificationOverlay.bodyEntityId,
+          severityEntityId:
+            notificationSeverityEntityId.trim() ||
+            defaultNotificationOverlay.severityEntityId,
         };
 
     projectStore.updateProject({
@@ -64,37 +79,25 @@
       notificationOverlay,
       secrets: {
         ...projectStore.project?.secrets,
-        homeAssistantBaseUrl: homeAssistantBaseUrl.trim().replace(/\/+$/, "") || undefined,
+        homeAssistantBaseUrl:
+          homeAssistantBaseUrl.trim().replace(/\/+$/, "") || undefined,
       },
     });
     onClose();
   }
 
-  function handleDelete() {
-    if (confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+  async function handleDelete() {
+    if (
+      confirm(
+        "Are you sure you want to delete this project? This action cannot be undone.",
+      )
+    ) {
       const id = projectStore.project?.id;
       if (id) {
-        projectStore.deleteProject(id);
-        window.location.href = "/";
+        await projectStore.deleteProject(id);
+        await goto("/");
       }
     }
-  }
-
-  function addFont() {
-    if (!newFontId || !newFontFile) return;
-    const fonts = [...projectStore.fonts, {
-      id: newFontId,
-      file: newFontFile,
-      size: newFontSize
-    }];
-    projectStore.updateProject({ fonts });
-    newFontId = "";
-    newFontFile = "";
-  }
-
-  function removeFont(id: string) {
-    const fonts = projectStore.fonts.filter(f => f.id !== id);
-    projectStore.updateProject({ fonts });
   }
 </script>
 
@@ -115,52 +118,35 @@
 
     <section>
       <h3>Display Hardware</h3>
-      <p class="section-hint">Guition ESP32-S3-4848S040 &mdash; 480 &times; 480 RGB (ST7701S + GT911 Touch)</p>
+      <p class="section-hint">
+        Guition ESP32-S3-4848S040 &mdash; 480 &times; 480 RGB (ST7701S + GT911
+        Touch)
+      </p>
     </section>
 
     <section>
-      <h3>Theme</h3>
-      <div class="theme-grid">
-        {#each themes as theme (theme.id)}
-          <button 
-            class="theme-card" 
-            class:active={selectedThemeId === theme.id}
-            onclick={() => selectedThemeId = theme.id}
-          >
-            <div class="theme-preview" style:background="rgb({theme.colors.background.r}, {theme.colors.background.g}, {theme.colors.background.b})">
-              <div class="accent" style:background="rgb({theme.colors.accent.r}, {theme.colors.accent.g}, {theme.colors.accent.b})"></div>
-            </div>
-            <span>{theme.name}</span>
-          </button>
-        {/each}
-      </div>
-    </section>
+      <h3>Home Assistant</h3>
+      <p class="section-hint">
+        Optional. Used only to resolve relative image URLs from Home Assistant
+        entities, such as <code>/api/image_proxy/...</code>.
+      </p>
 
-    <section>
-      <h3>Fonts</h3>
-      <div class="font-list">
-        {#each projectStore.fonts as font (font.id)}
-          <div class="font-item">
-            <div class="font-info">
-              <span class="font-id">{font.id}</span>
-              <span class="font-file">{font.file} ({font.size}px)</span>
-            </div>
-            <button class="remove-btn" onclick={() => removeFont(font.id)}>Remove</button>
-          </div>
-        {/each}
-      </div>
-      <div class="add-font">
-        <input placeholder="ID (e.g. font_small)" bind:value={newFontId} />
-        <input placeholder="File (e.g. Arial.ttf)" bind:value={newFontFile} />
-        <input type="number" bind:value={newFontSize} style="width: 60px" />
-        <button class="secondary" onclick={addFont}>Add Font</button>
+      <div class="field">
+        <label for="ha-base-url">Home Assistant Base URL</label>
+        <input
+          id="ha-base-url"
+          type="url"
+          bind:value={homeAssistantBaseUrl}
+          placeholder="http://homeassistant.local:8123"
+        />
       </div>
     </section>
 
     <section>
       <h3>Notification Overlay</h3>
       <p class="section-hint">
-        Configure the top-priority Home Assistant notification overlay entities used by generated firmware.
+        Configure the top-priority Home Assistant notification overlay entities
+        used by generated firmware.
       </p>
 
       <label class="checkbox-row" for="notification-overlay-enabled">
@@ -207,23 +193,6 @@
     </section>
 
     <section>
-      <h3>Home Assistant</h3>
-      <p class="section-hint">
-        Optional. Used only to resolve relative image URLs from Home Assistant entities, such as <code>/api/image_proxy/...</code>.
-      </p>
-
-      <div class="field">
-        <label for="ha-base-url">Home Assistant Base URL</label>
-        <input
-          id="ha-base-url"
-          type="url"
-          bind:value={homeAssistantBaseUrl}
-          placeholder="http://homeassistant.local:8123"
-        />
-      </div>
-    </section>
-
-    <section>
       <h3>Timezone</h3>
       <TimezoneEditor
         value={timezone}
@@ -262,8 +231,17 @@
     border-bottom: 1px solid var(--color-border);
   }
 
-  h2 { margin: 0; font-size: 1.5rem; }
-  h3 { margin: 0 0 var(--spacing-md) 0; font-size: 1rem; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+  h2 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+  h3 {
+    margin: 0 0 var(--spacing-md) 0;
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
 
   .close-btn {
     background: none;
@@ -294,8 +272,11 @@
     margin-bottom: var(--spacing-md);
   }
 
-  label { font-size: 0.9rem; color: var(--color-text-secondary); }
-  
+  label {
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+  }
+
   input {
     padding: var(--spacing-sm);
     background: var(--color-bg-secondary);
@@ -360,15 +341,25 @@
     border-radius: var(--radius-sm);
   }
 
-  .font-id { font-weight: 600; font-family: monospace; }
-  .font-file { font-size: 0.8rem; color: var(--color-text-muted); margin-left: var(--spacing-sm); }
+  .font-id {
+    font-weight: 600;
+    font-family: monospace;
+  }
+  .font-file {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-left: var(--spacing-sm);
+  }
 
   .add-font {
     display: flex;
     gap: var(--spacing-sm);
   }
 
-  .add-font input { flex: 1; font-size: 0.8rem; }
+  .add-font input {
+    flex: 1;
+    font-size: 0.8rem;
+  }
 
   .checkbox-row {
     display: flex;
@@ -396,7 +387,11 @@
     background: rgba(244, 67, 54, 0.05);
   }
 
-  .danger-zone p { font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--spacing-md); }
+  .danger-zone p {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-md);
+  }
 
   button.danger {
     background: #f44336;

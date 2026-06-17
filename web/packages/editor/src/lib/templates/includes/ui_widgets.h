@@ -204,6 +204,7 @@ class Widget {
 
   virtual bool handle_touch(const TouchEvent &event, uint32_t now) { return false; }
   virtual void draw(display::Display &it, const UiState &state) = 0;
+  virtual bool is_background_widget() const { return false; }
 
   // Bounding box used by the dirty-rect machinery. Widgets with a fixed
   // rectangle override this to return their rect_; widgets that paint
@@ -291,6 +292,7 @@ class Widget {
 class RectWidget : public Widget {
  public:
   RectWidget(UiRect rect, Color color) : rect_(rect), color_(color) {}
+  bool is_background_widget() const override { return true; }
 
   UiRect bounds() const override { return screen_rect(rect_); }
 

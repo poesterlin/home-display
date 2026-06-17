@@ -437,6 +437,17 @@
       </div>
     {/if}
 
+    {#if selectedComponent.type === "rectangle"}
+      <div class="property-section">
+        <label class="section-label">Styling</label>
+        <ColorPicker
+          label="Background"
+          value={selectedComponent.backgroundColor}
+          onUpdate={(color) => updateProperty("backgroundColor", color)}
+        />
+      </div>
+    {/if}
+
     {#if selectedComponent.type === "image"}
       <div class="property-section">
         <div class="section-label">Image</div>

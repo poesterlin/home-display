@@ -60,25 +60,30 @@ class TabContainerWidget : public Widget {
       draw_tab_bar(it);
     }
 
-    for (auto &w : tabs_[active_tab_].widgets) {
-      if (!w->is_visible(state)) continue;
-      // If we repainted the body bg we must redraw every child that lives
-      // there or it'll vanish.
-      if (draw_body_bg) {
+    auto draw_children_pass = [&](bool background_only) {
+      for (auto &w : tabs_[active_tab_].widgets) {
+        if (w->is_background_widget() != background_only) continue;
+        if (!w->is_visible(state)) continue;
+        // If we repainted the body bg we must redraw every child that lives
+        // there or it'll vanish.
+        if (draw_body_bg) {
+          w->set_render_offset_y(render_offset_y_);
+          w->draw(it, state);
+          continue;
+        }
+        if (full || legacy_partial) {
+          w->set_render_offset_y(render_offset_y_);
+          w->draw(it, state);
+          continue;
+        }
         w->set_render_offset_y(render_offset_y_);
+        const auto b = w->bounds();
+        if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
         w->draw(it, state);
-        continue;
       }
-      if (full || legacy_partial) {
-        w->set_render_offset_y(render_offset_y_);
-        w->draw(it, state);
-        continue;
-      }
-      w->set_render_offset_y(render_offset_y_);
-      const auto b = w->bounds();
-      if (!UiInvalidation::needs_redraw_in(b.x, b.y, b.w, b.h)) continue;
-      w->draw(it, state);
-    }
+    };
+    draw_children_pass(true);
+    draw_children_pass(false);
   }
 
   // Returns true iff some dirty rect fully covers the given area.

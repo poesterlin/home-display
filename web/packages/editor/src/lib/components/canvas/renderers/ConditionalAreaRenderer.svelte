@@ -6,6 +6,7 @@
   import { historyStore } from "$lib/stores/history.svelte";
   import { canvasPasteTargetStore } from "$lib/stores/canvas-paste-target.svelte";
   import { createComponent } from "$lib/utils/component-factory";
+  import { sortComponentsForRender } from "$lib/utils/component-layering";
   import ComponentRenderer from "./ComponentRenderer.svelte";
   import Draggable from "../Draggable.svelte";
 
@@ -24,6 +25,9 @@
 
   const activeVariant = $derived(
     component.variants.find((v) => v.id === activeVariantId) || component.variants[0]
+  );
+  const orderedVariantComponents = $derived(
+    activeVariant ? sortComponentsForRender(activeVariant.components) : [],
   );
 
   const isSelected = $derived(selectionStore.selectedIds.has(component.id));
@@ -187,7 +191,7 @@
       onpointerdown={handleContentMouseDown}
     >
       {#if activeVariant}
-        {#each activeVariant.components as childComponent (childComponent.id)}
+        {#each orderedVariantComponents as childComponent (childComponent.id)}
           <ComponentRenderer
             component={childComponent}
             parentOffset={{

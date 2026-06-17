@@ -9,6 +9,7 @@ import type {
   ButtonComponent,
   IconComponent,
   ImageComponent,
+  RectangleComponent,
   TodoListComponent,
   Color,
   OnTapAction,
@@ -365,6 +366,42 @@ function generateImageWidget(
   return out;
 }
 
+function generateRectangleWidget(
+    c: RectangleComponent,
+    factory: WidgetFactory,
+    indent: string,
+    offX = 0,
+    offY = 0,
+    visibilityExpr?: string,
+    dirtyBoundsExpr?: string,
+    defaultBgColor = 'g_theme.info_bg',
+): string {
+  const x = c.position.x + offX;
+  const y = c.position.y + offY;
+  const w = c.size?.width ?? 100;
+  const h = c.size?.height ?? 60;
+  const colorExpr = c.backgroundColor ? emitColor(c.backgroundColor) : defaultBgColor;
+  const idSafe = safeCppIdentifier(c.id, 'component');
+
+  let out = `${indent}auto *${idSafe} = ${factory('RectWidget', `${rect(x, y, w, h)}, ${colorExpr}`)};\n`;
+  if (visibilityExpr) {
+    out += `${indent}${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  if (dirtyBoundsExpr) {
+    out += `${indent}${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
+  }
+  return out;
+}
+
+function sortComponentsForWidgetLayering(components: Component[]): Component[] {
+  return [...components].sort((a, b) => {
+    const aIsBackground = a.type === 'rectangle';
+    const bIsBackground = b.type === 'rectangle';
+    if (aIsBackground === bIsBackground) return 0;
+    return aIsBackground ? -1 : 1;
+  });
+}
+
 function generateComponentSetup(
     c: Component,
     screenVar: string,
@@ -414,6 +451,9 @@ function generateComponentSetup(
     }
     case 'image': {
       return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
+    }
+    case 'rectangle': {
+      return generateRectangleWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
@@ -563,7 +603,8 @@ function generateConditionalAreaWidget(
       out += `${indent}auto ${variantLambdaVar} = [&state]() { return ${activeExpr}; };\n`;
     }
 
-    for (const child of variant.components) {
+    const orderedChildren = sortComponentsForWidgetLayering(variant.components);
+    for (const child of orderedChildren) {
       out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY, dirtyBoundsExpr);
     }
   }
@@ -610,7 +651,8 @@ function generateTabContainerWidget(
   }
 
   for (let i = 0; i < c.tabs.length; i++) {
-    for (const child of c.tabs[i]!.components) {
+    const orderedChildren = sortComponentsForWidgetLayering(c.tabs[i]!.components);
+    for (const child of orderedChildren) {
       out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar, undefined, dirtyBoundsExpr);
     }
   }
@@ -696,6 +738,10 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
     case 'image': {
       return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, tabBgVar);
     }
+    case 'rectangle': {
+      const defaultBg = tabBgVar ?? 'g_theme.info_bg';
+      return generateRectangleWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, defaultBg);
+    }
     case 'light_state': {
       const stateVar = stateVarFromEntity(c.stateBinding?.entityId ?? c.id);
       return generateLightWidget(c, stateVar, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
@@ -758,7 +804,8 @@ function generateConditionalAreaNested(
       out += `${indent}auto ${variantLambdaVar} = [&state]() { return ${activeExpr}; };\n`;
     }
 
-    for (const child of variant.components) {
+    const orderedChildren = sortComponentsForWidgetLayering(variant.components);
+    for (const child of orderedChildren) {
       out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar, dirtyBoundsExpr);
     }
   }
@@ -814,7 +861,8 @@ export function generateUIScreensHeader(project: Project): string {
       setupBody += `  {\n`;
       setupBody += `    auto p${index} = [&state]() { return state.home_page_index == ${index}; };\n`;
       setupBody += `    // Page: ${cppLineCommentText(page.name)}\n`;
-      for (const c of page.components) {
+      const orderedComponents = sortComponentsForWidgetLayering(page.components);
+      for (const c of orderedComponents) {
         setupBody += generateComponentSetup(c, 'home', '    ', `p${index}`, 0, dashboardOffsetY);
         setupBody += '\n';
       }
@@ -840,7 +888,8 @@ export function generateUIScreensHeader(project: Project): string {
       continue;
     }
     setupBody += `  // Detail: ${cppLineCommentText(view.title)}\n`;
-    for (const c of view.components) {
+    const orderedComponents = sortComponentsForWidgetLayering(view.components);
+    for (const c of orderedComponents) {
       setupBody += generateComponentSetup(c, screenVar, '  ');
       setupBody += '\n';
     }

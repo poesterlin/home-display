@@ -26,9 +26,17 @@ function collectTextBindings(tc: TextComponent): EntityBinding[] {
 }
 
 function collectProjectComponents(project: Project) {
+  const sortForCodegen = <T extends { type: string }>(components: T[]): T[] =>
+    [...components].sort((a, b) => {
+      const aIsBackground = a.type === "rectangle";
+      const bIsBackground = b.type === "rectangle";
+      if (aIsBackground === bIsBackground) return 0;
+      return aIsBackground ? -1 : 1;
+    });
+
   return collectAllComponents([
-    ...project.dashboardPages.flatMap(p => p.components),
-    ...project.detailViews.flatMap(v => v.components),
+    ...project.dashboardPages.flatMap(p => sortForCodegen(p.components)),
+    ...project.detailViews.flatMap(v => sortForCodegen(v.components)),
   ]);
 }
 

@@ -3,6 +3,7 @@
     mdiFormatText,
     mdiGestureTap,
     mdiStarOutline,
+    mdiRectangleOutline,
     mdiLightbulbOutline,
     mdiImageOutline,
     mdiFormatListChecks,
@@ -35,6 +36,12 @@
       label: "Icon",
       icon: mdiStarOutline,
       description: "Render Material Design Icons with custom color and size",
+    },
+    {
+      type: "rectangle",
+      label: "Rectangle",
+      icon: mdiRectangleOutline,
+      description: "Simple background block with configurable color",
     },
     {
       type: "light_state",

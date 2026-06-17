@@ -13,6 +13,7 @@ export type Component =
   | IconComponent
   | ProceduralIconComponent
   | ContainerComponent
+  | RectangleComponent
   | ImageComponent
   | TodoListComponent
   | LightStateComponent
@@ -91,6 +92,10 @@ export type ContainerComponent = BaseComponent & {
    * Child components rendered inside this container
    */
   children?: Component[];
+};
+export type RectangleComponent = BaseComponent & {
+  type: "rectangle";
+  backgroundColor?: Color;
 };
 export type ImageComponent = BaseComponent & {
   type: "image";

@@ -535,6 +535,19 @@
         }
       ]
     },
+    "RectangleComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "rectangle" },
+            "backgroundColor": { "$ref": "#/definitions/Color" }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
     "ImageComponent": {
       "allOf": [
         { "$ref": "#/definitions/BaseComponent" },
@@ -647,6 +660,7 @@
         { "$ref": "#/definitions/IconComponent" },
         { "$ref": "#/definitions/ProceduralIconComponent" },
         { "$ref": "#/definitions/ContainerComponent" },
+        { "$ref": "#/definitions/RectangleComponent" },
         { "$ref": "#/definitions/ImageComponent" },
         { "$ref": "#/definitions/TodoListComponent" },
         { "$ref": "#/definitions/LightStateComponent" },

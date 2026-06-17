@@ -72,6 +72,14 @@ export function createComponent(type: string, x: number, y: number): Component {
         size: { width: 100, height: 60 },
       } as Component;
 
+    case "rectangle":
+      return {
+        ...base,
+        type: "rectangle",
+        size: { width: 100, height: 60 },
+        backgroundColor: { r: 64, g: 64, b: 64 },
+      } as Component;
+
     case "image":
       return {
         ...base,

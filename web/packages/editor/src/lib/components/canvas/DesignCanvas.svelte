@@ -15,6 +15,7 @@
   import DashboardHeader from "./DashboardHeader.svelte";
   import PageIndicator from "./PageIndicator.svelte";
   import { createComponent } from "$lib/utils/component-factory";
+  import { sortComponentsForRender } from "$lib/utils/component-layering";
 
   let canvasEl: HTMLDivElement | undefined = $state();
   let clipboardComponent = $state<{
@@ -49,6 +50,10 @@
     projectStore.viewMode === "detail"
       ? canvasHeight
       : (projectStore.display?.height ?? 320) - headerHeight,
+  );
+
+  const orderedActiveComponents = $derived(
+    sortComponentsForRender(projectStore.activeComponents),
   );
 
   type ComponentContext = CanvasPasteTarget;
@@ -423,8 +428,8 @@
     ondragover={handleDragOver}
     style:height="{contentHeight}px"
   >
-    {#if projectStore.activeComponents}
-      {#each projectStore.activeComponents as component (component.id)}
+    {#if orderedActiveComponents}
+      {#each orderedActiveComponents as component (component.id)}
         <ComponentRenderer {component} />
       {/each}
     {/if}

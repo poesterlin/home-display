@@ -7,6 +7,7 @@
   import IconRenderer from "./IconRenderer.svelte";
   import ProceduralIconRenderer from "./ProceduralIconRenderer.svelte";
   import ContainerRenderer from "./ContainerRenderer.svelte";
+  import RectangleRenderer from "./RectangleRenderer.svelte";
   import ImageRenderer from "./ImageRenderer.svelte";
   import ConditionalAreaRenderer from "./ConditionalAreaRenderer.svelte";
   import TabContainerRenderer from "./TabContainerRenderer.svelte";
@@ -38,6 +39,8 @@
   <ProceduralIconRenderer {component} />
 {:else if component.type === "container"}
   <ContainerRenderer {component} />
+{:else if component.type === "rectangle"}
+  <RectangleRenderer {component} />
 {:else if component.type === "image"}
   <ImageRenderer {component} />
 {:else if component.type === "todo_list"}

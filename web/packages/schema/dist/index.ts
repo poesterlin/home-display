@@ -15,6 +15,7 @@ export type ComponentType =
   | "icon"
   | "procedural_icon"
   | "container"
+  | "rectangle"
   | "image"
   | "todo_list"
   | "light_state"
