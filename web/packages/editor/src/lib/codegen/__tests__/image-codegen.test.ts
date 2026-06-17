@@ -206,6 +206,10 @@ describe("image component codegen", () => {
     const yaml = generateESPHomeYAML(project);
     expect(yaml).toContain("http_request:");
     expect(yaml).toContain("ota:\n  - platform: http_request");
+    expect(yaml).toContain("on_begin:");
+    expect(yaml).toContain("light.turn_off: display_backlight");
+    expect(yaml).toContain("on_error:");
+    expect(yaml).toContain("light.turn_on:");
     expect(yaml).toContain("update:\n  - platform: http_request");
     expect(yaml).toContain("name: Firmware Update");
     expect(yaml).toContain("source: !secret firmware_manifest_url");

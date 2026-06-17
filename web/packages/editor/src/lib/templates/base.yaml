@@ -1,11 +1,19 @@
 esphome:
   name: ${device_name}
   on_boot:
-    priority: 800
-    then:
-      - light.turn_on:
-          id: display_backlight
-          brightness: 100%
+    - priority: 900
+      then:
+        - lambda: |-
+            auto reason = esp_reset_reason();
+            if (reason == ESP_RST_USB || reason == ESP_RST_SW) {
+              esp_sleep_enable_timer_wakeup(100000);
+              esp_deep_sleep_start();
+            }
+    - priority: 800
+      then:
+        - light.turn_on:
+            id: display_backlight
+            brightness: 100%
 
 esp32:
   variant: esp32s3
@@ -77,6 +85,14 @@ api:
 
 ota:
   - platform: esphome
+    on_begin:
+      then:
+        - light.turn_off: display_backlight
+    on_error:
+      then:
+        - light.turn_on:
+            id: display_backlight
+            brightness: 100%
 
 time:
   - platform: sntp

@@ -110,9 +110,11 @@
   }
 
   .projects-link {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--spacing-xs);
+    line-height: 1;
     text-decoration: none;
     color: var(--color-text-secondary);
     font-size: 13px;
@@ -122,8 +124,11 @@
   }
 
   .settings-btn {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     gap: 8px;
+    line-height: 1;
   }
 
   .projects-link:hover {
@@ -165,6 +170,10 @@
   }
 
   button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
     font-size: 12px;
     padding: var(--spacing-xs) var(--spacing-sm);
   }
@@ -172,7 +181,9 @@
   .primary {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
+    line-height: 1;
   }
 
   .export-link {
@@ -190,6 +201,8 @@
   }
 
   .icon {
+    display: block;
+    flex-shrink: 0;
     fill: currentColor;
     stroke: none;
   }

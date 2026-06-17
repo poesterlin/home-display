@@ -1557,10 +1557,10 @@ class LoadingWidget : public Widget {
 
   void draw(display::Display &it, const UiState &state) override {
     (void)state;
-    const int fx = 120, fy = 190, fw = 240, fh = 170;
+    const int fx = 120, fy = 178, fw = 240, fh = 196;
     ui_fast_filled_rectangle(it, fx, fy, fw, fh, RetroColors::VOID);
 
-    const int cx = 240, cy = 240;
+    const int cx = 240, cy = 228;
     const uint32_t t = millis();
 
     const int segments = 8;
@@ -1577,19 +1577,19 @@ class LoadingWidget : public Widget {
     }
 
     if (g_theme.header.font != nullptr) {
-      it.printf(cx, cy + 36, g_theme.header.font, RetroColors::CYAN,
+      it.printf(cx, cy + 44, g_theme.header.font, RetroColors::CYAN,
                 TextAlign::CENTER, "CONNECTING");
     }
 
-    draw_clipped_border(it, 150, 280, 180, 4, 2, 2, 2, 2, RetroColors::DIMMER);
+    draw_clipped_border(it, 150, cy + 62, 180, 4, 2, 2, 2, 2, RetroColors::DIMMER);
     const float progress = (float)(t % 2000) / 2000.0f;
     const int pw = (int)(180.0f * progress);
     if (pw > 0) {
-      ui_fast_filled_rectangle(it, 150, 280, pw, 4, RetroColors::CYAN);
+      ui_fast_filled_rectangle(it, 150, cy + 62, pw, 4, RetroColors::CYAN);
     }
 
     if (g_theme.label.font != nullptr) {
-      it.printf(cx, cy + 54, g_theme.label.font, RetroColors::STEEL,
+      it.printf(cx, cy + 78, g_theme.label.font, RetroColors::STEEL,
                 TextAlign::CENTER, "Home Display v2.0");
     }
   }

@@ -429,7 +429,9 @@
   .user-link {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
+    line-height: 1;
     color: var(--color-text-secondary);
     text-decoration: none;
     font-size: 0.85rem;
@@ -450,7 +452,8 @@
   }
 
   .logout-form {
-    display: inline;
+    display: inline-flex;
+    align-items: center;
     margin: 0;
     padding: 0;
   }
@@ -640,6 +643,8 @@
   }
 
   .icon {
+    display: block;
+    flex-shrink: 0;
     fill: currentColor;
     stroke: none;
   }

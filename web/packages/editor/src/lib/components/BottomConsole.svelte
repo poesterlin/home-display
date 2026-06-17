@@ -27,8 +27,8 @@
   const href = $derived(`/project/${projectStore.serverProjectId}/deploy`);
 </script>
 
-{#if deploymentStore.state.compiling}
-  <div class="bottom-console">
+<a href={href} class="bottom-console interactive">
+  {#if deploymentStore.state.compiling}
     <div class="console-left">
       <div class="status-badge compiling">
         <div class="spinner"></div>
@@ -38,9 +38,7 @@
         <div class="progress-fill" style="width: {deploymentStore.state.progress}%"></div>
       </div>
     </div>
-  </div>
-{:else if deploymentStore.state.error}
-  <div class="bottom-console">
+  {:else if deploymentStore.state.error}
     <div class="console-left">
       <div class="status-badge error">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -51,9 +49,7 @@
       </div>
       <span class="hint">{deploymentStore.state.error}</span>
     </div>
-  </div>
-{:else}
-  <a href={href} class="bottom-console interactive">
+  {:else}
     <div class="console-left">
       {#if activeBuild?.published}
         <div class="status-badge live">
@@ -68,11 +64,11 @@
         </div>
       {/if}
     </div>
-    <svg width="16" height="16" viewBox="0 0 24 24" class="chevron" fill="none">
-      <path d={mdiIcons.mdiChevronRight} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </a>
-{/if}
+  {/if}
+  <svg width="16" height="16" viewBox="0 0 24 24" class="chevron" fill="none">
+    <path d={mdiIcons.mdiChevronRight} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</a>
 
 <style>
   .bottom-console {

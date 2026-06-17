@@ -341,7 +341,18 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
     ? `\nhttp_request:\n  verify_ssl: false\n  timeout: 10s\n`
     : '';
   const httpOtaYaml = httpOtaEnabled
-    ? `\nota:\n  - platform: http_request\n`
+    ? `
+ota:
+  - platform: http_request
+    on_begin:
+      then:
+        - light.turn_off: display_backlight
+    on_error:
+      then:
+        - light.turn_on:
+            id: display_backlight
+            brightness: 100%
+`
     : '';
   const httpUpdateYaml = httpOtaEnabled
     ? `\nupdate:\n  - platform: http_request\n    name: Firmware Update\n    source: !secret firmware_manifest_url\n`

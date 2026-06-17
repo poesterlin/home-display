@@ -47,3 +47,10 @@ Copy `custom_components/esphome_display` to your Home Assistant `config/custom_c
 - [ ] record instructions
 - [x] make export model not a modal
 - [ ] derive build preview images from the canvas
+- [x] make build footer clickable link on editor page
+- [x] center header button icons & text
+- [x] give api loading spinner on esphome screen more gap
+- [ ] investigate differences between ota update and usb flashing. Flashing has a more stable display output and correct vsync. maybe turn off the display during ota updates.
+<!-- - [ ] redo front page -->
+<!-- - [ ] check undo/redo/saving functionality -->
+- [ ] fix downloaded project. malformed fonts.yaml, missing include files.
