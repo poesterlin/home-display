@@ -143,9 +143,10 @@ class GenericScreen : public Screen {
       ui_fast_filled_rectangle(it, scroll_area_x_, scroll_area_y_, scroll_area_w_, scroll_area_h_,
                                RetroColors::VOID);
     }
-    auto draw_pass = [&](bool background_only) {
+    auto draw_pass = [&](bool background_only, bool top_only) {
       for (auto &w : widgets_) {
         if (w->is_background_widget() != background_only) continue;
+        if (w->is_top_widget() != top_only) continue;
         if (!w->is_visible(state)) continue;
         // During a scroll-only repaint we erase + redraw just the scroll area,
         // so fixed (exempt) widgets are untouched and must NOT be repainted --
@@ -182,8 +183,12 @@ class GenericScreen : public Screen {
         }
       }
     };
-    draw_pass(true);
-    draw_pass(false);
+    // 1) backgrounds (rectangles, fills)
+    // 2) normal widgets
+    // 3) top widgets (headers/chrome)
+    draw_pass(true, false);
+    draw_pass(false, false);
+    draw_pass(false, true);
     scroll_dirty_ = false;
   }
 

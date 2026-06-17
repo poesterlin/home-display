@@ -80,6 +80,7 @@ class HeaderWidget : public Widget {
         timer_active_(timer_active), timer_remaining_(timer_remaining) {}
 
   UiRect bounds() const override { return UiRect{0, 0, 480, 50}; }
+  bool is_top_widget() const override { return true; }
 
   void update(uint32_t now) override {
     bool changed = false;
@@ -192,6 +193,7 @@ class DetailHeaderWidget : public Widget {
       : title_font_(title_font), btn_font_(btn_font), title_(title), back_callback_(back_callback) {}
 
   UiRect bounds() const override { return UiRect{0, 0, 480, 50}; }
+  bool is_top_widget() const override { return true; }
 
   void set_title(const char* title) {
     if (title_ != title) {
