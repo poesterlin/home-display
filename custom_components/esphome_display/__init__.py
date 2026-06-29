@@ -363,6 +363,10 @@ async def _handle_complete_item(service: cv.ServiceCall) -> None:
     """
     hass = service.hass
     entity_id = service.data.get("entity_id")
+    # When services.yaml declares a target.entity, HA may strip entity_id
+    # from data and put it in the service target instead.
+    if not entity_id and service.target:
+        entity_id = service.target.get("entity_id")
     item = service.data.get("item")
     status = service.data.get("status", "completed")
 
@@ -424,18 +428,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {"http_registered": False}
 
-    # One-time infrastructure: websocket + panel
-    if not hass.data[DOMAIN].get("http_registered"):
-        websocket_api.async_register_command(hass, websocket_export_metadata)
-        await async_register_panel(hass)
-        hass.data[DOMAIN]["http_registered"] = True
-
+    # Core functionality first — must work even if panel fails
     _register_services(hass)
 
     if entry.data.get(CONF_NOTIFICATIONS, True):
         await async_ensure_notification_entities(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Infrastructure last (best-effort) — websocket + panel
+    if not hass.data[DOMAIN].get("http_registered"):
+        websocket_api.async_register_command(hass, websocket_export_metadata)
+        await async_register_panel(hass)
+        hass.data[DOMAIN]["http_registered"] = True
 
     return True
 
