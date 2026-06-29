@@ -18,13 +18,22 @@ type ConditionValue = string | number | boolean;
 function emitLiteral(value: ConditionValue): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "0";
+  // Treat HA boolean string values ("on"/"off") as C++ bool, matching
+  // bind_ha_bool which converts them to Observable<bool>.
+  const lower = String(value).toLowerCase();
+  if (lower === "on") return "true";
+  if (lower === "off") return "false";
   return `std::string("${escapeCString(value)}")`;
 }
 
 function stateAccess(varName: string, value: ConditionValue): string {
-  // Observable<T> has implicit conversion via operator T(), so direct comparisons
-  // work for ==, !=, <, etc. For string operations (find, regex), we cast explicitly.
+  // Treat HA boolean strings as bool, matching bind_ha_bool which produces
+  // Observable<bool>. These Observables can't be cast to std::string.
   if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (lower === "on" || lower === "off") {
+      return `state.${varName}`;
+    }
     return `static_cast<std::string>(state.${varName})`;
   }
   return `state.${varName}`;
@@ -121,6 +130,10 @@ export interface ConditionEntityRef {
 function inferCppType(value: ConditionValue): ConditionEntityType {
   if (typeof value === "boolean") return "bool";
   if (typeof value === "number") return "float";
+  // Treat HA boolean string values ("on"/"off") as bool, matching
+  // bind_ha_bool which converts them to Observable<bool>.
+  const lower = String(value).toLowerCase();
+  if (lower === "on" || lower === "off") return "bool";
   return "std::string";
 }
 
