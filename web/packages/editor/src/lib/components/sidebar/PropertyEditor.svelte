@@ -846,15 +846,23 @@
         <label class="section-label">Entity Binding</label>
         <EntityPicker
           preselectedDomain={selectedComponent.type === "todo_list"
-            ? "todo"
+            ? "sensor"
             : selectedComponent.type === "hvac"
               ? "climate"
               : "light"}
-          allowedDomains={selectedComponent.type === "light_state"
-            ? LIGHT_STATE_ALLOWED_DOMAINS
-            : selectedComponent.type === "hvac"
-              ? CLIMATE_ALLOWED_DOMAINS
-              : undefined}
+          allowedDomains={selectedComponent.type === "todo_list"
+            ? ["sensor"]
+            : selectedComponent.type === "light_state"
+              ? LIGHT_STATE_ALLOWED_DOMAINS
+              : selectedComponent.type === "hvac"
+                ? CLIMATE_ALLOWED_DOMAINS
+                : undefined}
+          requiredAttribute={selectedComponent.type === "todo_list"
+            ? "all_items"
+            : undefined}
+          autoAttribute={selectedComponent.type === "todo_list"
+            ? "all_items"
+            : undefined}
           component={selectedComponent}
           onUpdate={(binding) => {
             if (selectedComponent.type === "todo_list") {

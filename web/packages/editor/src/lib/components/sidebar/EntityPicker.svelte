@@ -55,6 +55,8 @@
     numericOnly?: boolean;
     preselectedDomain?: string;
     allowedDomains?: string[];
+    requiredAttribute?: string;
+    autoAttribute?: string;
   }
 
   let {
@@ -64,6 +66,8 @@
     numericOnly = false,
     preselectedDomain = undefined,
     allowedDomains = undefined,
+    requiredAttribute = undefined,
+    autoAttribute = undefined,
   }: Props = $props();
 
   const allowedDomainSet = $derived.by<Set<string> | null>(() => {
@@ -220,14 +224,18 @@
   // Get all entities (filtered by numericOnly if needed)
   const allFilteredEntities = $derived.by(() => {
     if (!homeAssistantStore.isLoaded) return [];
-    const domainFiltered = allowedDomainSet
+    let entities = allowedDomainSet
       ? homeAssistantStore.entities.filter((e: Entity) =>
           allowedDomainSet.has(e.domain),
         )
       : homeAssistantStore.entities;
-    return numericOnly
-      ? domainFiltered.filter((e: Entity) => e.numeric_state !== undefined)
-      : domainFiltered;
+    if (numericOnly)
+      entities = entities.filter((e: Entity) => e.numeric_state !== undefined);
+    if (requiredAttribute)
+      entities = entities.filter((e: Entity) =>
+        e.attributes.includes(requiredAttribute),
+      );
+    return entities;
   });
 
   // Available domains sorted by entity count
@@ -246,7 +254,12 @@
   const selectedDomainEntities = $derived.by(() => {
     if (!homeAssistantStore.isLoaded || !selectedDomain) return [];
     if (allowedDomainSet && !allowedDomainSet.has(selectedDomain)) return [];
-    return applyNumericFilter(homeAssistantStore.getEntitiesByDomain(selectedDomain));
+    let entities = applyNumericFilter(homeAssistantStore.getEntitiesByDomain(selectedDomain));
+    if (requiredAttribute)
+      entities = entities.filter((e: Entity) =>
+        e.attributes.includes(requiredAttribute),
+      );
+    return entities;
   });
 
   const availableAreasForSelectedDomain = $derived.by(() => {
@@ -280,9 +293,14 @@
     if (!homeAssistantStore.isLoaded) return [];
 
     if (searchQuery) {
-      const searched = applyNumericFilter(homeAssistantStore.searchEntities(searchQuery));
-      if (!allowedDomainSet) return searched;
-      return searched.filter((entity) => allowedDomainSet.has(entity.domain));
+      let searched = applyNumericFilter(homeAssistantStore.searchEntities(searchQuery));
+      if (allowedDomainSet)
+        searched = searched.filter((entity) => allowedDomainSet.has(entity.domain));
+      if (requiredAttribute)
+        searched = searched.filter((e: Entity) =>
+          e.attributes.includes(requiredAttribute),
+        );
+      return searched;
     } else if (selectedDomain) {
       if (selectedAreaFilter) {
         return selectedDomainEntities.filter(
@@ -396,7 +414,7 @@
 
     onUpdate?.({
       entityId: entity.entity_id,
-      attribute: currentBinding?.attribute,
+      attribute: currentBinding?.attribute ?? autoAttribute,
     });
   }
 
