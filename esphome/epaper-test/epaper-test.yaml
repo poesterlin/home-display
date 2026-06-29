@@ -1,0 +1,6 @@
+substitutions:
+  device_name: epaper-test
+
+packages:
+  base: !include base.yaml
+  hardware: !include hardware.yaml

@@ -136,7 +136,7 @@ inline void setup_ui_screens(ScreenController &screens, UiState &state,
           UiRect{20, 178, 440, 270},
           RetroColors::DIM, g_theme.primary);
       tabs->set_visibility_condition(p0);
-      const Color tab_bg(10, 12, 18);
+      const Color tab_bg = RetroColors::DIM;
 
       int t0 = tabs->add_tab("STATUS");
       {

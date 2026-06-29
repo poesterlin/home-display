@@ -659,13 +659,10 @@ class TodoPreviewWidget : public Widget {
 
       const int y = base_y + drawn * line_h;
       if (g_theme.label.font != nullptr) {
-        // Checkbox as clipped diamond
+        // Checkbox as clean circle outline
         int cbx = rect_.x + 18;
         int cby = y + 14;
-        it.line(cbx, cby - 5, cbx + 5, cby, border);
-        it.line(cbx + 5, cby, cbx, cby + 5, border);
-        it.line(cbx, cby + 5, cbx - 5, cby, border);
-        it.line(cbx - 5, cby, cbx, cby - 5, border);
+        it.circle(cbx, cby, 5, border);
       }
 
       int text_x = rect_.x + 42;

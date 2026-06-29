@@ -38,18 +38,11 @@ class PageIndicatorWidget : public Widget {
     for (int i = 0; i < total; i++) {
       int dot_x = start_x + i * dot_spacing_;
       if (i == page) {
-        // Active page: filled diamond
-        it.line(dot_x, y_ - radius_active_, dot_x + radius_active_, y_, RetroColors::CYAN);
-        it.line(dot_x + radius_active_, y_, dot_x, y_ + radius_active_, RetroColors::CYAN);
-        it.line(dot_x, y_ + radius_active_, dot_x - radius_active_, y_, RetroColors::CYAN);
-        it.line(dot_x - radius_active_, y_, dot_x, y_ - radius_active_, RetroColors::CYAN);
+        // Active page: filled circle
+        it.filled_circle(dot_x, y_, radius_active_ - 2, RetroColors::CYAN);
       } else {
-        // Inactive page: outline diamond
-        int r = radius_inactive_;
-        it.line(dot_x, y_ - r, dot_x + r, y_, RetroColors::DIMMER);
-        it.line(dot_x + r, y_, dot_x, y_ + r, RetroColors::DIMMER);
-        it.line(dot_x, y_ + r, dot_x - r, y_, RetroColors::DIMMER);
-        it.line(dot_x - r, y_, dot_x, y_ - r, RetroColors::DIMMER);
+        // Inactive page: smaller filled circle
+        it.filled_circle(dot_x, y_, radius_inactive_ - 2, RetroColors::DIMMER);
       }
     }
     last_page_ = page;
@@ -135,10 +128,8 @@ class HeaderWidget : public Widget {
     } else {
       auto time_now = sntp_time->now();
       if (time_now.is_valid()) {
-        // Time display with cyan accent
-        it.printf(18, 8, time_font_, RetroColors::CYAN, TextAlign::TOP_LEFT, "%02d", time_now.hour);
-        it.printf(18 + 32, 8, time_font_, RetroColors::WHITE, TextAlign::TOP_LEFT, ":");
-        it.printf(18 + 44, 8, time_font_, RetroColors::CYAN, TextAlign::TOP_LEFT, "%02d", time_now.minute);
+        // Time display as a single string (avoiding hardcoded character offsets)
+        it.printf(18, 8, time_font_, RetroColors::CYAN, TextAlign::TOP_LEFT, "%02d:%02d", time_now.hour, time_now.minute);
 
         const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
         const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -155,16 +146,8 @@ class HeaderWidget : public Widget {
       }
     }
 
-    // Bottom separator with double-line effect
-    it.line(18, 47, 462, 47, RetroColors::DIMMER);
+    // Bottom separator (single clean thin line)
     it.line(18, 48, 462, 48, RetroColors::DARK);
-
-    // Hatch pattern in the top-right corner (decorative)
-    draw_hatch_pattern(it, 460, 2, 10, 4, 4, Color(0, 30, 45));
-
-    // Corner accents on the top edge
-    draw_corner_accent_tl(it, 3, 3, 5, RetroColors::CYAN_DIM);
-    draw_corner_accent_tr(it, 476, 3, 5, RetroColors::CYAN_DIM);
 
     last_timer_active_ = t_active;
     last_timer_remaining_ = t_rem;
