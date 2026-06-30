@@ -1,4 +1,4 @@
-import type { Project, LightStateComponent, Component, TodoListComponent, TextComponent, HvacComponent } from "@esphome-designer/schema";
+import type { Project, LightStateComponent, Component, TodoListComponent, TextComponent, HvacComponent, WeatherComponent } from "@esphome-designer/schema";
 import { toCppIdentifier, firstScreenId, cppDefaultValue, cppTypeFor, stateVarFromEntity, collectAllComponents, todoItemsVarFromBinding, textBindingVar } from "./utils";
 import { collectConditionEntities } from "./condition-expr";
 import { extractBindings, parseTemplate } from "../utils/template-utils";
@@ -51,6 +51,32 @@ function collectHvacStateVars(project: Project): { varName: string; cppType: str
   return result;
 }
 
+const WEATHER_FORECAST_FIELDS = [
+  { suffix: 'condition',    cppType: 'std::string', initValue: '""' },
+  { suffix: 'temperature',  cppType: 'float',       initValue: '0.0f' },
+  { suffix: 'humidity',     cppType: 'float',       initValue: '0.0f' },
+  { suffix: 'wind_speed',   cppType: 'float',       initValue: '0.0f' },
+  { suffix: 'precipitation', cppType: 'float',       initValue: '0.0f' },
+] as const;
+
+function collectWeatherStateVars(project: Project): { varName: string; cppType: string; initValue: string }[] {
+  const result: { varName: string; cppType: string; initValue: string }[] = [];
+  const allComponents = collectAllComponents([
+    ...project.dashboardPages.flatMap(p => p.components),
+    ...project.detailViews.flatMap(v => v.components),
+  ]);
+  for (const c of allComponents) {
+    if (c.type !== 'weather') continue;
+    const wc = c as WeatherComponent;
+    const entityId = wc.stateBinding?.entityId ?? wc.id;
+    const base = stateVarFromEntity(entityId);
+    for (const field of WEATHER_FORECAST_FIELDS) {
+      result.push({ varName: `${base}_${field.suffix}`, cppType: field.cppType, initValue: field.initValue });
+    }
+  }
+  return result;
+}
+
 function collectTextEntityVars(project: Project): string[] {
   const vars = new Set<string>();
   const allComponents = collectAllComponents([
@@ -87,6 +113,8 @@ export function generateUIStateHeader(project: Project): string {
   for (const v of textVars) existingNames.add(v);
   const hvacVars = collectHvacStateVars(project).filter(v => !existingNames.has(v.varName));
   for (const v of hvacVars) existingNames.add(v.varName);
+  const weatherVars = collectWeatherStateVars(project).filter(v => !existingNames.has(v.varName));
+  for (const v of weatherVars) existingNames.add(v.varName);
   const conditionEntities = collectConditionEntities(project).filter(e => !existingNames.has(e.varName));
 
   const overlayEnabled = project.notificationOverlay != null && project.notificationOverlay.enabled !== false;
@@ -105,6 +133,7 @@ export function generateUIStateHeader(project: Project): string {
     ...textVars.map(v => `  Observable<std::string> ${v}{""};`),
     ...conditionEntities.map(e => `  Observable<${cppTypeFor(e.cppType)}> ${e.varName}{${cppDefaultValue(e.cppType)}};`),
     ...hvacVars.map(v => `  Observable<${cppTypeFor(v.cppType)}> ${v.varName}{${v.initValue}};`),
+    ...weatherVars.map(v => `  Observable<${cppTypeFor(v.cppType)}> ${v.varName}{${v.initValue}};`),
     ...overlayVars,
   ];
 

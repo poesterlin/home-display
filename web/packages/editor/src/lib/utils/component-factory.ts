@@ -127,6 +127,14 @@ export function createComponent(type: string, x: number, y: number): Component {
         size: { width: 225, height: 158 },
       } as Component;
 
+    case "weather":
+      return {
+        ...base,
+        type: "weather",
+        label: "Weather",
+        size: { width: 225, height: 200 },
+      } as Component;
+
     case "auto_layout_list":
       return {
         ...base,

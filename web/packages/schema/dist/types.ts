@@ -18,6 +18,7 @@ export type Component =
   | TodoListComponent
   | LightStateComponent
   | HvacComponent
+  | WeatherComponent
   | AutoLayoutListComponent
   | ConditionalAreaComponent
   | TabContainerComponent;
@@ -163,6 +164,11 @@ export type HvacComponent = BaseComponent & {
   onMode?: string;
   onColor?: Color;
   offColor?: Color;
+};
+export type WeatherComponent = BaseComponent & {
+  type: "weather";
+  label?: string;
+  stateBinding?: EntityBinding4;
 };
 export type AutoLayoutListComponent = BaseComponent & {
   type: "auto_layout_list";
@@ -385,6 +391,13 @@ export interface EntityBinding2 {
  * Home Assistant climate entity (climate.xxx)
  */
 export interface EntityBinding3 {
+  entityId: string;
+  attribute?: string | null;
+}
+/**
+ * Home Assistant weather entity (weather.xxx). The state string is the condition (sunny, cloudy, rainy, ...); the 8 numeric attributes (temperature, dew_point, humidity, cloud_coverage, uv_index, pressure, wind_bearing, wind_speed) are read-only.
+ */
+export interface EntityBinding4 {
   entityId: string;
   attribute?: string | null;
 }

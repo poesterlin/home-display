@@ -15,6 +15,7 @@
   import AutoLayoutListRenderer from "./AutoLayoutListRenderer.svelte";
   import LightStateRenderer from "./LightStateRenderer.svelte";
   import HvacRenderer from "./HvacRenderer.svelte";
+  import WeatherRenderer from "./WeatherRenderer.svelte";
 
   interface Props {
     component: Component;
@@ -50,6 +51,8 @@
   <LightStateRenderer {component} />
 {:else if component.type === "hvac"}
   <HvacRenderer {component} />
+{:else if component.type === "weather"}
+  <WeatherRenderer {component} />
 {:else if component.type === "conditional_area"}
   <ConditionalAreaRenderer {component} {parentOffset} />
 {:else if component.type === "tab_container"}

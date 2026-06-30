@@ -10,6 +10,7 @@
     mdiTab,
     mdiSourceBranch,
     mdiThermometer,
+    mdiWeatherPartlyCloudy,
   } from '@mdi/js';
 
   interface ComponentTemplate {
@@ -55,6 +56,12 @@
       label: "HVAC",
       icon: mdiThermometer,
       description: "Climate control with temperature setting and on/off",
+    },
+    {
+      type: "weather",
+      label: "Weather",
+      icon: mdiWeatherPartlyCloudy,
+      description: "Read-only weather entity card with condition, temperature, and more",
     },
     {
       type: "image",

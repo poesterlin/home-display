@@ -12,6 +12,7 @@ import type {
   RectangleComponent,
   TodoListComponent,
   HvacComponent,
+  WeatherComponent,
   Color,
   OnTapAction,
 } from "@esphome-designer/schema";
@@ -326,6 +327,27 @@ function generateHvacWidget(c: HvacComponent,
   return out;
 }
 
+function generateWeatherWidget(c: WeatherComponent,
+    factory: WidgetFactory, indent: string, offX = 0, offY = 0, visibilityExpr?: string,
+    dirtyBoundsExpr?: string): string {
+  const x = c.position.x + offX;
+  const y = c.position.y + offY;
+  const w = c.size?.width ?? 225;
+  const h = c.size?.height ?? 200;
+  const label = c.label ?? 'Weather';
+  const entityId = c.stateBinding?.entityId ?? c.id;
+  const base = stateVarFromEntity(entityId);
+  const idSafe = safeCppIdentifier(c.id, 'component');
+  let out = `${indent}auto *weather_${idSafe} = ${factory('WeatherWidget', `${rect(x, y, w, h)}, "${escapeCString(label)}", state.${base}_condition.ptr(), state.${base}_temperature.ptr(), state.${base}_humidity.ptr(), state.${base}_wind_speed.ptr(), state.${base}_precipitation.ptr(), "${escapeCString(entityId)}"`)};\n`;
+  if (visibilityExpr) {
+    out += `${indent}weather_${idSafe}->set_visibility_condition(${visibilityExpr});\n`;
+  }
+  if (dirtyBoundsExpr) {
+    out += `${indent}weather_${idSafe}->set_dirty_bounds(${dirtyBoundsExpr});\n`;
+  }
+  return out;
+}
+
 function generateTodoListWidget(
     c: TodoListComponent,
     itemsVar: string,
@@ -496,6 +518,9 @@ function generateComponentSetup(
     }
     case 'hvac': {
       return generateHvacWidget(c as HvacComponent, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
+    }
+    case 'weather': {
+      return generateWeatherWidget(c as WeatherComponent, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'todo_list': {
       const itemsVar = todoItemsVarFromBinding(c.itemsBinding, c.id);
@@ -786,6 +811,9 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
     }
     case 'hvac': {
       return generateHvacWidget(c as HvacComponent, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
+    }
+    case 'weather': {
+      return generateWeatherWidget(c as WeatherComponent, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'todo_list': {
       const itemsVar = todoItemsVarFromBinding(c.itemsBinding, c.id);

@@ -190,6 +190,22 @@ export function collectProjectIconNames(project: Project): Set<string> {
         addIcon("minus");
         addIcon("plus");
         addIcon("power");
+      } else if (c.type === "weather") {
+        addIcon("weather-sunny");
+        addIcon("weather-night");
+        addIcon("weather-cloudy");
+        addIcon("weather-partly-cloudy");
+        addIcon("weather-rainy");
+        addIcon("weather-pouring");
+        addIcon("weather-snowy");
+        addIcon("weather-snowy-rainy");
+        addIcon("weather-windy");
+        addIcon("weather-windy-variant");
+        addIcon("weather-fog");
+        addIcon("weather-hail");
+        addIcon("weather-lightning");
+        addIcon("weather-lightning-rainy");
+        addIcon("weather-tornado");
       } else if (c.type === "auto_layout_list") {
         const list = c as AutoLayoutListComponent;
         for (const item of list.items as AutoLayoutListItem[]) {

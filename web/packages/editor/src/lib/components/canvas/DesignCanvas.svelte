@@ -492,7 +492,7 @@
     <SelectionOverlay
       region="content"
       regionOffset={headerHeight}
-      widthOnly={selectedComponent?.type === "light_state" || selectedComponent?.type === "hvac"}
+      widthOnly={selectedComponent?.type === "light_state" || selectedComponent?.type === "hvac" || selectedComponent?.type === "weather"}
     />
 
     {#if projectStore.viewMode === "dashboard"}

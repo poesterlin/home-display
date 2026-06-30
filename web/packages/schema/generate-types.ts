@@ -75,6 +75,8 @@ export type ComponentType =
   | "image"
   | "todo_list"
   | "light_state"
+  | "hvac"
+  | "weather"
   | "auto_layout_list"
   | "conditional_area"
   | "tab_container";
@@ -99,6 +101,14 @@ export function isIconComponent(c: Component): c is IconComponent {
   return c.type === "icon";
 }
 
+export function isHvacComponent(c: Component): c is HvacComponent {
+  return c.type === "hvac";
+}
+
+export function isWeatherComponent(c: Component): c is WeatherComponent {
+  return c.type === "weather";
+}
+
 import type {
   Component,
   TextComponent,
@@ -106,6 +116,8 @@ import type {
   SliderComponent,
   GaugeComponent,
   IconComponent,
+  HvacComponent,
+  WeatherComponent,
 } from "./types.js";
 `;
 

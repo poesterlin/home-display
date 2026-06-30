@@ -678,6 +678,23 @@
         }
       ]
     },
+    "WeatherComponent": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseComponent" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "weather" },
+            "label": { "type": "string" },
+            "stateBinding": {
+              "$ref": "#/definitions/EntityBinding",
+              "description": "Home Assistant weather entity (weather.xxx). The state string is the condition (sunny, cloudy, rainy, ...); the 8 numeric attributes (temperature, dew_point, humidity, cloud_coverage, uv_index, pressure, wind_bearing, wind_speed) are read-only."
+            }
+          },
+          "required": ["type", "size"]
+        }
+      ]
+    },
     "Component": {
       "oneOf": [
         { "$ref": "#/definitions/TextComponent" },
@@ -692,6 +709,7 @@
         { "$ref": "#/definitions/TodoListComponent" },
         { "$ref": "#/definitions/LightStateComponent" },
         { "$ref": "#/definitions/HvacComponent" },
+        { "$ref": "#/definitions/WeatherComponent" },
         { "$ref": "#/definitions/AutoLayoutListComponent" },
         { "$ref": "#/definitions/ConditionalAreaComponent" },
         { "$ref": "#/definitions/TabContainerComponent" }

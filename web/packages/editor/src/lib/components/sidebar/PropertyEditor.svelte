@@ -12,7 +12,8 @@
   import { conditionalEditorStore } from "$lib/stores/conditional-editor.svelte";
   import { describeCondition } from "$lib/utils/condition-utils";
   import ActionEditor from "./ActionEditor.svelte";
-  import { HVAC_MODE_LIST, getHvacModeColor, getHvacOffColor, colorToCss as hvacColorToCss } from "$lib/utils/hvac-modes";
+  import { HVAC_MODE_LIST } from "$lib/utils/hvac-modes";
+  import { WEATHER_CONDITION_COLORS, colorToCss as weatherColorToCss } from "$lib/utils/weather-conditions";
 
   const NAV_ICONS: Record<string, string> = {
     OPEN_DETAIL: "mdi:open-in-new",
@@ -40,6 +41,10 @@
 
   const CLIMATE_ALLOWED_DOMAINS = [
     "climate",
+  ];
+
+  const WEATHER_ALLOWED_DOMAINS = [
+    "weather",
   ];
 
   function getNavIcon(action: NavigationAction): string | undefined {
@@ -667,6 +672,20 @@
       </div>
     {/if}
 
+    {#if selectedComponent.type === "weather"}
+      <div class="property-section">
+        <label class="section-label">Weather</label>
+        <div class="field">
+          <span class="field-label">Label</span>
+          <input
+            type="text"
+            value={selectedComponent.label ?? ""}
+            oninput={(e) => updateProperty("label", e.currentTarget.value)}
+          />
+        </div>
+      </div>
+    {/if}
+
     {#if selectedComponent.type === "conditional_area"}
       <div class="property-section">
         <label class="section-label">Variants</label>
@@ -826,7 +845,7 @@
     {/if}
 
     <!-- Entity Binding (only for components that display entity values) -->
-    {#if selectedComponent.type === "todo_list" || selectedComponent.type === "light_state" || selectedComponent.type === "hvac"}
+    {#if selectedComponent.type === "todo_list" || selectedComponent.type === "light_state" || selectedComponent.type === "hvac" || selectedComponent.type === "weather"}
       <div class="property-section">
         <label class="section-label">Entity Binding</label>
         <EntityPicker
@@ -834,14 +853,18 @@
             ? "sensor"
             : selectedComponent.type === "hvac"
               ? "climate"
-              : "light"}
+              : selectedComponent.type === "weather"
+                ? "weather"
+                : "light"}
           allowedDomains={selectedComponent.type === "todo_list"
             ? ["sensor"]
             : selectedComponent.type === "light_state"
               ? LIGHT_STATE_ALLOWED_DOMAINS
               : selectedComponent.type === "hvac"
                 ? CLIMATE_ALLOWED_DOMAINS
-                : undefined}
+                : selectedComponent.type === "weather"
+                  ? WEATHER_ALLOWED_DOMAINS
+                  : undefined}
           requiredAttribute={selectedComponent.type === "todo_list"
             ? "all_items"
             : undefined}
@@ -1188,5 +1211,40 @@
     color: var(--color-text-muted);
     margin: var(--spacing-xs) 0 0 0;
     line-height: 1.4;
+  }
+
+  .condition-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .condition-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    background: var(--color-bg-tertiary, #1a1d24);
+    border: 1px solid var(--color-border, #2a2e38);
+    border-radius: 4px;
+    min-width: 0;
+  }
+
+  .condition-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .condition-name {
+    font-size: 10px;
+    font-family: var(--display-font, monospace);
+    text-transform: capitalize;
+    color: var(--color-text-secondary, #a0a4ad);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

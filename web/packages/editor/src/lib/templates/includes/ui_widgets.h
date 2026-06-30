@@ -2016,6 +2016,270 @@ class HvacWidget : public Widget {
   std::string last_action_;
 };
 
+class WeatherWidget : public Widget {
+ public:
+  WeatherWidget(UiRect rect, const char *label,
+                const std::string *condition,
+                const float *temperature,
+                const float *humidity,
+                const float *wind_speed,
+                const float *precipitation,
+                const char *entity_id,
+                Color text_color = Color(255, 255, 255),
+                Color dim_color  = Color(80, 80, 80))
+      : rect_(rect), label_(label),
+        condition_ptr_(condition),
+        temperature_ptr_(temperature),
+        humidity_ptr_(humidity),
+        wind_speed_ptr_(wind_speed),
+        precipitation_ptr_(precipitation),
+        entity_id_(entity_id),
+        text_color_(text_color), dim_color_(dim_color) {}
+
+  UiRect bounds() const override { return screen_rect(rect_); }
+
+  bool handle_touch(const TouchEvent &event, uint32_t now) override {
+    (void)event; (void)now;
+    return false;
+  }
+
+  void update(uint32_t now) override {
+    (void)now;
+    bool changed = false;
+    if (condition_ptr_ && *condition_ptr_ != last_condition_) { changed = true; }
+    if (changed_value(temperature_ptr_, last_temperature_)) { changed = true; }
+    if (changed_value(humidity_ptr_, last_humidity_)) { changed = true; }
+    if (changed_value(wind_speed_ptr_, last_wind_speed_)) { changed = true; }
+    if (changed_value(precipitation_ptr_, last_precipitation_)) { changed = true; }
+    if (changed) mark_dirty();
+    Widget::update(now);
+  }
+
+  void draw(display::Display &it, const UiState &state) override {
+    (void)state;
+
+    const UiRect r = screen_rect(rect_);
+    const int w = r.w;
+    const int h = r.h;
+
+    const Color accent = condition_color(condition_ptr_ ? condition_ptr_->c_str() : "");
+    const int pad = 9;
+
+#if UI_THEME_RETRO
+    const Color bg = RetroColors::VOID;
+    draw_clipped_box(it, r.x, r.y, w, h, 9, accent, bg, true);
+    draw_clipped_border(it, r.x + 2, r.y + 2, w - 4, h - 4,
+                        7, 7, 7, 7,
+                        RetroColors::DIMMER);
+    draw_scanline_overlay(it, r.x + 1, r.y + 1, w - 2, h - 2, 4,
+                          RetroColors::SCANLINE);
+    draw_corner_accent_tl(it, r.x + 4, r.y + 4, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_tr(it, r.x + w - 5, r.y + 4, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_bl(it, r.x + 4, r.y + h - 5, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_br(it, r.x + w - 5, r.y + h - 5, 5,
+                          RetroColors::CYAN_DIM);
+#else
+    const Color bg(10, 14, 22);
+    draw_clipped_box(it, r.x, r.y, w, h, 9, accent, bg, false);
+#endif
+
+    const int top_y = r.y + pad + 3;
+
+    // ---- Top row: label ----
+    if (label_ && label_[0] && g_theme.header.font != nullptr) {
+      const int max_label_w = w - pad * 2;
+      ui_print_truncated(it, r.x + pad, top_y,
+                         g_theme.header.font, dim_color_,
+                         TextAlign::TOP_LEFT, label_, max_label_w);
+    }
+
+    // ---- Center: icon + temperature ----
+    {
+      const int content_top = top_y + 22 + 6;
+      const int content_bottom = r.y + h - pad - 52;
+      const int cy = (content_top + content_bottom) / 2;
+
+      if (condition_ptr_ && !condition_ptr_->empty() && g_theme.icon.font != nullptr) {
+        const char *glyph = condition_icon(condition_ptr_->c_str());
+        const int icon_y = content_top + 4;
+        it.printf(r.x + w / 2, icon_y, g_theme.icon.font, accent,
+                  TextAlign::TOP_CENTER, "%s", glyph);
+      }
+
+      if (valid_value(temperature_ptr_)) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.1f°", *temperature_ptr_);
+        it.printf(r.x + w / 2, cy + 12, g_theme.header.font, text_color_,
+                  TextAlign::TOP_CENTER, "%s", buf);
+      } else {
+        it.printf(r.x + w / 2, cy + 12, g_theme.header.font, dim_color_,
+                  TextAlign::TOP_CENTER, "—°");
+      }
+    }
+
+    // ---- Bottom: 3 pills (humidity | precipitation | wind) ----
+    {
+      const int pill_top = r.y + h - 52;
+      const int pill_h = 40;
+      const int pill_pad = 6;
+      const int pill_w = (w - pad * 2 - pill_pad * 2) / 3;
+
+      draw_pill(it, r.x + pad, pill_top, pill_w, pill_h, "HUM",
+                humidity_ptr_, "%");
+      draw_pill(it, r.x + pad + pill_w + pill_pad, pill_top, pill_w, pill_h,
+                "RAIN", precipitation_ptr_, " mm");
+      draw_pill(it, r.x + pad + (pill_w + pill_pad) * 2, pill_top, pill_w,
+                pill_h, "WIND", wind_speed_ptr_, " m/s");
+    }
+
+    if (condition_ptr_) last_condition_ = *condition_ptr_;
+    copy_value(temperature_ptr_, last_temperature_);
+    copy_value(humidity_ptr_, last_humidity_);
+    copy_value(wind_speed_ptr_, last_wind_speed_);
+    copy_value(precipitation_ptr_, last_precipitation_);
+  }
+
+ private:
+  static bool valid_value(const float *p) {
+    return p != nullptr && *p > 0.0f &&
+           !std::isnan(*p) && !std::isinf(*p);
+  }
+
+  static bool changed_value(const float *p, float last) {
+    if (p == nullptr) return false;
+    if (!std::isfinite(*p) && !std::isfinite(last)) return false;
+    if (std::isnan(*p) != std::isnan(last)) return true;
+    if (*p != last) return true;
+    return false;
+  }
+
+  static void copy_value(const float *p, float &dest) {
+    if (p != nullptr) dest = *p;
+  }
+
+  static Color condition_color(const char *cond) {
+    if (cond == nullptr) return Color(180, 190, 210);
+    std::string s(cond);
+    if (s == "sunny") return Color(255, 200, 50);
+    if (s == "clear-night") return Color(70, 90, 160);
+    if (s == "cloudy") return Color(160, 170, 185);
+    if (s == "partlycloudy" || s == "partly_cloudy") return Color(180, 190, 210);
+    if (s == "rainy") return Color(70, 130, 200);
+    if (s == "pouring") return Color(40, 90, 170);
+    if (s == "snowy") return Color(215, 235, 250);
+    if (s == "snowy-rainy") return Color(150, 195, 220);
+    if (s == "snowing" || s == "snow") return Color(210, 230, 245);
+    if (s == "fog") return Color(150, 160, 175);
+    if (s == "hail") return Color(170, 200, 220);
+    if (s == "lightning") return Color(200, 180, 80);
+    if (s == "lightning_rainy") return Color(200, 180, 80);
+    if (s == "windy") return Color(130, 200, 180);
+    if (s == "windy-variant") return Color(140, 180, 185);
+    if (s == "exceptional") return Color(200, 100, 100);
+    return Color(180, 190, 210);
+  }
+
+  static const char *condition_icon(const char *cond) {
+    if (cond == nullptr) return icon_weather_partly_cloudy;
+    std::string s(cond);
+    if (s == "sunny") return icon_weather_sunny;
+    if (s == "clear-night") return icon_weather_night;
+    if (s == "cloudy") return icon_weather_cloudy;
+    if (s == "partlycloudy" || s == "partly_cloudy") return icon_weather_partly_cloudy;
+    if (s == "rainy") return icon_weather_rainy;
+    if (s == "pouring") return icon_weather_pouring;
+    if (s == "snowy") return icon_weather_snowy;
+    if (s == "snowy-rainy") return icon_weather_snowy_rainy;
+    if (s == "snowing" || s == "snow") return icon_weather_snowy;
+    if (s == "fog") return icon_weather_fog;
+    if (s == "hail") return icon_weather_hail;
+    if (s == "lightning") return icon_weather_lightning;
+    if (s == "lightning-rainy" || s == "lightning_rainy") return icon_weather_lightning_rainy;
+    if (s == "windy") return icon_weather_windy;
+    if (s == "windy-variant") return icon_weather_windy_variant;
+    if (s == "exceptional") return icon_weather_tornado;
+    return icon_weather_partly_cloudy;
+  }
+
+  // ---- MDI weather icon glyphs (UTF-8 C escapes) ----
+
+  static const char icon_weather_cloudy[];
+  static const char icon_weather_fog[];
+  static const char icon_weather_hail[];
+  static const char icon_weather_lightning[];
+  static const char icon_weather_lightning_rainy[];
+  static const char icon_weather_night[];
+  static const char icon_weather_partly_cloudy[];
+  static const char icon_weather_pouring[];
+  static const char icon_weather_rainy[];
+  static const char icon_weather_snowy[];
+  static const char icon_weather_snowy_rainy[];
+  static const char icon_weather_sunny[];
+  static const char icon_weather_tornado[];
+  static const char icon_weather_windy[];
+  static const char icon_weather_windy_variant[];
+
+  void draw_pill(display::Display &it, int x, int y, int w, int h,
+                 const char *label_text, const float *value,
+                 const char *unit) {
+    const Color pill_bg(18, 22, 32);
+    const Color pill_border(35, 40, 55);
+
+    it.filled_rectangle(x, y, w, h, pill_bg);
+    it.rectangle(x, y, w, h, pill_border);
+    it.horizontal_line(x + 1, y + h - 1, w - 1, pill_border);
+
+    if (g_theme.label.font == nullptr) return;
+
+    it.printf(x + w / 2, y + 5, g_theme.label.font, dim_color_,
+              TextAlign::TOP_CENTER, "%s", label_text);
+
+    if (valid_value(value)) {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "%.1f%s", *value, unit ? unit : "");
+      it.printf(x + w / 2, y + 21, g_theme.header.font, text_color_,
+                TextAlign::TOP_CENTER, "%s", buf);
+    } else {
+      it.printf(x + w / 2, y + 21, g_theme.header.font, dim_color_,
+                TextAlign::TOP_CENTER, "—");
+    }
+  }
+
+  UiRect rect_;
+  const char *label_;
+  const std::string *condition_ptr_ = nullptr;
+  const float *temperature_ptr_ = nullptr;
+  const float *humidity_ptr_ = nullptr;
+  const float *wind_speed_ptr_ = nullptr;
+  const float *precipitation_ptr_ = nullptr;
+  std::string entity_id_;
+  Color text_color_;
+  Color dim_color_;
+  std::string last_condition_;
+  float last_temperature_ = 0.0f;
+  float last_humidity_ = 0.0f;
+  float last_wind_speed_ = 0.0f;
+  float last_precipitation_ = 0.0f;
+};
+
+// ---- WeatherWidget static icon glyph definitions ----
+
+const char WeatherWidget::icon_weather_cloudy[]           = "\xF3\xA0\x96\x90";
+const char WeatherWidget::icon_weather_fog[]              = "\xF3\xA0\x96\x91";
+const char WeatherWidget::icon_weather_hail[]             = "\xF3\xA0\x96\x92";
+const char WeatherWidget::icon_weather_lightning[]        = "\xF3\xA0\x96\x93";
+const char WeatherWidget::icon_weather_lightning_rainy[]  = "\xF3\xA0\x99\xBE";
+const char WeatherWidget::icon_weather_night[]            = "\xF3\xA0\x96\x94";
+const char WeatherWidget::icon_weather_partly_cloudy[]    = "\xF3\xA0\x96\x95";
+const char WeatherWidget::icon_weather_pouring[]          = "\xF3\xA0\x96\x96";
+const char WeatherWidget::icon_weather_rainy[]            = "\xF3\xA0\x96\x97";
+const char WeatherWidget::icon_weather_snowy[]            = "\xF3\xA0\x96\x98";
+const char WeatherWidget::icon_weather_snowy_rainy[]      = "\xF3\xA0\x99\xBF";
+const char WeatherWidget::icon_weather_sunny[]            = "\xF3\xA0\x96\x99";
+const char WeatherWidget::icon_weather_tornado[]          = "\xF3\xA0\xBC\xB8";
+const char WeatherWidget::icon_weather_windy[]            = "\xF3\xA0\x96\x9D";
+const char WeatherWidget::icon_weather_windy_variant[]    = "\xF3\xA0\x96\x9E";
+
 class LoadingWidget : public Widget {
  public:
   UiRect bounds() const override { return UiRect{0, 0, 480, 480}; }

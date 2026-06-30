@@ -12,6 +12,7 @@ import type {
   ImageComponent,
   TextComponent,
   HvacComponent,
+  WeatherComponent,
   EntityBinding,
   Condition,
   EntityCondition,
@@ -52,6 +53,7 @@ function componentLabel(c: Component): string {
     image: "Image",
     light_state: "Light State",
     hvac: "HVAC Control",
+    weather: "Weather",
     todo_list: "To-Do List",
     slider: "Slider",
     gauge: "Gauge",
@@ -73,6 +75,7 @@ const RULES: ValidationRule[] = [
   validateTodoListBinding,
   validateImageHaBinding,
   validateHvacBinding,
+  validateWeatherBinding,
 ];
 
 export function validateProject(project: Project): ValidationError[] {
@@ -217,6 +220,8 @@ function validateCodegenSafeStrings(project: Project): ValidationError[] {
       errors.push(...validateBinding((c as LightStateComponent).stateBinding, c, 'stateBinding'));
     } else if (c.type === 'hvac') {
       errors.push(...validateBinding((c as HvacComponent).stateBinding, c, 'stateBinding'));
+    } else if (c.type === 'weather') {
+      errors.push(...validateBinding((c as WeatherComponent).stateBinding, c, 'stateBinding'));
     } else if (c.type === 'todo_list') {
       const todo = c as TodoListComponent;
       errors.push(...validateBinding(todo.itemsBinding, c, 'itemsBinding'));
@@ -397,6 +402,26 @@ function validateHvacBinding(project: Project): ValidationError[] {
       errors.push({
         type: "error" as const,
         message: `Needs a climate entity binding to control`,
+        componentId: c.id,
+        componentLabel: componentLabel(c),
+      });
+    }
+  }
+
+  return errors;
+}
+
+function validateWeatherBinding(project: Project): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const components = collectAllComponents(project);
+
+  for (const c of components) {
+    if (c.type !== "weather") continue;
+    const weather = c as WeatherComponent;
+    if (!weather.stateBinding?.entityId) {
+      errors.push({
+        type: "error" as const,
+        message: `Needs a weather entity binding to display conditions`,
         componentId: c.id,
         componentLabel: componentLabel(c),
       });

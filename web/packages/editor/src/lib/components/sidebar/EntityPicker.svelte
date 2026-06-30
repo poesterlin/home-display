@@ -85,7 +85,9 @@
     }
     if (
       component.type === "procedural_icon" ||
-      component.type === "light_state"
+      component.type === "light_state" ||
+      component.type === "hvac" ||
+      component.type === "weather"
     ) {
       return component.stateBinding;
     }
@@ -393,7 +395,17 @@
     sensor: ["state", "unit_of_measurement", "device_class"],
     climate: ["temperature", "current_temperature", "hvac_action", "humidity"],
     media_player: ["media_title", "media_artist", "volume_level", "source"],
-    weather: ["temperature", "humidity", "wind_speed", "forecast"],
+    weather: [
+      "temperature",
+      "dew_point",
+      "humidity",
+      "cloud_coverage",
+      "uv_index",
+      "pressure",
+      "wind_bearing",
+      "wind_speed",
+      "forecast",
+    ],
     light: ["brightness", "color_temp", "rgb_color"],
     cover: ["current_position", "current_tilt_position"],
   };

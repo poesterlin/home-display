@@ -1,4 +1,4 @@
-import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent, ImageComponent, HvacComponent } from "@esphome-designer/schema";
+import type { EntityBinding, Project, LightStateComponent, StateField, TodoListComponent, TextComponent, ImageComponent, HvacComponent, WeatherComponent } from "@esphome-designer/schema";
 import { sanitizeDeviceName, stateVarFromEntity, collectAllComponents, collectProjectIconNames, todoItemsVarFromBinding, textBindingVar, bindingKey, imageIdFromComponentId, imageFallbackIdFromComponentId, escapeCString, escapeYAMLDoubleQuoted } from "./utils";
 import { collectConditionEntities, type ConditionEntityType } from "./condition-expr";
 import { ICON_FONT_ID, getIconGlyphs } from "./mdi-icons";
@@ -360,6 +360,47 @@ function generateNotificationSubscriptions(project: Project): string {
   return lines.join('\n');
 }
 
+function generateWeatherForecastIntervals(project: Project): string {
+  const allComponents = collectProjectComponents(project);
+  const weatherComponents = allComponents.filter(c => c.type === 'weather') as WeatherComponent[];
+  if (weatherComponents.length === 0) return '';
+
+  const seen = new Set<string>();
+  const entries: string[] = [];
+
+  for (const wc of weatherComponents) {
+    const entityId = wc.stateBinding?.entityId;
+    if (!entityId) continue;
+    if (seen.has(entityId)) continue;
+    seen.add(entityId);
+    const escapedId = escapeCString(entityId);
+    const base = stateVarFromEntity(entityId);
+
+    entries.push(`  - interval: 10min
+    then:
+      - homeassistant.service:
+          service: weather.get_forecasts
+          data:
+            type: daily
+            entity_id: "${escapedId}"
+          capture_response: true
+          on_success:
+            then:
+              - lambda: |-
+                  auto fc = response["forecast"];
+                  if (!fc.is<JsonArray>() || fc.size() == 0) return;
+                  auto today = fc[0];
+                  if (today.containsKey("condition"))     g_ui_app.state().${base}_condition.set(today["condition"].as<std::string>());
+                  if (today.containsKey("temperature"))   g_ui_app.state().${base}_temperature.set(today["temperature"].as<float>());
+                  if (today.containsKey("humidity"))      g_ui_app.state().${base}_humidity.set(today["humidity"].as<float>());
+                  if (today.containsKey("wind_speed"))    g_ui_app.state().${base}_wind_speed.set(today["wind_speed"].as<float>());
+                  if (today.containsKey("precipitation")) g_ui_app.state().${base}_precipitation.set(today["precipitation"].as<float>());
+                  UiRedraw::trigger_display_update();`);
+  }
+
+  return entries.join('\n\n');
+}
+
 export function generateESPHomeYAML(project: Project, firmwareVersion?: string): string {
   const deviceName = sanitizeDeviceName(project.name);
   const friendlyName = escapeYAMLDoubleQuoted(project.name);
@@ -373,6 +414,7 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
   const httpOtaEnabled = !!(project.secrets?.firmwareUpdateUrl);
   const httpRequestEnabled = onlineImagesEnabled || httpOtaEnabled;
   const bindings = generateBindings(project);
+  const weatherIntervals = generateWeatherForecastIntervals(project);
   const notificationSubs = generateNotificationSubscriptions(project);
   const notificationBindings = notificationSubs ? `\n${notificationSubs}` : '';
   const iconGlyphs = getIconGlyphs(collectProjectIconNames(project));
@@ -742,7 +784,7 @@ interval:
           // state. If nothing actually changed, render_basic_ui() returns
           // early at the needs_redraw() check.
           id(main_display).update();
-
+${weatherIntervals ? '\n' + weatherIntervals + '\n' : ''}
 # Dummy: forces ESPHome to compile api::HomeAssistantServiceCallAction
 # so the generic C++ lambda in on_boot can use it for dynamic service calls.
 script:
