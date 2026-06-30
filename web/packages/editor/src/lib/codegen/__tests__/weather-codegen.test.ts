@@ -157,7 +157,7 @@ describe("Weather codegen - esphome-yaml", () => {
     expect(yaml).toContain("capture_response: true");
     // Response JSON parsing with ArduinoJson 7.x API
     expect(yaml).toContain("is<JsonArray>()");
-    expect(yaml).toContain("containsKey");
+    expect(yaml).toContain("\"condition\"].is<std::string>()");
     expect(yaml).toContain("weather_home_condition");
     expect(yaml).toContain("weather_home_temperature");
     expect(yaml).toContain("weather_home_humidity");
@@ -167,4 +167,78 @@ describe("Weather codegen - esphome-yaml", () => {
     expect(yaml).not.toContain("bind_ha_string(\"weather.home\"");
     expect(yaml).not.toContain("bind_ha_float_attr(\"weather.home\"");
   });
+
+  test("generates 3-day forecast parsing for forecast mode", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "w1",
+              type: "weather",
+              label: "Forecast",
+              mode: "forecast",
+              position: { x: 10, y: 10 },
+              size: { width: 225, height: 200 },
+              stateBinding: { entityId: "weather.home" },
+            },
+          ],
+        },
+      ],
+    });
+    const yaml = generateESPHomeYAML(project);
+    // Service call
+    expect(yaml).toContain("weather.get_forecasts");
+    expect(yaml).toContain("type: daily");
+    // Should parse 3 days
+    expect(yaml).toContain("weather_home_day1_condition");
+    expect(yaml).toContain("weather_home_day1_temperature");
+    expect(yaml).toContain("weather_home_day2_condition");
+    expect(yaml).toContain("weather_home_day2_temperature");
+    expect(yaml).toContain("weather_home_day3_condition");
+    expect(yaml).toContain("weather_home_day3_temperature");
+    expect(yaml).toContain("weather_home_day3_precipitation");
+    // Should use size guards for day2/day3
+    expect(yaml).toContain("fc.size() >= 2");
+    expect(yaml).toContain("fc.size() >= 3");
+    // Should NOT contain old single-day fields
+    expect(yaml).not.toContain("weather_home_condition.set");
+    expect(yaml).not.toContain("weather_home_temperature.set");
+  });
 });
+
+describe("Weather codegen - forecast mode state", () => {
+  test("generates 15 Observable fields for forecast mode", () => {
+    const project = makeProject({
+      dashboardPages: [
+        {
+          id: "p1",
+          name: "Home",
+          components: [
+            {
+              id: "w1",
+              type: "weather",
+              mode: "forecast",
+              position: { x: 10, y: 10 },
+              size: { width: 225, height: 200 },
+              stateBinding: { entityId: "weather.home" },
+            },
+          ],
+        },
+      ],
+    });
+    const header = generateUIStateHeader(project);
+    expect(header).toContain("weather_home_day1_condition");
+    expect(header).toContain("weather_home_day1_temperature");
+    expect(header).toContain("weather_home_day1_humidity");
+    expect(header).toContain("weather_home_day1_wind_speed");
+    expect(header).toContain("weather_home_day1_precipitation");
+    expect(header).toContain("weather_home_day2_condition");
+    expect(header).toContain("weather_home_day2_temperature");
+    expect(header).toContain("weather_home_day3_condition");
+    expect(header).toContain("weather_home_day3_precipitation");
+  });
+});
+

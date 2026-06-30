@@ -168,6 +168,10 @@ export type HvacComponent = BaseComponent & {
 export type WeatherComponent = BaseComponent & {
   type: "weather";
   label?: string;
+  /**
+   * today = single-day view, forecast = 3-day forecast view
+   */
+  mode?: "today" | "forecast";
   stateBinding?: EntityBinding4;
 };
 export type AutoLayoutListComponent = BaseComponent & {

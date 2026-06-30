@@ -683,6 +683,16 @@
             oninput={(e) => updateProperty("label", e.currentTarget.value)}
           />
         </div>
+        <div class="field">
+          <span class="field-label">Mode</span>
+          <select
+            value={selectedComponent.mode ?? "today"}
+            onchange={(e) => updateProperty("mode", e.currentTarget.value)}
+          >
+            <option value="today">Today</option>
+            <option value="forecast">Forecast (3-day)</option>
+          </select>
+        </div>
       </div>
     {/if}
 

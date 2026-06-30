@@ -132,6 +132,7 @@ export function createComponent(type: string, x: number, y: number): Component {
         ...base,
         type: "weather",
         label: "Weather",
+        mode: "today",
         size: { width: 225, height: 200 },
       } as Component;
 

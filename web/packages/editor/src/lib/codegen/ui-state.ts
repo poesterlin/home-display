@@ -59,8 +59,11 @@ const WEATHER_FORECAST_FIELDS = [
   { suffix: 'precipitation', cppType: 'float',       initValue: '0.0f' },
 ] as const;
 
+const WEATHER_DAY_PREFIXES = ['day1', 'day2', 'day3'] as const;
+
 function collectWeatherStateVars(project: Project): { varName: string; cppType: string; initValue: string }[] {
   const result: { varName: string; cppType: string; initValue: string }[] = [];
+  const seen = new Set<string>();
   const allComponents = collectAllComponents([
     ...project.dashboardPages.flatMap(p => p.components),
     ...project.detailViews.flatMap(v => v.components),
@@ -70,8 +73,25 @@ function collectWeatherStateVars(project: Project): { varName: string; cppType: 
     const wc = c as WeatherComponent;
     const entityId = wc.stateBinding?.entityId ?? wc.id;
     const base = stateVarFromEntity(entityId);
-    for (const field of WEATHER_FORECAST_FIELDS) {
-      result.push({ varName: `${base}_${field.suffix}`, cppType: field.cppType, initValue: field.initValue });
+    const mode = wc.mode ?? 'today';
+    if (mode === 'forecast') {
+      for (const day of WEATHER_DAY_PREFIXES) {
+        for (const field of WEATHER_FORECAST_FIELDS) {
+          const varName = `${base}_${day}_${field.suffix}`;
+          if (!seen.has(varName)) {
+            seen.add(varName);
+            result.push({ varName, cppType: field.cppType, initValue: field.initValue });
+          }
+        }
+      }
+    } else {
+      for (const field of WEATHER_FORECAST_FIELDS) {
+        const varName = `${base}_${field.suffix}`;
+        if (!seen.has(varName)) {
+          seen.add(varName);
+          result.push({ varName, cppType: field.cppType, initValue: field.initValue });
+        }
+      }
     }
   }
   return result;

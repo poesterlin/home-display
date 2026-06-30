@@ -2016,25 +2016,32 @@ class HvacWidget : public Widget {
   std::string last_action_;
 };
 
+struct WeatherDayPointers {
+  const std::string *condition = nullptr;
+  const float *temperature = nullptr;
+  const float *humidity = nullptr;
+  const float *wind_speed = nullptr;
+  const float *precipitation = nullptr;
+};
+
 class WeatherWidget : public Widget {
  public:
   WeatherWidget(UiRect rect, const char *label,
-                const std::string *condition,
-                const float *temperature,
-                const float *humidity,
-                const float *wind_speed,
-                const float *precipitation,
                 const char *entity_id,
+                bool forecast_mode = false,
+                WeatherDayPointers day1 = WeatherDayPointers{},
+                WeatherDayPointers day2 = WeatherDayPointers{},
+                WeatherDayPointers day3 = WeatherDayPointers{},
                 Color text_color = Color(255, 255, 255),
                 Color dim_color  = Color(80, 80, 80))
       : rect_(rect), label_(label),
-        condition_ptr_(condition),
-        temperature_ptr_(temperature),
-        humidity_ptr_(humidity),
-        wind_speed_ptr_(wind_speed),
-        precipitation_ptr_(precipitation),
         entity_id_(entity_id),
-        text_color_(text_color), dim_color_(dim_color) {}
+        forecast_mode_(forecast_mode),
+        text_color_(text_color), dim_color_(dim_color) {
+    days_[0] = day1;
+    days_[1] = day2;
+    days_[2] = day3;
+  }
 
   UiRect bounds() const override { return screen_rect(rect_); }
 
@@ -2046,11 +2053,15 @@ class WeatherWidget : public Widget {
   void update(uint32_t now) override {
     (void)now;
     bool changed = false;
-    if (condition_ptr_ && *condition_ptr_ != last_condition_) { changed = true; }
-    if (changed_value(temperature_ptr_, last_temperature_)) { changed = true; }
-    if (changed_value(humidity_ptr_, last_humidity_)) { changed = true; }
-    if (changed_value(wind_speed_ptr_, last_wind_speed_)) { changed = true; }
-    if (changed_value(precipitation_ptr_, last_precipitation_)) { changed = true; }
+    const int n = forecast_mode_ ? 3 : 1;
+    for (int d = 0; d < n; d++) {
+      const auto &dp = days_[d];
+      if (dp.condition && *dp.condition != last_condition_[d]) { changed = true; }
+      if (changed_value(dp.temperature, last_temperature_[d])) { changed = true; }
+      if (changed_value(dp.humidity, last_humidity_[d])) { changed = true; }
+      if (changed_value(dp.wind_speed, last_wind_speed_[d])) { changed = true; }
+      if (changed_value(dp.precipitation, last_precipitation_[d])) { changed = true; }
+    }
     if (changed) mark_dirty();
     Widget::update(now);
   }
@@ -2062,8 +2073,30 @@ class WeatherWidget : public Widget {
     const int w = r.w;
     const int h = r.h;
 
-    const Color accent = condition_color(condition_ptr_ ? condition_ptr_->c_str() : "");
+    if (forecast_mode_) {
+      draw_forecast(it, r);
+    } else {
+      draw_compact(it, r);
+    }
+
+    const int n = forecast_mode_ ? 3 : 1;
+    for (int d = 0; d < n; d++) {
+      if (days_[d].condition) last_condition_[d] = *days_[d].condition;
+      copy_value(days_[d].temperature, last_temperature_[d]);
+      copy_value(days_[d].humidity, last_humidity_[d]);
+      copy_value(days_[d].wind_speed, last_wind_speed_[d]);
+      copy_value(days_[d].precipitation, last_precipitation_[d]);
+    }
+  }
+
+ private:
+  // ---- Today layout ----
+  void draw_compact(display::Display &it, const UiRect &r) {
+    const int w = r.w;
+    const int h = r.h;
     const int pad = 9;
+    const auto &dp = days_[0];
+    const Color accent = condition_color(dp.condition ? dp.condition->c_str() : "");
 
 #if UI_THEME_RETRO
     const Color bg = RetroColors::VOID;
@@ -2085,7 +2118,6 @@ class WeatherWidget : public Widget {
 
     const int top_y = r.y + pad + 3;
 
-    // ---- Top row: label ----
     if (label_ && label_[0] && g_theme.header.font != nullptr) {
       const int max_label_w = w - pad * 2;
       ui_print_truncated(it, r.x + pad, top_y,
@@ -2093,22 +2125,21 @@ class WeatherWidget : public Widget {
                          TextAlign::TOP_LEFT, label_, max_label_w);
     }
 
-    // ---- Center: icon + temperature ----
     {
       const int content_top = top_y + 22 + 6;
       const int content_bottom = r.y + h - pad - 52;
       const int cy = (content_top + content_bottom) / 2;
 
-      if (condition_ptr_ && !condition_ptr_->empty() && g_theme.icon.font != nullptr) {
-        const char *glyph = condition_icon(condition_ptr_->c_str());
+      if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
+        const char *glyph = condition_icon(dp.condition->c_str());
         const int icon_y = content_top + 4;
         it.printf(r.x + w / 2, icon_y, g_theme.icon.font, accent,
                   TextAlign::TOP_CENTER, "%s", glyph);
       }
 
-      if (valid_value(temperature_ptr_)) {
+      if (valid_value(dp.temperature)) {
         char buf[16];
-        snprintf(buf, sizeof(buf), "%.1f°", *temperature_ptr_);
+        snprintf(buf, sizeof(buf), "%.1f°", *dp.temperature);
         it.printf(r.x + w / 2, cy + 12, g_theme.header.font, text_color_,
                   TextAlign::TOP_CENTER, "%s", buf);
       } else {
@@ -2117,7 +2148,6 @@ class WeatherWidget : public Widget {
       }
     }
 
-    // ---- Bottom: 3 pills (humidity | precipitation | wind) ----
     {
       const int pill_top = r.y + h - 52;
       const int pill_h = 40;
@@ -2125,21 +2155,131 @@ class WeatherWidget : public Widget {
       const int pill_w = (w - pad * 2 - pill_pad * 2) / 3;
 
       draw_pill(it, r.x + pad, pill_top, pill_w, pill_h, "HUM",
-                humidity_ptr_, "%");
+                dp.humidity, "%");
       draw_pill(it, r.x + pad + pill_w + pill_pad, pill_top, pill_w, pill_h,
-                "RAIN", precipitation_ptr_, " mm");
+                "RAIN", dp.precipitation, " mm");
       draw_pill(it, r.x + pad + (pill_w + pill_pad) * 2, pill_top, pill_w,
-                pill_h, "WIND", wind_speed_ptr_, " m/s");
+                pill_h, "WIND", dp.wind_speed, " m/s");
     }
-
-    if (condition_ptr_) last_condition_ = *condition_ptr_;
-    copy_value(temperature_ptr_, last_temperature_);
-    copy_value(humidity_ptr_, last_humidity_);
-    copy_value(wind_speed_ptr_, last_wind_speed_);
-    copy_value(precipitation_ptr_, last_precipitation_);
   }
 
- private:
+  // ---- Forecast layout ----
+  void draw_forecast(display::Display &it, const UiRect &r) {
+    const int w = r.w;
+    const int h = r.h;
+    const int pad = 9;
+
+    const Color accent = condition_color(days_[0].condition ? days_[0].condition->c_str() : "");
+    const Color bg(10, 14, 22);
+    draw_clipped_box(it, r.x, r.y, w, h, 9, accent, bg, false);
+
+    const int top_y = r.y + pad + 3;
+
+    if (label_ && label_[0] && g_theme.header.font != nullptr) {
+      const int max_label_w = w - pad * 2;
+      ui_print_truncated(it, r.x + pad, top_y,
+                         g_theme.header.font, dim_color_,
+                         TextAlign::TOP_LEFT, label_, max_label_w);
+    }
+
+    const int col_gap = 4;
+    const int col_count = 3;
+    const int col_w = (w - pad * 2 - col_gap * 2) / col_count;
+    const int content_top = top_y + 22 + 6;
+
+    const char *day_labels[3] = {"---", "---", "---"};
+    {
+      const char *weekday_short[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+      auto now = sntp_time->now();
+      if (now.is_valid()) {
+        int dow = now.day_of_week - 1; // 0=Sunday
+        for (int i = 0; i < 3; i++) {
+          day_labels[i] = weekday_short[(dow + i) % 7];
+        }
+      }
+    }
+
+    for (int d = 0; d < col_count; d++) {
+      const int cx = r.x + pad + d * (col_w + col_gap);
+      const int mid = cx + col_w / 2;
+      const auto &dp = days_[d];
+      const Color col_accent = condition_color(dp.condition ? dp.condition->c_str() : "");
+
+      int cy = content_top;
+
+      // Day label
+      if (g_theme.label.font != nullptr) {
+        it.printf(mid, cy, g_theme.label.font, dim_color_,
+                  TextAlign::TOP_CENTER, "%s", day_labels[d]);
+      }
+      cy += 16;
+
+      // Icon
+      if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
+        const char *glyph = condition_icon(dp.condition->c_str());
+        it.printf(mid, cy, g_theme.icon.font, col_accent,
+                  TextAlign::TOP_CENTER, "%s", glyph);
+      }
+      cy += 26;
+
+      // Temperature
+      if (g_theme.label.font != nullptr) {
+        if (valid_value(dp.temperature)) {
+          char buf[16];
+          snprintf(buf, sizeof(buf), "%.1f°", *dp.temperature);
+          it.printf(mid, cy, g_theme.label.font, text_color_,
+                    TextAlign::TOP_CENTER, "%s", buf);
+        } else {
+          it.printf(mid, cy, g_theme.label.font, dim_color_,
+                    TextAlign::TOP_CENTER, "—°");
+        }
+      }
+      cy += 22;
+
+      // Rain detail
+      if (g_theme.label.font != nullptr) {
+        it.printf(mid, cy, g_theme.label.font, dim_color_,
+                  TextAlign::TOP_CENTER, "RAIN");
+        cy += 11;
+        if (valid_value(dp.precipitation)) {
+          char buf[24];
+          snprintf(buf, sizeof(buf), "%.1f mm", *dp.precipitation);
+          it.printf(mid, cy, g_theme.label.font, text_color_,
+                    TextAlign::TOP_CENTER, "%s", buf);
+        } else {
+          it.printf(mid, cy, g_theme.label.font, dim_color_,
+                    TextAlign::TOP_CENTER, "\xE2\x80\x94");
+        }
+      }
+    }
+  }
+
+  void draw_compact_pill_row(display::Display &it, int x, int y, int w,
+                             const char *label_text, const float *value,
+                             const char *unit) {
+    const Color pill_bg(18, 22, 32);
+    const Color pill_border(35, 40, 55);
+
+    const int pill_h = 16;
+    it.filled_rectangle(x, y, w, pill_h, pill_bg);
+    it.rectangle(x, y, w, pill_h, pill_border);
+
+    if (g_theme.label.font == nullptr) return;
+
+    it.printf(x + 2, y + 1, g_theme.label.font, dim_color_,
+              TextAlign::TOP_LEFT, "%s", label_text);
+
+    if (valid_value(value)) {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "%.1f%s", *value, unit ? unit : "");
+      it.printf(x + w - 2, y + 1, g_theme.label.font, text_color_,
+                TextAlign::TOP_RIGHT, "%s", buf);
+    } else {
+      it.printf(x + w - 2, y + 1, g_theme.label.font, dim_color_,
+                TextAlign::TOP_RIGHT, "—");
+    }
+  }
+
   static bool valid_value(const float *p) {
     return p != nullptr && *p > 0.0f &&
            !std::isnan(*p) && !std::isinf(*p);
@@ -2202,7 +2342,6 @@ class WeatherWidget : public Widget {
   }
 
   // ---- MDI weather icon glyphs (UTF-8 C escapes) ----
-
   static const char icon_weather_cloudy[];
   static const char icon_weather_fog[];
   static const char icon_weather_hail[];
@@ -2247,19 +2386,16 @@ class WeatherWidget : public Widget {
 
   UiRect rect_;
   const char *label_;
-  const std::string *condition_ptr_ = nullptr;
-  const float *temperature_ptr_ = nullptr;
-  const float *humidity_ptr_ = nullptr;
-  const float *wind_speed_ptr_ = nullptr;
-  const float *precipitation_ptr_ = nullptr;
   std::string entity_id_;
+  bool forecast_mode_ = false;
+  WeatherDayPointers days_[3];
   Color text_color_;
   Color dim_color_;
-  std::string last_condition_;
-  float last_temperature_ = 0.0f;
-  float last_humidity_ = 0.0f;
-  float last_wind_speed_ = 0.0f;
-  float last_precipitation_ = 0.0f;
+  std::string last_condition_[3];
+  float last_temperature_[3] = {0.0f};
+  float last_humidity_[3] = {0.0f};
+  float last_wind_speed_[3] = {0.0f};
+  float last_precipitation_[3] = {0.0f};
 };
 
 // ---- WeatherWidget static icon glyph definitions ----
