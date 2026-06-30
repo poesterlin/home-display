@@ -124,7 +124,7 @@ export function createComponent(type: string, x: number, y: number): Component {
         minTemp: 10,
         maxTemp: 30,
         onMode: "heat",
-        size: { width: 150, height: 105 },
+        size: { width: 225, height: 158 },
       } as Component;
 
     case "auto_layout_list":

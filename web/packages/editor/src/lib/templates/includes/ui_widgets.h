@@ -1674,16 +1674,16 @@ class HvacWidget : public Widget {
       return false;
     }
 
-    const UiRect r = screen_rect(rect_);
+const UiRect r = screen_rect(rect_);
     const int w = r.w;
     const int h = r.h;
 
-    const int pad = 6;
-    const int btn_h = 26;
+    const int pad = 9;
+    const int btn_h = 39;
     const int btns_y = r.y + h - btn_h - pad;
 
     // Two temp buttons (compact) + power button
-    const int btn_gap = 4;
+    const int btn_gap = 6;
     const int total_w = w - pad * 2 - btn_gap * 2;
     const int temp_btn_w = total_w / 5;
     const int power_btn_w = total_w - temp_btn_w * 2;
@@ -1697,6 +1697,32 @@ class HvacWidget : public Widget {
         temp_down(now);
         return true;
       }
+    }
+
+    // Temp up button
+    {
+      const int bx = r.x + pad + temp_btn_w + btn_gap;
+      const int by = btns_y;
+      if (event.x >= bx && event.x <= bx + temp_btn_w &&
+          event.y >= by && event.y <= by + btn_h) {
+        temp_up(now);
+        return true;
+      }
+    }
+
+    // Power button
+    {
+      const int bx = r.x + pad + (temp_btn_w + btn_gap) * 2;
+      const int by = btns_y;
+      if (event.x >= bx && event.x <= bx + power_btn_w &&
+          event.y >= by && event.y <= by + btn_h) {
+        toggle_power(now);
+        return true;
+      }
+    }
+
+    return false;
+  }
     }
 
     // Temp up button
@@ -1738,60 +1764,86 @@ class HvacWidget : public Widget {
     const Color bg(10, 14, 22);
 
     // Clipped-corner container
-    const int c = 6;
+    const int c = 9;
     draw_clipped_box(it, r.x, r.y, w, h, c, accent, bg, false);
 
-    const int pad = 6;
+    const int pad = 9;
 
     // ---- Top row: label (left) + mode (right) ----
-    const int top_y = r.y + pad + 2;
+    const int top_y = r.y + pad + 3;
+    const int top_row_h = 22;  // header font cap height
     {
-      if (label_ && label_[0] && g_theme.label.font != nullptr) {
-        const int max_label_w = w - pad * 2 - 40;
+      if (label_ && label_[0] && g_theme.header.font != nullptr) {
+        const int max_label_w = w - pad * 2 - 70;
         ui_print_truncated(it, r.x + pad, top_y,
-                           g_theme.label.font, dim,
+                           g_theme.header.font, dim,
                            TextAlign::TOP_LEFT, label_, max_label_w);
       }
 
-      if (hvac_mode_ptr_ && !hvac_mode_ptr_->empty() && g_theme.label.font != nullptr) {
+      if (hvac_mode_ptr_ && !hvac_mode_ptr_->empty() && g_theme.header.font != nullptr) {
         Color mode_color = is_on ? accent : dim;
-        it.printf(r.x + w - pad, top_y, g_theme.label.font, mode_color,
+        it.printf(r.x + w - pad, top_y, g_theme.header.font, mode_color,
                   TextAlign::TOP_RIGHT, "%s", hvac_mode_ptr_->c_str());
       }
     }
 
-    // ---- Center: target temperature + "Target" label ----
+    // ---- Center: current temp (optional) + target temp + "Target" label ----
+    // Stack drawn with TOP_CENTER so y tracks the top of each line; the
+    // whole stack is centered in the content area between the top row and
+    // the button row.
     {
-      const int btn_h = 26;
+      const int btn_h = 39;
       const int btns_y = r.y + h - btn_h - pad;
+      const int content_top = top_y + top_row_h + 6;
       const int content_bottom = btns_y - pad;
-      const int center_y = top_y + 12 + (content_bottom - (top_y + 12)) / 2;
+      const int center_y = content_top + (content_bottom - content_top) / 2;
+
+      const int target_h = 22;   // header font cap height
+      const int label_h = 16;    // label font cap height
+      const int gap = 3;
+      const bool has_current =
+          current_temp_ptr_ != nullptr && g_theme.label.font != nullptr &&
+          *current_temp_ptr_ > 0.0f &&
+          !std::isnan(*current_temp_ptr_) && !std::isinf(*current_temp_ptr_);
+
+      int total_h = target_h + gap + label_h;
+      if (has_current) total_h += label_h + gap;
+      int y_cursor = center_y - total_h / 2;
+
+      if (has_current) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.1f°", *current_temp_ptr_);
+        it.printf(r.x + w / 2, y_cursor, g_theme.label.font, dim,
+                  TextAlign::TOP_CENTER, "%s", buf);
+        y_cursor += label_h + gap;
+      }
 
       if (target_temp_ptr_ && g_theme.header.font != nullptr) {
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f°", *target_temp_ptr_);
-        it.printf(r.x + w / 2, center_y - 4, g_theme.header.font, text,
-                  TextAlign::CENTER, "%s", buf);
+        it.printf(r.x + w / 2, y_cursor, g_theme.header.font, text,
+                  TextAlign::TOP_CENTER, "%s", buf);
+        y_cursor += target_h + gap;
+      }
 
-        if (g_theme.label.font != nullptr) {
-          it.printf(r.x + w / 2, center_y + 14, g_theme.label.font, dim,
-                    TextAlign::CENTER, "Target");
-        }
+      if (g_theme.label.font != nullptr) {
+        it.printf(r.x + w / 2, y_cursor, g_theme.label.font, dim,
+                  TextAlign::TOP_CENTER, "Target");
       }
     }
 
     // ---- Bottom buttons ----
-    const int btn_h = 26;
+    const int btn_h = 39;
     const int btns_y = r.y + h - btn_h - pad;
     {
-      const int btn_gap = 4;
+      const int btn_gap = 6;
       const int total_w = w - pad * 2 - btn_gap * 2;
       const int temp_btn_w = total_w / 5;
       const int power_btn_w = total_w - temp_btn_w * 2;
 
       auto draw_icon_btn = [&](int bx, int bw, int bh, const char *glyph,
                                 Color bc, Color tc) {
-        const int mc = 3;
+        const int mc = 5;
         draw_clipped_box(it, bx, btns_y, bw, bh, mc, bc, RetroColors::DIM, true);
         if (glyph && glyph[0] && g_theme.icon.font != nullptr) {
           it.printf(bx + bw / 2, btns_y + bh / 2, g_theme.icon.font, tc,

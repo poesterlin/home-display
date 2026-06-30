@@ -12,6 +12,7 @@
   import { conditionalEditorStore } from "$lib/stores/conditional-editor.svelte";
   import { describeCondition } from "$lib/utils/condition-utils";
   import ActionEditor from "./ActionEditor.svelte";
+  import { HVAC_MODE_LIST, getHvacModeColor, getHvacOffColor, colorToCss as hvacColorToCss } from "$lib/utils/hvac-modes";
 
   const NAV_ICONS: Record<string, string> = {
     OPEN_DETAIL: "mdi:open-in-new",
@@ -302,7 +303,7 @@
                 updateSize("width", parseInt(e.currentTarget.value) || 10)}
             />
           </div>
-          {#if selectedComponent?.type !== "light_state" && selectedComponent?.type !== "hvac"}
+          {#if selectedComponent?.type !== "light_state"}
             <div class="field">
               <span class="field-label">H</span>
               <input
@@ -658,27 +659,11 @@
             value={selectedComponent.onMode ?? "heat"}
             onchange={(e) => updateProperty("onMode", e.currentTarget.value)}
           >
-            <option value="heat">Heat</option>
-            <option value="cool">Cool</option>
-            <option value="heat_cool">Heat/Cool</option>
-            <option value="auto">Auto</option>
-            <option value="fan_only">Fan Only</option>
-            <option value="dry">Dry</option>
+            {#each HVAC_MODE_LIST as mode}
+              <option value={mode.value}>{mode.label}</option>
+            {/each}
           </select>
         </div>
-      </div>
-      <div class="property-section">
-        <label class="section-label">Styling</label>
-        <ColorPicker
-          label="On Color"
-          value={selectedComponent.onColor}
-          onUpdate={(color) => updateProperty("onColor", color)}
-        />
-        <ColorPicker
-          label="Off Color"
-          value={selectedComponent.offColor}
-          onUpdate={(color) => updateProperty("offColor", color)}
-        />
       </div>
     {/if}
 
@@ -1169,6 +1154,39 @@
     font-size: 11px;
     color: var(--color-text-muted);
     margin: var(--spacing-xs) 0 var(--spacing-sm);
+    line-height: 1.4;
+  }
+
+  .mode-color-legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .mode-color-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  .mode-color-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .mode-color-label {
+    text-transform: capitalize;
+  }
+
+  .mode-color-hint {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin: var(--spacing-xs) 0 0 0;
     line-height: 1.4;
   }
 </style>

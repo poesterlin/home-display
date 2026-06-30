@@ -27,6 +27,7 @@ import {
   type ScreenDescriptor,
   type WidgetFactory,
 } from "./utils";
+import { HVAC_MODES, HVAC_OFF_COLOR } from "../utils/hvac-modes";
 import { emitConditionExpression } from "./condition-expr";
 import { getMdiUtf8CEscape } from "./mdi-icons";
 import { parseTemplate } from "../utils/template-utils";
@@ -298,8 +299,8 @@ function generateHvacWidget(c: HvacComponent,
     dirtyBoundsExpr?: string): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
-  const w = c.size?.width ?? 150;
-  const h = c.size?.height ?? 105;
+  const w = c.size?.width ?? 225;
+  const h = c.size?.height ?? 158;
   const label = c.label ?? 'Climate';
   const entityId = c.stateBinding?.entityId ?? c.id;
   const base = stateVarFromEntity(entityId);
@@ -307,8 +308,9 @@ function generateHvacWidget(c: HvacComponent,
   const minTemp = c.minTemp ?? 10;
   const maxTemp = c.maxTemp ?? 30;
   const onMode = c.onMode ?? 'heat';
-  const onColor = c.onColor ? emitColor(c.onColor) : 'Color(255, 180, 0)';
-  const offColor = c.offColor ? emitColor(c.offColor) : 'Color(80, 80, 80)';
+  const modeInfo = HVAC_MODES[onMode] ?? HVAC_MODES.heat;
+  const onColor = emitColor(modeInfo.color);
+  const offColor = emitColor(HVAC_OFF_COLOR);
   const iconDown = getMdiUtf8CEscape('minus') ?? '\\-';
   const iconUp = getMdiUtf8CEscape('plus') ?? '\\+';
   const iconPower = getMdiUtf8CEscape('power') ?? '?';
