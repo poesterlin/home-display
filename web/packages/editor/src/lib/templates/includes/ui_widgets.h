@@ -1674,7 +1674,7 @@ class HvacWidget : public Widget {
       return false;
     }
 
-const UiRect r = screen_rect(rect_);
+    const UiRect r = screen_rect(rect_);
     const int w = r.w;
     const int h = r.h;
 
@@ -1723,32 +1723,6 @@ const UiRect r = screen_rect(rect_);
 
     return false;
   }
-    }
-
-    // Temp up button
-    {
-      const int bx = r.x + pad + temp_btn_w + btn_gap;
-      const int by = btns_y;
-      if (event.x >= bx && event.x <= bx + temp_btn_w &&
-          event.y >= by && event.y <= by + btn_h) {
-        temp_up(now);
-        return true;
-      }
-    }
-
-    // Power button
-    {
-      const int bx = r.x + pad + (temp_btn_w + btn_gap) * 2;
-      const int by = btns_y;
-      if (event.x >= bx && event.x <= bx + power_btn_w &&
-          event.y >= by && event.y <= by + btn_h) {
-        toggle_power(now);
-        return true;
-      }
-    }
-
-    return false;
-  }
 
   void draw(display::Display &it, const UiState &state) override {
     (void)state;
@@ -1761,17 +1735,33 @@ const UiRect r = screen_rect(rect_);
     const Color accent = is_on ? on_color_ : off_color_;
     const Color dim = RetroColors::STEEL;
     const Color text = RetroColors::WHITE;
-    const Color bg(10, 14, 22);
-
-    // Clipped-corner container
-    const int c = 9;
-    draw_clipped_box(it, r.x, r.y, w, h, c, accent, bg, false);
-
     const int pad = 9;
-
-    // ---- Top row: label (left) + mode (right) ----
     const int top_y = r.y + pad + 3;
     const int top_row_h = 22;  // header font cap height
+
+#if UI_THEME_RETRO
+    // ---- Retro: clipped-corner container with glow halo, inner double-line
+    // border, CRT scanline overlay and decorative corner ticks. The accent
+    // colour mirrors the modern path: amber when on, dim grey when off.
+    const Color bg = RetroColors::VOID;
+    draw_clipped_box(it, r.x, r.y, w, h, 9, accent, bg, true);
+    draw_clipped_border(it, r.x + 2, r.y + 2, w - 4, h - 4,
+                        7, 7, 7, 7,
+                        is_on ? RetroColors::AMBER_DIM : RetroColors::DIMMER);
+    draw_scanline_overlay(it, r.x + 1, r.y + 1, w - 2, h - 2, 4,
+                          RetroColors::SCANLINE);
+    // Tiny corner accents (L-shapes) in cyan dim to echo the screen frame
+    draw_corner_accent_tl(it, r.x + 4, r.y + 4, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_tr(it, r.x + w - 5, r.y + 4, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_bl(it, r.x + 4, r.y + h - 5, 5, RetroColors::CYAN_DIM);
+    draw_corner_accent_br(it, r.x + w - 5, r.y + h - 5, 5,
+                          RetroColors::CYAN_DIM);
+#else
+    const Color bg(10, 14, 22);
+    draw_clipped_box(it, r.x, r.y, w, h, 9, accent, bg, false);
+#endif
+
+    // ---- Top row: label (left) + mode (right) ----
     {
       if (label_ && label_[0] && g_theme.header.font != nullptr) {
         const int max_label_w = w - pad * 2 - 70;
@@ -1786,6 +1776,18 @@ const UiRect r = screen_rect(rect_);
                   TextAlign::TOP_RIGHT, "%s", hvac_mode_ptr_->c_str());
       }
     }
+
+#if UI_THEME_RETRO
+    // Dashed divider between the header and the temperature readout, plus a
+    // small hatch pattern on the left edge as a "category" greeble.
+    {
+      const int div_y = top_y + top_row_h + 2;
+      draw_dashed_hline(it, r.x + pad, r.x + w - pad, div_y,
+                        RetroColors::DIMMER, 3, 3);
+      draw_hatch_pattern(it, r.x + pad, div_y - 4, div_y + 4,
+                         3, 3, RetroColors::AMBER_DIM);
+    }
+#endif
 
     // ---- Center: current temp (optional) + target temp + "Target" label ----
     // Stack drawn with TOP_CENTER so y tracks the top of each line; the
@@ -1821,9 +1823,25 @@ const UiRect r = screen_rect(rect_);
       if (target_temp_ptr_ && g_theme.header.font != nullptr) {
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f°", *target_temp_ptr_);
-        it.printf(r.x + w / 2, y_cursor, g_theme.header.font, text,
+        const int ttx = r.x + w / 2;
+        it.printf(ttx, y_cursor, g_theme.header.font, text,
                   TextAlign::TOP_CENTER, "%s", buf);
         y_cursor += target_h + gap;
+#if UI_THEME_RETRO
+        // Bracket the target readout with small L-shaped ticks to make it
+        // read as the primary gauge rather than ordinary text.
+        int tx, ty, tw, th;
+        it.get_text_bounds(ttx, y_cursor - target_h - gap, buf,
+                           g_theme.header.font, TextAlign::TOP_CENTER,
+                           &tx, &ty, &tw, &th);
+        const int arm = 4;
+        const int off = 3;
+        const Color bc = is_on ? accent : RetroColors::CYAN_DIM;
+        draw_corner_accent_tl(it, tx - off, ty - off, arm, bc);
+        draw_corner_accent_tr(it, tx + tw + off, ty - off, arm, bc);
+        draw_corner_accent_bl(it, tx - off, ty + th + off, arm, bc);
+        draw_corner_accent_br(it, tx + tw + off, ty + th + off, arm, bc);
+#endif
       }
 
       if (g_theme.label.font != nullptr) {
@@ -1858,8 +1876,15 @@ const UiRect r = screen_rect(rect_);
       const bool temp_up_active = loading_ && pending_action_ == 2;
       const bool power_active = loading_ && pending_action_ == 3;
 
+#if UI_THEME_RETRO
+      // Retro: temp buttons adopt the cyber palette — cyan when idle, amber
+      // flash when pressed — so they harmonise with the container accent.
+      const Color temp_dim = RetroColors::DIMMER;
+      const Color temp_accent = RetroColors::AMBER;
+#else
       const Color temp_dim(60, 60, 80);
       const Color temp_accent(255, 180, 0);
+#endif
 
       // Temp down
       {
