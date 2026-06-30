@@ -383,6 +383,7 @@ function generateWeatherForecastIntervals(project: Project): string {
     if (mode === 'forecast') {
       entries.push(`  - interval: 10min
     then:
+      - logger.log: "weather: calling weather.get_forecasts for ${escapedId}"
       - homeassistant.service:
           service: weather.get_forecasts
           data:
@@ -392,10 +393,10 @@ function generateWeatherForecastIntervals(project: Project): string {
           on_success:
             then:
               - lambda: |-
-                  ESP_LOGD("weather", "forecast on_success for %s (response keys=%u)", "${escapedId}", response.size());
+                  ESP_LOGW("weather", "on_response fired for %s", "${escapedId}");
                   auto entity_resp = response["${escapedId}"];
                   if (!entity_resp.is<JsonObject>()) {
-                    ESP_LOGD("weather", "entity_resp is not object (is_null=%d)", entity_resp.isNull());
+                    ESP_LOGW("weather", "entity key not found (is_null=%d)", entity_resp.isNull());
                     return;
                   }
                   ESP_LOGD("weather", "entity_resp keys=%u", entity_resp.size());
@@ -427,6 +428,7 @@ function generateWeatherForecastIntervals(project: Project): string {
                   UiRedraw::trigger_display_update();`);    } else {
       entries.push(`  - interval: 10min
     then:
+      - logger.log: "weather: calling weather.get_forecasts for ${escapedId}"
       - homeassistant.service:
           service: weather.get_forecasts
           data:
@@ -436,10 +438,10 @@ function generateWeatherForecastIntervals(project: Project): string {
           on_success:
             then:
               - lambda: |-
-                  ESP_LOGD("weather", "today on_success for %s (response keys=%u)", "${escapedId}", response.size());
+                  ESP_LOGW("weather", "on_response fired for %s", "${escapedId}");
                   auto entity_resp = response["${escapedId}"];
                   if (!entity_resp.is<JsonObject>()) {
-                    ESP_LOGD("weather", "entity_resp is not object (is_null=%d)", entity_resp.isNull());
+                    ESP_LOGW("weather", "entity key not found (is_null=%d)", entity_resp.isNull());
                     return;
                   }
                   ESP_LOGD("weather", "entity_resp keys=%u", entity_resp.size());

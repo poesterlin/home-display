@@ -155,6 +155,7 @@ describe("Weather codegen - esphome-yaml", () => {
     expect(yaml).toContain("type: daily");
     expect(yaml).toContain("entity_id: \"weather.home\"");
     expect(yaml).toContain("capture_response: true");
+    expect(yaml).toContain("on_success:");
     // Response JSON parsing with ArduinoJson 7.x API
     expect(yaml).toContain("is<JsonArray>()");
     expect(yaml).toContain("\"condition\"].is<std::string>()");
