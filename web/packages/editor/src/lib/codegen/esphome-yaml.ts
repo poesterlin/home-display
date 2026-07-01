@@ -452,7 +452,7 @@ function generateWeatherForecastIntervals(project: Project): string {
       - homeassistant.service:
           service: weather.get_forecasts
           data:
-            type: daily
+            type: hourly
             entity_id: "${escapedId}"
           capture_response: true
           on_success:
@@ -487,7 +487,7 @@ function generateWeatherForecastIntervals(project: Project): string {
                   if (today["humidity"].is<float>())      { auto v = today["humidity"].as<float>(); ESP_LOGW("weather", "humidity=%.1f", v); g_ui_app.state().${base}_humidity.set(v); }
                   if (today["wind_speed"].is<float>())    { auto v = today["wind_speed"].as<float>(); ESP_LOGW("weather", "wind_speed=%.1f", v); g_ui_app.state().${base}_wind_speed.set(v); }
                   if (today["precipitation"].is<float>()) { auto v = today["precipitation"].as<float>(); ESP_LOGW("weather", "precipitation=%.1f", v); g_ui_app.state().${base}_precipitation.set(v); }
-                  ESP_LOGW("weather", "today parse complete");
+                  ESP_LOGW("weather", "today parse complete — hourly");
                   UiRedraw::trigger_display_update();`);
     }
   }

@@ -969,7 +969,7 @@ class ButtonWidget : public Widget {
 
  private:
   bool hit_test(int tx, int ty) const {
-    return ui_hit_test_with_slop(rect_, tx, ty);
+    return ui_hit_test_with_slop(bounds(), tx, ty);
   }
 
   UiRect rect_;
@@ -1109,7 +1109,7 @@ class ImageToggleWidget : public Widget {
 
  private:
   bool hit_test(int tx, int ty) const {
-    return ui_hit_test_with_slop(rect_, tx, ty);
+    return ui_hit_test_with_slop(bounds(), tx, ty);
   }
 
   UiRect rect_;

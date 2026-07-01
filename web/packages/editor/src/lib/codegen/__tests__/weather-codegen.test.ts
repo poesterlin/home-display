@@ -152,7 +152,7 @@ describe("Weather codegen - esphome-yaml", () => {
     const yaml = generateESPHomeYAML(project);
     // Service call
     expect(yaml).toContain("weather.get_forecasts");
-    expect(yaml).toContain("type: daily");
+    expect(yaml).toContain("type: hourly");
     expect(yaml).toContain("entity_id: \"weather.home\"");
     expect(yaml).toContain("capture_response: true");
     expect(yaml).toContain("on_success:");
