@@ -7,7 +7,7 @@ export const GET: RequestHandler = async () => {
   if (!isScreenshotDebugEnabled()) error(404, "Screenshot feature disabled");
 
   const devices = await listScreenshotDevices();
-  devices.sort((a, b) => b.mtime - a.mtime);
+  devices.sort((a, b) => b.ts - a.ts);
 
   return json(devices);
 };

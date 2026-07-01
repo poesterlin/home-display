@@ -2,7 +2,7 @@
   interface DeviceScreenshot {
     deviceId: string;
     size: number;
-    mtime: number;
+    ts: number;
   }
 
   let { data } = $props();
@@ -13,11 +13,8 @@
     return `${(bytes / 1024).toFixed(1)} KiB`;
   }
 
-  function formatAge(ms: number): string {
-    const delta = Date.now() - ms;
-    if (delta < 60_000) return "just now";
-    if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
-    return new Date(ms).toLocaleString();
+  function formatTime(ms: number): string {
+    return new Date(ms).toLocaleTimeString();
   }
 </script>
 
@@ -35,7 +32,7 @@
       <div class="screenshot-card">
         <div class="screenshot-preview">
           <img
-            src="/screenshots/{device.deviceId}?_={device.mtime}"
+            src="/screenshots/{device.deviceId}?ts={device.ts}"
             alt="Screenshot from {device.deviceId}"
             loading="lazy"
           />
@@ -43,7 +40,7 @@
         <div class="screenshot-info">
           <h3>{device.deviceId}</h3>
           <span class="size">{formatSize(device.size)}</span>
-          <span class="age">{formatAge(device.mtime)}</span>
+          <span class="age">{formatTime(device.ts)}</span>
         </div>
       </div>
     {/each}

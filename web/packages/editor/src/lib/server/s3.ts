@@ -147,53 +147,72 @@ export async function streamFirmware(jobId: string, headers: Record<string, stri
 // ---- Screenshot debug storage -----------------------------------------------
 const SCREENSHOT_PREFIX = "screenshots";
 
-function screenshotKey(deviceId: string): string {
-  return `${SCREENSHOT_PREFIX}/${deviceId}.bin`;
+function screenshotKey(deviceId: string, timestamp: number): string {
+  return `${SCREENSHOT_PREFIX}/${deviceId}/${timestamp}.bin`;
 }
 
 function screenshotIndexKey(): string {
   return `${SCREENSHOT_PREFIX}/_index.json`;
 }
 
-export async function uploadScreenshot(deviceId: string, data: Buffer): Promise<void> {
+export async function uploadScreenshot(deviceId: string, data: Buffer): Promise<number> {
   const client = ensureS3();
-  await client.write(screenshotKey(deviceId), data, { type: "application/octet-stream" });
+  const ts = Date.now();
+  await client.write(screenshotKey(deviceId, ts), data, { type: "application/octet-stream" });
 
   try {
     const indexFile = client.file(screenshotIndexKey());
-    let index: Record<string, { size: number; mtime: number }> = {};
+    let index: Record<string, Array<{ ts: number; size: number }>> = {};
     try {
       const buf = Buffer.from(await indexFile.arrayBuffer());
       index = JSON.parse(buf.toString());
     } catch {}
-    index[deviceId] = { size: data.length, mtime: Date.now() };
+    const entries = index[deviceId] ?? [];
+    entries.unshift({ ts, size: data.length });
+    index[deviceId] = entries;
     await client.write(screenshotIndexKey(), JSON.stringify(index), { type: "application/json" });
   } catch (e) {
     console.error("Failed to update screenshot index:", e);
   }
+  return ts;
 }
 
-export async function getScreenshotBuffer(deviceId: string): Promise<Buffer | null> {
+export async function getScreenshotBuffer(deviceId: string, timestamp?: number): Promise<Buffer | null> {
   const client = ensureS3();
-  const file = client.file(screenshotKey(deviceId));
+  let ts = timestamp;
+  if (ts == null) {
+    const indexFile = client.file(screenshotIndexKey());
+    try {
+      if (await indexFile.exists()) {
+        const buf = Buffer.from(await indexFile.arrayBuffer());
+        const index = JSON.parse(buf.toString()) as Record<string, Array<{ ts: number; size: number }>>;
+        const entries = index[deviceId];
+        if (entries && entries.length > 0) ts = entries[0].ts;
+      }
+    } catch {}
+  }
+  if (ts == null) return null;
+  const file = client.file(screenshotKey(deviceId, ts));
   if (!(await file.exists())) return null;
   return Buffer.from(await file.arrayBuffer());
 }
 
 export async function listScreenshotDevices(): Promise<
-  Array<{ deviceId: string; size: number; mtime: number }>
+  Array<{ deviceId: string; ts: number; size: number }>
 > {
   const client = ensureS3();
   try {
     const indexFile = client.file(screenshotIndexKey());
     if (!(await indexFile.exists())) return [];
     const buf = Buffer.from(await indexFile.arrayBuffer());
-    const index = JSON.parse(buf.toString()) as Record<string, { size: number; mtime: number }>;
-    return Object.entries(index).map(([deviceId, meta]) => ({
-      deviceId,
-      size: meta.size ?? 0,
-      mtime: meta.mtime ?? 0,
-    }));
+    const index = JSON.parse(buf.toString()) as Record<string, Array<{ ts: number; size: number }>>;
+    const result: Array<{ deviceId: string; ts: number; size: number }> = [];
+    for (const [deviceId, entries] of Object.entries(index)) {
+      for (const e of entries) {
+        result.push({ deviceId, ts: e.ts, size: e.size });
+      }
+    }
+    return result;
   } catch {
     return [];
   }
