@@ -409,7 +409,6 @@ function generateImageWidget(
     visibilityExpr?: string,
     dirtyBoundsExpr?: string,
     defaultBgColor?: string,
-    screenControllerVar = 'screens',
 ): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
@@ -422,18 +421,6 @@ function generateImageWidget(
   const bounds = rect(x, y, w, h);
   const ctorArgs = isHaImage ? `${bounds}, id(${imageId}), id(${fallbackImageId})` : `${bounds}, id(${imageId})`;
   let out = `${indent}auto *${idSafe} = ${factory('ImageWidget', ctorArgs)};\n`;
-  if (isHaImage) {
-    out += `${indent}${screenControllerVar}.register_image_widget("${imageId}", ${idSafe});\n`;
-    out += `${indent}${idSafe}->set_online_loader([](const std::string &url) {\n`;
-    out += `${indent}  id(${imageId}).set_url(url);\n`;
-    out += `${indent}  id(${fallbackImageId}).set_url(url);\n`;
-    out += `${indent}  if (id(${imageId}_prefer_fallback)) {\n`;
-    out += `${indent}    id(${fallbackImageId}).update();\n`;
-    out += `${indent}  } else {\n`;
-    out += `${indent}    id(${imageId}).update();\n`;
-    out += `${indent}  }\n`;
-    out += `${indent}});\n`;
-  }
   const bgColor = c.backgroundColor ? emitColor(c.backgroundColor) : defaultBgColor;
   if (bgColor) {
     out += `${indent}${idSafe}->set_bg_color(${bgColor});\n`;
@@ -505,7 +492,6 @@ function generateComponentSetup(
     // small per-widget dirty rect would cause the area bg to fill and erase
     // siblings whose own bounds don't intersect the dirty rect.
     dirtyBoundsExpr?: string,
-    screenControllerVar = 'screens',
 ): string {
   const factory: WidgetFactory = (typeName, args) =>
     `${screenVar}->emplace_widget<${typeName}>(${args})`;
@@ -539,7 +525,7 @@ function generateComponentSetup(
       return generateIconWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'image': {
-      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, undefined, screenControllerVar);
+      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'rectangle': {
       return generateRectangleWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
@@ -559,9 +545,9 @@ function generateComponentSetup(
       return generateTodoListWidget(c, itemsVar, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'tab_container':
-      return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY, dirtyBoundsExpr, screenControllerVar);
+      return generateTabContainerWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY, dirtyBoundsExpr);
     case 'conditional_area':
-      return generateConditionalAreaWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY, screenControllerVar);
+      return generateConditionalAreaWidget(c, screenVar, indent, visibilityExpr, offsetX, offsetY);
     default:
       return `${indent}// TODO: component type '${c.type}' (id: ${c.id})\n`;
   }
@@ -655,7 +641,6 @@ function generateConditionalAreaWidget(
   parentVisibilityExpr?: string,
   offsetX = 0,
   offsetY = 0,
-  screenControllerVar = 'screens',
 ): string {
   const areaIdSafe = safeCppIdentifier(c.id, 'area');
   const areaX = c.position.x + offsetX;
@@ -701,7 +686,7 @@ function generateConditionalAreaWidget(
 
     const orderedChildren = sortComponentsForWidgetLayering(variant.components);
     for (const child of orderedChildren) {
-      out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY, dirtyBoundsExpr, screenControllerVar);
+      out += generateComponentSetup(child, screenVar, indent, variantLambdaVar, areaX, areaY, dirtyBoundsExpr);
     }
   }
 
@@ -716,7 +701,6 @@ function generateTabContainerWidget(
     offX = 0,
     offY = 0,
     dirtyBoundsExpr?: string,
-    screenControllerVar = 'screens',
 ): string {
   const x = c.position.x + offX;
   const y = c.position.y + offY;
@@ -750,7 +734,7 @@ function generateTabContainerWidget(
   for (let i = 0; i < c.tabs.length; i++) {
     const orderedChildren = sortComponentsForWidgetLayering(c.tabs[i]!.components);
     for (const child of orderedChildren) {
-      out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar, undefined, dirtyBoundsExpr, screenControllerVar);
+      out += generateNestedComponent(child, varName, i, indent, x, y + TAB_BAR_HEIGHT, bgVar, undefined, dirtyBoundsExpr);
     }
   }
 
@@ -759,7 +743,7 @@ function generateTabContainerWidget(
 
 function generateNestedComponent(c: Component, containerVar: string, tabIndex: number, indent: string,
     offsetX: number, offsetY: number, tabBgVar?: string, visibilityExpr?: string,
-    dirtyBoundsExpr?: string, screenControllerVar = 'screens'): string {
+    dirtyBoundsExpr?: string): string {
   const x = c.position.x + offsetX;
   const y = c.position.y + offsetY;
   const w = c.size?.width ?? 60;
@@ -833,7 +817,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       return out;
     }
     case 'image': {
-      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, tabBgVar, screenControllerVar);
+      return generateImageWidget(c, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr, tabBgVar);
     }
     case 'rectangle': {
       const defaultBg = tabBgVar ?? 'g_theme.info_bg';
@@ -854,7 +838,7 @@ function generateNestedComponent(c: Component, containerVar: string, tabIndex: n
       return generateTodoListWidget(c, itemsVar, factory, indent, offsetX, offsetY, visibilityExpr, dirtyBoundsExpr);
     }
     case 'conditional_area':
-      return generateConditionalAreaNested(c, containerVar, tabIndex, indent, visibilityExpr, offsetX, offsetY, tabBgVar, screenControllerVar);
+      return generateConditionalAreaNested(c, containerVar, tabIndex, indent, visibilityExpr, offsetX, offsetY, tabBgVar);
     default:
       return `${indent}// TODO: nested ${c.type} (id: ${c.id}) in tab ${tabIndex}\n`;
   }
@@ -869,7 +853,6 @@ function generateConditionalAreaNested(
   offsetX: number,
   offsetY: number,
   tabBgVar?: string,
-  screenControllerVar = 'screens',
 ): string {
   const areaIdSafe = safeCppIdentifier(c.id, 'area');
   const areaX = c.position.x + offsetX;
@@ -910,7 +893,7 @@ function generateConditionalAreaNested(
 
     const orderedChildren = sortComponentsForWidgetLayering(variant.components);
     for (const child of orderedChildren) {
-      out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar, dirtyBoundsExpr, screenControllerVar);
+      out += generateNestedComponent(child, containerVar, tabIndex, indent, areaX, areaY, tabBgVar, variantLambdaVar, dirtyBoundsExpr);
     }
   }
 
@@ -1068,17 +1051,6 @@ ${screenCtor}
     screens_[id] = screen;
   }
 
-  void register_image_widget(const char *id, ImageWidget *widget) {
-    if (id == nullptr || widget == nullptr) return;
-    image_widgets_[id] = widget;
-  }
-
-  ImageWidget* get_image_widget(const char *id) {
-    auto it = image_widgets_.find(id);
-    if (it != image_widgets_.end()) return it->second;
-    return nullptr;
-  }
-
   void set_current(UiScreenId id) {
     current_->exit();
     current_id_ = id;
@@ -1127,7 +1099,6 @@ ${overlayMember}
   UiScreenId current_id_ = UiScreenId::${firstScreen};
   Screen *current_ = nullptr;
   std::map<UiScreenId, Screen*> screens_;
-  std::map<std::string, ImageWidget*> image_widgets_;
   std::vector<std::unique_ptr<GenericScreen>> owned_screens_;
 };
 
@@ -1145,8 +1116,6 @@ inline void setup_ui_screens(ScreenController &screens, UiState &state,
     };
   };
 
-${setupBody}${overlaySetup}  screens.current()->enter();
-  screens.current()->layout();
-}
+${setupBody}${overlaySetup}}
 `;
 }

@@ -195,13 +195,8 @@ function hasOnlineImages(project: Project): boolean {
   return collectImageComponents(project).some(c => isHomeAssistantImage(c) && !!c.imageBinding?.entityId);
 }
 
-function countInitialOnlineImages(project: Project): number {
-  const firstPage = project.dashboardPages[0];
-  if (!firstPage) return 0;
-  return firstPage.components
-    .filter((c): c is ImageComponent => c.type === "image")
-    .filter(c => isHomeAssistantImage(c) && !!c.imageBinding?.entityId)
-    .length;
+function countOnlineImages(project: Project): number {
+  return collectImageComponents(project).filter(c => isHomeAssistantImage(c) && !!c.imageBinding?.entityId).length;
 }
 
 const BINDER_BY_TYPE: Record<string, string> = {
@@ -302,7 +297,7 @@ function generateBindings(project: Project): string {
     if (claimed.has(key)) continue;
     claimed.add(key);
     const imageId = imageIdFromComponentId(ic.id);
-    lines.push(`          bind_ha_image_url("${escapeCString(entityId)}", "${escapeCString(attribute)}", "${imageId}");`);
+    lines.push(`          bind_ha_image_url("${escapeCString(entityId)}", "${escapeCString(attribute)}", id(${imageId}), id(${imageFallbackIdFromComponentId(ic.id)}), &id(${imageId}_prefer_fallback));`);
   }
 
   for (const f of (project.state?.fields ?? []) as StateField[]) {
@@ -526,7 +521,7 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
     ? `\n  project:\n    name: "esphome_designer.${deviceName}"\n    version: "${firmwareVersion}"`
     : '';
   const onlineImagesEnabled = hasOnlineImages(project);
-  const onlineImageCount = countInitialOnlineImages(project);
+  const onlineImageCount = countOnlineImages(project);
   const homeAssistantBaseUrlEnabled = onlineImagesEnabled && !!project.secrets?.homeAssistantBaseUrl;
   const httpOtaEnabled = !!(project.secrets?.firmwareUpdateUrl);
   const screenshotDebugEnabled = isScreenshotDebugEnabled();
@@ -603,8 +598,8 @@ ota:
     : '';
   const imageHelperCapture = homeAssistantBaseUrlEnabled ? '[ha_base_url]' : '[]';
   const imageCallbackCapture = homeAssistantBaseUrlEnabled
-    ? '[widget_id, ha_base_url]'
-    : '[widget_id]';
+    ? '[primary, fallback, prefer_fallback, ha_base_url]'
+    : '[primary, fallback, prefer_fallback]';
   const relativeImageHandling = homeAssistantBaseUrlEnabled
     ? `
                   if (url.rfind("/", 0) == 0) {
@@ -614,9 +609,9 @@ ota:
                   if (url.rfind("/", 0) == 0) return;`;
   const imageBindingHelper = onlineImagesEnabled
     ? `
-          auto bind_ha_image_url = ${imageHelperCapture}(const std::string& entity_id, const std::string& attribute, const char *widget_id) {
+          auto bind_ha_image_url = ${imageHelperCapture}(const std::string& entity_id, const std::string& attribute, auto *primary, auto *fallback, bool *prefer_fallback) {
             auto *api = esphome::api::global_api_server;
-            if (api == nullptr || widget_id == nullptr) return;
+            if (api == nullptr) return;
             api->subscribe_home_assistant_state(
                 entity_id, esphome::optional<std::string>(attribute),
                 ${imageCallbackCapture}(esphome::StringRef state) {
@@ -624,9 +619,14 @@ ota:
                   if (url.empty() || url == "unknown" || url == "unavailable") return;
 ${relativeImageHandling}
                   if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) return;
-                  auto *widget = g_ui_app.screens().get_image_widget(widget_id);
-                  if (widget == nullptr) return;
-                  widget->set_online_url(url);
+                  primary->set_url(url);
+                  fallback->set_url(url);
+                  if (prefer_fallback != nullptr && *prefer_fallback) {
+                    fallback->update();
+                  } else {
+                    primary->update();
+                  }
+                  UiRedraw::trigger_display_update();
                 });
           };
 `
