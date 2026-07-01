@@ -2454,8 +2454,10 @@ class LoadingWidget : public Widget {
   bool is_loading_widget() const override { return true; }
 
   void update(uint32_t now) override {
-    (void)now;
-    mark_dirty();
+    if (now - last_dirty_ms_ >= loading_redraw_interval_ms) {
+      mark_dirty();
+      last_dirty_ms_ = now;
+    }
   }
 
   void draw(display::Display &it, const UiState &state) override {
@@ -2496,6 +2498,10 @@ class LoadingWidget : public Widget {
                 TextAlign::CENTER, "Home Display v2.0");
     }
   }
+
+ private:
+  static constexpr uint32_t loading_redraw_interval_ms = 200;
+  uint32_t last_dirty_ms_ = 0;
 };
 
 #include "ui_tab_container.h"
