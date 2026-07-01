@@ -1,4 +1,4 @@
-"""ESPHome Display Integration — notification helpers and metadata export."""
+"""HA Metadata Exporter integration with optional notifications."""
 
 import json
 import logging

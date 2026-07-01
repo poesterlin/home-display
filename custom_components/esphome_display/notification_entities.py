@@ -1,4 +1,4 @@
-"""Auto-create notification overlay helper entities for ESPHome Display."""
+"""Auto-create notification overlay helper entities for display integrations."""
 
 import logging
 from homeassistant.core import HomeAssistant

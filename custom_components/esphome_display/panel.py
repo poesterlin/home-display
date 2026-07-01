@@ -1,4 +1,4 @@
-"""Panel registration for ESPHome Display."""
+"""Panel registration for HA Metadata Exporter."""
 
 import logging
 from pathlib import Path
@@ -14,26 +14,26 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     www_path = Path(__file__).parent / "www"
 
     await hass.http.async_register_static_paths(
-        [StaticPathConfig("/esphome-display-static", str(www_path), False)]
+        [StaticPathConfig("/display-metadata-static", str(www_path), False)]
     )
 
     try:
         await panel_custom.async_register_panel(
             hass,
-            webcomponent_name="esphome-display-panel",
-            frontend_url_path="esphome-display",
-            module_url="/esphome-display-static/panel.js",
-            sidebar_title="ESPHome Display",
+            webcomponent_name="display-metadata-panel",
+            frontend_url_path="display-metadata",
+            module_url="/display-metadata-static/panel.js",
+            sidebar_title="HA Metadata Exporter",
             sidebar_icon="mdi:monitor-export",
             require_admin=False,
             config={},
         )
-        _LOGGER.info("ESPHome Display panel registered at /esphome-display")
+        _LOGGER.info("Metadata Export panel registered at /display-metadata")
     except ValueError:
-        _LOGGER.debug("ESPHome Display panel already registered")
+        _LOGGER.debug("Metadata Export panel already registered")
 
 
 def async_unregister_panel(hass: HomeAssistant) -> None:
     """Unregister the custom panel."""
-    frontend.async_remove_panel(hass, "esphome-display")
-    _LOGGER.info("ESPHome Display panel removed")
+    frontend.async_remove_panel(hass, "display-metadata")
+    _LOGGER.info("Metadata Export panel removed")

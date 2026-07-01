@@ -1,4 +1,4 @@
-"""Config flow for ESPHome Display integration."""
+"""Config flow for HA Metadata Exporter integration."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for ESPHome Display."""
+    """Handle a config flow for HA Metadata Exporter."""
 
     VERSION = 2
 
@@ -33,7 +33,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             return self.async_create_entry(
-                title="ESPHome Display Helpers",
+                title="HA Metadata Exporter",
                 data={
                     "notifications": user_input.get("notifications", True),
                     "default_severity": user_input.get("default_severity", "info"),
@@ -64,13 +64,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> ESPHomeDisplayOptionsFlow:
+    ) -> DisplayMetadataOptionsFlow:
         """Create the options flow."""
-        return ESPHomeDisplayOptionsFlow(config_entry)
+        return DisplayMetadataOptionsFlow(config_entry)
 
 
-class ESPHomeDisplayOptionsFlow(config_entries.OptionsFlow):
-    """Handle ESPHome Display options."""
+class DisplayMetadataOptionsFlow(config_entries.OptionsFlow):
+    """Handle HA Metadata Exporter options."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""

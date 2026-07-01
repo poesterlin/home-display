@@ -4,7 +4,7 @@ import {
   css,
 } from "https://unpkg.com/lit@3.1.2/index.js?module";
 
-class ESPHomeDisplayPanel extends LitElement {
+class DisplayMetadataPanel extends LitElement {
   static get properties() {
     return {
       hass: { type: Object },
@@ -140,7 +140,7 @@ class ESPHomeDisplayPanel extends LitElement {
         <h1>Sync Metadata</h1>
         
         <div class="card">
-          <p>Download your Home Assistant configuration metadata to enable autocomplete and validation in the <strong>ESPHome Display Web Editor</strong>.</p>
+          <p>Download your Home Assistant configuration metadata to enable autocomplete and validation in the <strong>Display Web Editor</strong>.</p>
           
           <div class="privacy-note">
             <strong>🔒 Privacy & Security</strong>
@@ -167,7 +167,7 @@ class ESPHomeDisplayPanel extends LitElement {
         <div class="card">
           <h3>Next Steps</h3>
           <ol>
-            <li>Save the <code>esphome-display-metadata.json</code> file.</li>
+            <li>Save the <code>display-metadata.json</code> file.</li>
             <li>Open the <strong>Web Editor</strong>.</li>
             <li>Upload the file when prompted to sync your entities.</li>
           </ol>
@@ -228,7 +228,7 @@ class ESPHomeDisplayPanel extends LitElement {
       if (result) {
         this._showStatus('Successfully exported metadata!', 'success');
         this._showPreview(result);
-        this._downloadFile(result, 'esphome-display-metadata.json');
+        this._downloadFile(result, 'display-metadata.json');
       } else {
         throw new Error('No data received from WebSocket');
       }
@@ -237,4 +237,4 @@ class ESPHomeDisplayPanel extends LitElement {
     }
   }
 }
-customElements.define("esphome-display-panel", ESPHomeDisplayPanel);
+customElements.define("display-metadata-panel", DisplayMetadataPanel);
