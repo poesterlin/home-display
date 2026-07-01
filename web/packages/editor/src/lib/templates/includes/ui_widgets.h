@@ -1819,7 +1819,7 @@ class HvacWidget : public Widget {
 
       const int target_h = 22;   // header font cap height
       const int label_h = 16;    // label font cap height
-      const int gap = 3;
+      const int gap = 5;
       const bool has_current =
           current_temp_ptr_ != nullptr && g_theme.label.font != nullptr &&
           *current_temp_ptr_ > 0.0f &&
@@ -1881,10 +1881,10 @@ class HvacWidget : public Widget {
         const int mc = 5;
         draw_clipped_box(it, bx, btns_y, bw, bh, mc, bc, RetroColors::DIM, true);
         if (glyph && glyph[0] && g_theme.icon.font != nullptr) {
-          it.printf(bx + bw / 2, btns_y + bh / 2, g_theme.icon.font, tc,
+          it.printf(bx + bw / 2, btns_y + bh / 2 - 1, g_theme.icon.font, tc,
                     TextAlign::CENTER, "%s", glyph);
         } else if (g_theme.label.font != nullptr) {
-          it.printf(bx + bw / 2, btns_y + bh / 2, g_theme.label.font, tc,
+          it.printf(bx + bw / 2, btns_y + bh / 2 - 1, g_theme.label.font, tc,
                     TextAlign::CENTER, "%s", glyph && glyph[0] ? glyph : "?");
         }
       };
@@ -2158,8 +2158,7 @@ class WeatherWidget : public Widget {
       if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
         const char *glyph = condition_icon(dp.condition->c_str());
         const int icon_y = content_top + 2;
-        it.printf(r.x + w / 2, icon_y, g_theme.icon.font, accent,
-                  TextAlign::TOP_CENTER, "%s", glyph);
+        draw_weather_icon(it, r.x + w / 2, icon_y, accent, glyph);
       }
 
       if (valid_value(dp.temperature)) {
@@ -2207,10 +2206,19 @@ class WeatherWidget : public Widget {
                          TextAlign::TOP_LEFT, label_, max_label_w);
     }
 
-    const int col_gap = 2;
+    const int col_gap = 6;
     const int col_count = 3;
     const int col_w = (w - pad * 2 - col_gap * 2) / col_count;
     const int content_top = top_y + 20;
+    const int content_bottom = r.y + h - pad - 10;
+    const int content_h = content_bottom - content_top;
+    const int day_to_icon_gap = 20;
+    const int icon_to_temp_gap = 34;
+    const int temp_to_rain_gap = 26;
+    const int rain_to_value_gap = 14;
+    const int value_h = 16;
+    const int stack_h = day_to_icon_gap + icon_to_temp_gap + temp_to_rain_gap + rain_to_value_gap + value_h;
+    const int centered_top = content_top + (content_h - stack_h) / 2 + 2;
 
     const char *day_labels[3] = {"---", "---", "---"};
     {
@@ -2230,22 +2238,21 @@ class WeatherWidget : public Widget {
       const auto &dp = days_[d];
       const Color col_accent = condition_color(dp.condition ? dp.condition->c_str() : "");
 
-      int cy = content_top;
+      int cy = centered_top;
 
       // Day label
       if (g_theme.label.font != nullptr) {
         it.printf(mid, cy, g_theme.label.font, dim_color_,
                   TextAlign::TOP_CENTER, "%s", day_labels[d]);
       }
-      cy += 18;
+      cy += day_to_icon_gap;
 
       // Icon
       if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
         const char *glyph = condition_icon(dp.condition->c_str());
-        it.printf(mid, cy, g_theme.icon.font, col_accent,
-                  TextAlign::TOP_CENTER, "%s", glyph);
+        draw_weather_icon(it, mid, cy, col_accent, glyph);
       }
-      cy += 30;
+      cy += icon_to_temp_gap;
 
       // Temperature
       if (g_theme.label.font != nullptr) {
@@ -2259,13 +2266,13 @@ class WeatherWidget : public Widget {
                     TextAlign::TOP_CENTER, "—°");
         }
       }
-      cy += 24;
+      cy += temp_to_rain_gap;
 
       // Rain detail
       if (g_theme.label.font != nullptr) {
         it.printf(mid, cy, g_theme.label.font, dim_color_,
                   TextAlign::TOP_CENTER, "RAIN");
-        cy += 12;
+        cy += rain_to_value_gap;
         if (valid_value(dp.precipitation)) {
           char buf[24];
           snprintf(buf, sizeof(buf), "%.1f mm", *dp.precipitation);
@@ -2383,6 +2390,14 @@ class WeatherWidget : public Widget {
   static const char icon_weather_windy[];
   static const char icon_weather_windy_variant[];
 
+  void draw_weather_icon(display::Display &it, int x, int y, Color color, const char *glyph) {
+    if (g_theme.icon.font == nullptr || glyph == nullptr || glyph[0] == '\0') return;
+    // Pseudo-scale by rendering centered passes with slight horizontal spread.
+    it.printf(x - 1, y, g_theme.icon.font, color, TextAlign::TOP_CENTER, "%s", glyph);
+    it.printf(x + 1, y, g_theme.icon.font, color, TextAlign::TOP_CENTER, "%s", glyph);
+    it.printf(x, y, g_theme.icon.font, color, TextAlign::TOP_CENTER, "%s", glyph);
+  }
+
   void draw_pill(display::Display &it, int x, int y, int w, int h,
                  const char *label_text, const float *value,
                  const char *unit) {
@@ -2395,16 +2410,16 @@ class WeatherWidget : public Widget {
 
     if (g_theme.label.font == nullptr) return;
 
-    it.printf(x + w / 2, y + 5, g_theme.label.font, dim_color_,
+    it.printf(x + w / 2, y + 4, g_theme.label.font, dim_color_,
               TextAlign::TOP_CENTER, "%s", label_text);
 
     if (valid_value(value)) {
       char buf[24];
       snprintf(buf, sizeof(buf), "%.0f%s", *value, unit ? unit : "");
-      it.printf(x + w / 2, y + 21, g_theme.header.font, text_color_,
+      it.printf(x + w / 2, y + 19, g_theme.header.font, text_color_,
                 TextAlign::TOP_CENTER, "%s", buf);
     } else {
-      it.printf(x + w / 2, y + 21, g_theme.header.font, dim_color_,
+      it.printf(x + w / 2, y + 19, g_theme.header.font, dim_color_,
                 TextAlign::TOP_CENTER, "—");
     }
   }
