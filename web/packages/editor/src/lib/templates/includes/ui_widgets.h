@@ -811,8 +811,8 @@ class ButtonWidget : public Widget {
           ui_draw_truncation_dots(it, tx + tw, baseline_y, tc);
         }
       } else {
-        it.printf(cx, cy - 12, icon_style_->font, tc, TextAlign::CENTER, "%s", icon_glyph_);
-        ui_print_truncated(it, cx, cy + 14, f, tc, TextAlign::CENTER, label_, r.w - 12);
+        it.printf(cx, cy - 13, icon_style_->font, tc, TextAlign::CENTER, "%s", icon_glyph_);
+        ui_print_truncated(it, cx, cy + 13, f, tc, TextAlign::CENTER, label_, r.w - 12);
       }
     } else if (has_icon) {
       it.printf(cx, cy, icon_style_->font, tc, TextAlign::CENTER, "%s", icon_glyph_);
@@ -1180,7 +1180,7 @@ class TodoPreviewWidget : public Widget {
         break;
       }
 
-      const int row_cy = y + row_height_ / 2;
+      const int row_cy = y + row_height_ / 2 - 1;
       const bool overdue = row.overdue;
       const bool completed = row.completed && !row.loading;
       std::string summary = row.summary;
@@ -1208,13 +1208,13 @@ class TodoPreviewWidget : public Widget {
         }
       }
 
-      int text_x = r.x + 38;
+      int text_x = r.x + 40;
       if (!row.due.empty() && g_theme.label.font != nullptr) {
         const int due_max_w = 92;
-        ui_print_truncated(it, r.x + 38, row_cy, g_theme.label.font,
-                           overdue ? due_overdue : due_ok,
-                           TextAlign::CENTER_LEFT, row.due, due_max_w);
-        text_x = r.x + 134;
+        ui_print_truncated(it, r.x + 40, row_cy, g_theme.label.font,
+                          overdue ? due_overdue : due_ok,
+                          TextAlign::CENTER_LEFT, row.due, due_max_w);
+        text_x = r.x + 136;
       }
       if (g_theme.label.font != nullptr) {
         const int summary_max_w = r.x + r.w - text_x - 4;
@@ -2151,13 +2151,13 @@ class WeatherWidget : public Widget {
     }
 
     {
-      const int content_top = top_y + 22 + 6;
-      const int content_bottom = r.y + h - pad - 52;
+      const int content_top = top_y + 20;
+      const int content_bottom = r.y + h - pad - 46;
       const int cy = (content_top + content_bottom) / 2;
 
       if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
         const char *glyph = condition_icon(dp.condition->c_str());
-        const int icon_y = content_top + 4;
+        const int icon_y = content_top + 2;
         it.printf(r.x + w / 2, icon_y, g_theme.icon.font, accent,
                   TextAlign::TOP_CENTER, "%s", glyph);
       }
@@ -2174,9 +2174,9 @@ class WeatherWidget : public Widget {
     }
 
     {
-      const int pill_top = r.y + h - 52;
-      const int pill_h = 40;
-      const int pill_pad = 6;
+      const int pill_top = r.y + h - 48;
+      const int pill_h = 42;
+      const int pill_pad = 5;
       const int pill_w = (w - pad * 2 - pill_pad * 2) / 3;
 
       draw_pill(it, r.x + pad, pill_top, pill_w, pill_h, "HUM",
@@ -2207,10 +2207,10 @@ class WeatherWidget : public Widget {
                          TextAlign::TOP_LEFT, label_, max_label_w);
     }
 
-    const int col_gap = 4;
+    const int col_gap = 2;
     const int col_count = 3;
     const int col_w = (w - pad * 2 - col_gap * 2) / col_count;
-    const int content_top = top_y + 22 + 6;
+    const int content_top = top_y + 20;
 
     const char *day_labels[3] = {"---", "---", "---"};
     {
@@ -2237,7 +2237,7 @@ class WeatherWidget : public Widget {
         it.printf(mid, cy, g_theme.label.font, dim_color_,
                   TextAlign::TOP_CENTER, "%s", day_labels[d]);
       }
-      cy += 16;
+      cy += 18;
 
       // Icon
       if (dp.condition && !dp.condition->empty() && g_theme.icon.font != nullptr) {
@@ -2245,7 +2245,7 @@ class WeatherWidget : public Widget {
         it.printf(mid, cy, g_theme.icon.font, col_accent,
                   TextAlign::TOP_CENTER, "%s", glyph);
       }
-      cy += 26;
+      cy += 30;
 
       // Temperature
       if (g_theme.label.font != nullptr) {
@@ -2259,13 +2259,13 @@ class WeatherWidget : public Widget {
                     TextAlign::TOP_CENTER, "—°");
         }
       }
-      cy += 22;
+      cy += 24;
 
       // Rain detail
       if (g_theme.label.font != nullptr) {
         it.printf(mid, cy, g_theme.label.font, dim_color_,
                   TextAlign::TOP_CENTER, "RAIN");
-        cy += 11;
+        cy += 12;
         if (valid_value(dp.precipitation)) {
           char buf[24];
           snprintf(buf, sizeof(buf), "%.1f mm", *dp.precipitation);
@@ -2291,16 +2291,16 @@ class WeatherWidget : public Widget {
 
     if (g_theme.label.font == nullptr) return;
 
-    it.printf(x + 2, y + 1, g_theme.label.font, dim_color_,
+    it.printf(x + 2, y + 4, g_theme.label.font, dim_color_,
               TextAlign::TOP_LEFT, "%s", label_text);
 
     if (valid_value(value)) {
       char buf[24];
       snprintf(buf, sizeof(buf), "%.1f%s", *value, unit ? unit : "");
-      it.printf(x + w - 2, y + 1, g_theme.label.font, text_color_,
+      it.printf(x + w - 2, y + 4, g_theme.label.font, text_color_,
                 TextAlign::TOP_RIGHT, "%s", buf);
     } else {
-      it.printf(x + w - 2, y + 1, g_theme.label.font, dim_color_,
+      it.printf(x + w - 2, y + 4, g_theme.label.font, dim_color_,
                 TextAlign::TOP_RIGHT, "—");
     }
   }
@@ -2465,7 +2465,7 @@ class LoadingWidget : public Widget {
     const int fx = 120, fy = 178, fw = 240, fh = 196;
     ui_fast_filled_rectangle(it, fx, fy, fw, fh, RetroColors::VOID);
 
-    const int cx = 240, cy = 228;
+    const int cx = 240, cy = 227;
     const uint32_t t = millis();
 
     const int segments = 8;
@@ -2494,7 +2494,7 @@ class LoadingWidget : public Widget {
     }
 
     if (g_theme.label.font != nullptr) {
-      it.printf(cx, cy + 78, g_theme.label.font, RetroColors::STEEL,
+      it.printf(cx, cy + 77, g_theme.label.font, RetroColors::STEEL,
                 TextAlign::CENTER, "Home Display v2.0");
     }
   }
