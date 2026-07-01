@@ -851,7 +851,7 @@ interval:
               g_ui_app.state().online_images_failed = 0;
               g_ui_app.screens().navigate_to(UiScreenId::Home);
             } else {
-              if (g_ui_app.state().online_images_expected > 0) {
+              if (g_ui_app.state().online_images_expected > 0 && !g_ui_app.state().loading_done) {
                 g_ui_app.state().image_bootstrap_active = true;
                 g_ui_app.state().image_bootstrap_started_at = millis();
                 g_ui_app.state().online_images_completed = 0;

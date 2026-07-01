@@ -2662,12 +2662,14 @@ class LoadingWidget : public Widget {
   UiRect bounds() const override { return UiRect{0, 0, 480, 480}; }
 
   bool is_visible(const UiState &state) const override {
-    return state.should_show_loading();
+    loading_visible_ = state.should_show_loading();
+    return loading_visible_;
   }
 
   bool is_loading_widget() const override { return true; }
 
   void update(uint32_t now) override {
+    if (!loading_visible_) return;
     if (now - last_dirty_ms_ >= loading_redraw_interval_ms) {
       mark_dirty();
       last_dirty_ms_ = now;
@@ -2716,6 +2718,8 @@ class LoadingWidget : public Widget {
  private:
   static constexpr uint32_t loading_redraw_interval_ms = 200;
   uint32_t last_dirty_ms_ = 0;
+  mutable bool loading_visible_ = true;
+};
 };
 
 #include "ui_tab_container.h"

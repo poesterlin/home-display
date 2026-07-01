@@ -229,13 +229,16 @@ ${observableFields}
   static constexpr uint32_t ONLINE_IMAGE_BOOTSTRAP_TIMEOUT_MS = 30000;
 
   bool should_show_loading() const {
+    if (loading_done) return false;
     if (!ha_connected) return true;
-    if (!image_bootstrap_active) return false;
-    if (online_images_expected <= 0) return false;
+    if (!image_bootstrap_active) { loading_done = true; return false; }
+    if (online_images_expected <= 0) { loading_done = true; return false; }
     const int done = online_images_completed + online_images_failed;
-    if (done >= online_images_expected) return false;
+    if (done >= online_images_expected) { loading_done = true; return false; }
     return (millis() - image_bootstrap_started_at) < ONLINE_IMAGE_BOOTSTRAP_TIMEOUT_MS;
   }
+
+  mutable bool loading_done = false;
 
   int images_rendered_this_frame = 0;
   static constexpr int MAX_IMAGES_PER_FRAME = 2;
