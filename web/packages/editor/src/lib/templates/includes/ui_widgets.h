@@ -7,6 +7,7 @@
 #include "esphome/components/image/image.h"
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <vector>
@@ -48,6 +49,48 @@ inline int ui_corner_radius_for_height(int h) {
   if (h < 80) return 6;
   return 9;
 }
+
+// Minimum touch target side, in pixels. Small visual buttons grow their
+// hit region to at least this size on each axis so the dashboard stays
+// finger-friendly (matches the mobile UI accessibility guideline).
+constexpr int UI_MIN_TOUCH_TARGET = 48;
+
+// A tiny 1D vertical layout helper. Construct with the centerline you
+// want a stack to be centered on, plus a list of (height, gap, height,
+// gap, ..., height) values. Iterate with next(h) to get the y of the
+// next line -- the cursor advances by `h` after each call, so callers
+// can ignore the gap bookkeeping entirely. Replaces the manual
+// `cy - 13` / `cy + 13` / `y_cursor += h + gap` math that used to live
+// in HvacWidget, ButtonWidget, and the weather forecast columns.
+struct VStack {
+  int y_cursor;
+
+  VStack(int center_y, std::initializer_list<int> heights_and_gaps) {
+    int total_h = 0;
+    for (int v : heights_and_gaps) total_h += v;
+    y_cursor = center_y - (total_h / 2);
+  }
+
+  // Overload for callers that need to compute the total height
+  // dynamically (e.g. when one of the lines is conditional). The
+  // semantics are identical to the initializer_list constructor.
+  VStack(int center_y, int total_h) {
+    y_cursor = center_y - (total_h / 2);
+  }
+
+  // Returns the y of the current line, then advances the cursor by
+  // `height`. The next call (with its own height) lands immediately
+  // below, with no manual gap tracking required by the caller.
+  int next(int height) {
+    const int current = y_cursor;
+    y_cursor += height;
+    return current;
+  }
+
+  // Advance the cursor by `gap` without emitting a line. Use between
+  // next() calls when you need a non-uniform spacer.
+  void skip(int gap) { y_cursor += gap; }
+};
 
 // Truncate `text` so that, together with the painted truncation indicator
 // (UI_TRUNC_DOTS_W pixels), it fits within `max_w` pixels when rendered
@@ -164,6 +207,8 @@ inline void ui_print_truncated(display::Display &it, int x, int y,
   ui_draw_truncation_dots(it, tx + tw, baseline_y, color);
 }
 
+
+
 struct UiState;
 
 struct UiRect {
@@ -174,6 +219,13 @@ struct UiRect {
 
   bool contains(int tx, int ty, int slop_x = 0, int slop_y = 0) const {
     return tx >= x - slop_x && tx <= x + w + slop_x && ty >= y - slop_y && ty <= y + h + slop_y;
+  }
+
+  // Shrink the rect by `amount` on every side. Useful for inner borders
+  // and focus rings that want to share the same offset as the rest of
+  // the design system (typically ui_spacing::xs).
+  UiRect inset(int amount) const {
+    return UiRect{x + amount, y + amount, w - (amount * 2), h - (amount * 2)};
   }
 };
 
@@ -203,6 +255,70 @@ struct Theme {
 };
 
 inline Theme g_theme;
+
+// Standard touch test with a slop that's auto-computed from the rect's
+// smaller side. Replaces the per-widget "w < 40 ? 15 : w < 60 ? 10 : 0"
+// ladders with a single rule, and gives every interactive widget a
+// consistent minimum-target guarantee.
+inline bool ui_hit_test_with_slop(const UiRect &r, int tx, int ty,
+                                  int min_target_size = UI_MIN_TOUCH_TARGET) {
+  const int slop_x = (r.w < min_target_size) ? (min_target_size - r.w) / 2 : 0;
+  const int slop_y = (r.h < min_target_size) ? (min_target_size - r.h) / 2 : 0;
+  return r.contains(tx, ty, slop_x, slop_y);
+}
+
+// A small label-over-value "data pill" -- a filled rounded rectangle
+// with a dim caption on top and a value underneath. Used by the
+// weather widget for HUM/RAIN/WIND; any future sensor readout should
+// reuse this so the visual treatment stays consistent across the
+// dashboard.
+//
+// `value` may be nullptr (renders the dim em-dash placeholder).
+// `unit` is appended to the value (e.g. "%", " mm"). Pass an empty
+// string to suppress the unit entirely. `value_decimals` controls the
+// numeric precision (default 0 matches the original weather look:
+// "23%" not "23.0%").
+inline void ui_draw_data_pill(display::Display &it, int x, int y, int w, int h,
+                              const char *label, const float *value,
+                              const char *unit = "",
+                              Color label_color = RetroColors::GRAY,
+                              Color value_color = Color(255, 255, 255),
+                              Color pill_bg = Color(18, 22, 32),
+                              Color pill_border = Color(35, 40, 55),
+                              int value_decimals = 0) {
+  it.filled_rectangle(x, y, w, h, pill_bg);
+  it.rectangle(x, y, w, h, pill_border);
+  it.horizontal_line(x + 1, y + h - 1, w - 1, pill_border);
+
+  if (g_theme.label.font == nullptr) return;
+
+  it.printf(x + w / 2, y + 4, g_theme.label.font, label_color,
+            TextAlign::TOP_CENTER, "%s", label ? label : "");
+
+  auto valid_value = [](const float *p) {
+    return p != nullptr && !std::isnan(*p) && !std::isinf(*p);
+  };
+  if (valid_value(value)) {
+    char buf[24];
+    if (value_decimals > 0) {
+      float v = *value;
+      if (std::floor(v) == v) {
+        snprintf(buf, sizeof(buf), "%d%s", (int)v, unit ? unit : "");
+      } else {
+        char fmt[16];
+        snprintf(fmt, sizeof(fmt), "%%.%df%%s", value_decimals);
+        snprintf(buf, sizeof(buf), fmt, v, unit ? unit : "");
+      }
+    } else {
+      snprintf(buf, sizeof(buf), "%.0f%s", *value, unit ? unit : "");
+    }
+    it.printf(x + w / 2, y + 19, g_theme.header.font, value_color,
+              TextAlign::TOP_CENTER, "%s", buf);
+  } else {
+    it.printf(x + w / 2, y + 19, g_theme.header.font, label_color,
+              TextAlign::TOP_CENTER, "—");
+  }
+}
 
 class Widget {
  public:
@@ -470,7 +586,8 @@ class ImageWidget : public Widget {
   void draw_placeholder(display::Display &it, bool downloading) const {
     const UiRect r = screen_rect(rect_);
     ui_fast_filled_rectangle(it, r.x, r.y, r.w, r.h, bg_color_);
-    draw_clipped_border(it, r.x + 2, r.y + 2, r.w - 4, r.h - 4,
+    const UiRect inner = r.inset(2);
+    draw_clipped_border(it, inner.x, inner.y, inner.w, inner.h,
                         4, 4, 4, 4, RetroColors::DIMMER);
     if (g_theme.label.font != nullptr) {
       it.printf(r.x + r.w / 2, r.y + r.h / 2,
@@ -832,8 +949,16 @@ class ButtonWidget : public Widget {
           ui_draw_truncation_dots(it, tx + tw, baseline_y, tc);
         }
       } else {
-        it.printf(cx, cy - 13, icon_style_->font, tc, TextAlign::CENTER, "%s", icon_glyph_);
-        ui_print_truncated(it, cx, cy + 13, f, tc, TextAlign::CENTER, label_, r.w - 12);
+        // Stacked: icon over label, centered as a unit on `cy`. The
+        // VStack owns the centering math; previously this was a pair
+        // of `cy - 13` / `cy + 13` magic numbers, which silently
+        // assumed the same 26px split for any icon/label pair.
+        const int stack_gap = ui_spacing::xs;
+        const int label_h = 16;  // label font cap height
+        VStack stack(cy, {ih, stack_gap, label_h});
+        it.printf(cx, stack.next(ih), icon_style_->font, tc, TextAlign::TOP_CENTER, "%s", icon_glyph_);
+        stack.skip(stack_gap);
+        ui_print_truncated(it, cx, stack.next(label_h), f, tc, TextAlign::TOP_CENTER, label_, r.w - 12);
       }
     } else if (has_icon) {
       it.printf(cx, cy, icon_style_->font, tc, TextAlign::CENTER, "%s", icon_glyph_);
@@ -844,9 +969,7 @@ class ButtonWidget : public Widget {
 
  private:
   bool hit_test(int tx, int ty) const {
-    const int sx = rect_.w < 40 ? 15 : (rect_.w < 60 ? 10 : 0);
-    const int sy = rect_.h < 40 ? 15 : (rect_.h < 60 ? 10 : 0);
-    return bounds().contains(tx, ty, sx, sy);
+    return ui_hit_test_with_slop(rect_, tx, ty);
   }
 
   UiRect rect_;
@@ -986,9 +1109,7 @@ class ImageToggleWidget : public Widget {
 
  private:
   bool hit_test(int tx, int ty) const {
-    const int sx = rect_.w < 40 ? 15 : (rect_.w < 60 ? 10 : 0);
-    const int sy = rect_.h < 40 ? 15 : (rect_.h < 60 ? 10 : 0);
-    return bounds().contains(tx, ty, sx, sy);
+    return ui_hit_test_with_slop(rect_, tx, ty);
   }
 
   UiRect rect_;
@@ -1152,8 +1273,11 @@ class TodoPreviewWidget : public Widget {
     draw_clipped_box(it, r.x, r.y, r.w, r.h,
                      ui_corner_radius_for_height(r.h), border, bg, false);
     // Inner double-line
-    draw_clipped_border(it, r.x + 2, r.y + 2, r.w - 4, r.h - 4,
-                        6, 6, 6, 6, RetroColors::AMBER_DIM);
+    {
+      const UiRect inner = r.inset(2);
+      draw_clipped_border(it, inner.x, inner.y, inner.w, inner.h,
+                          6, 6, 6, 6, RetroColors::AMBER_DIM);
+    }
 
     if (items_ == nullptr || items_->empty()) {
       if (g_theme.label.font != nullptr) {
@@ -1215,7 +1339,7 @@ class TodoPreviewWidget : public Widget {
         if (row.loading) {
           // Spinning line animation while waiting for HA confirmation
           float angle = (millis() % 1000) * 2.0f * 3.14159265f / 1000.0f;
-          int cx = r.x + 16;
+          int cx = r.x + kTodoIconCX;
           int cy = row_cy;
           it.line(cx, cy, cx + (int)(cosf(angle) * 8), cy + (int)(sinf(angle) * 8), border);
         } else {
@@ -1223,24 +1347,24 @@ class TodoPreviewWidget : public Widget {
           if (g_theme.icon.font != nullptr &&
               incomplete_icon_ != nullptr && complete_icon_ != nullptr &&
               incomplete_icon_[0] != '\0' && complete_icon_[0] != '\0') {
-            it.printf(r.x + 16, row_cy, g_theme.icon.font,
+            it.printf(r.x + kTodoIconCX, row_cy, g_theme.icon.font,
                       check_color, TextAlign::CENTER,
                       "%s", completed ? complete_icon_ : incomplete_icon_);
           } else {
-            it.printf(r.x + 10, row_cy, g_theme.label.font,
+            it.printf(r.x + kTodoCheckTextX, row_cy, g_theme.label.font,
                       check_color, TextAlign::CENTER_LEFT,
                       "%s", completed ? "[x]" : "[ ]");
           }
         }
       }
 
-      int text_x = r.x + 40;
+      int text_x = r.x + kTodoTextX;
       if (!row.due.empty() && g_theme.label.font != nullptr) {
-        const int due_max_w = 92;
-        ui_print_truncated(it, r.x + 40, row_cy, g_theme.label.font,
+        const int due_max_w = kTodoDueMaxW;
+        ui_print_truncated(it, r.x + kTodoTextX, row_cy, g_theme.label.font,
                           overdue ? due_overdue : due_ok,
                           TextAlign::CENTER_LEFT, row.due, due_max_w);
-        text_x = r.x + 136;
+        text_x = r.x + kTodoTextX + kTodoDueMaxW + ui_spacing::xs;
       }
       if (g_theme.label.font != nullptr) {
         const int summary_max_w = r.x + r.w - text_x - 4;
@@ -1297,6 +1421,15 @@ class TodoPreviewWidget : public Widget {
   // max-row-by-height calc), content_height (clamped height), and row_at
   // (touch hit-test) so all three stay in lockstep.
   static constexpr int kTopPadding = ui_spacing::md;
+
+  // Horizontal offsets from the widget's left edge for the check-box
+  // icon area and the text that follows. The values are tuned to leave
+  // a comfortable gap between icon and text without eating into the
+  // scrolling due-date column.
+  static constexpr int kTodoCheckTextX = 10;  // fallback "[ ]" / "[x]" X
+  static constexpr int kTodoIconCX = 16;     // MDI icon centre X
+  static constexpr int kTodoTextX = 40;      // main text + due-date X
+  static constexpr int kTodoDueMaxW = 92;    // width reserved for due date column
 
   static void trim_inplace(std::string &value) {
     std::size_t f = value.find_first_not_of(" \t\r\n");
@@ -1481,7 +1614,8 @@ class NotificationOverlayWidget : public Widget {
     if (event.type != TouchType::Tap) return false;
     // Dismiss button hit test (bottom-center region of the panel).
     if (!is_visible_state()) return false;
-    if (hit_test_dismiss(event.x, event.y)) {
+    const NotificationLayout nl = compute_layout_();
+    if (ui_hit_test_with_slop(nl.dismiss_btn, event.x, event.y)) {
       if (dismiss_callback_) dismiss_callback_();
       mark_dirty();
       return true;
@@ -1497,10 +1631,7 @@ class NotificationOverlayWidget : public Widget {
 
     ui_fast_filled_rectangle(it, 0, 0, display_w_, display_h_, Color(0, 0, 0));
 
-    const int panel_w = (display_w_ * 5) / 6;
-    const int panel_h = (display_h_ * 3) / 5;
-    const int panel_x = (display_w_ - panel_w) / 2;
-    const int panel_y = (display_h_ - panel_h) / 2;
+    const NotificationLayout nl = compute_layout_();
 
     const Color accent = severity_color();
     const Color accent_dim = severity_dim_color();
@@ -1509,49 +1640,57 @@ class NotificationOverlayWidget : public Widget {
     const Color text_primary(245, 248, 255);
     const Color text_secondary(180, 188, 202);
 
-    // Shadow and card shell.
-    ui_fast_filled_rectangle(it, panel_x + 6, panel_y + 7, panel_w, panel_h, Color(3, 4, 6));
-    ui_fast_filled_rectangle(it, panel_x, panel_y, panel_w, panel_h, panel_bg);
-    it.rectangle(panel_x, panel_y, panel_w, panel_h, accent);
-    it.rectangle(panel_x + 1, panel_y + 1, panel_w - 2, panel_h - 2, accent_dim);
-    ui_fast_filled_rectangle(it, panel_x + 2, panel_y + 2, panel_w - 4, 58, header_bg);
-    ui_fast_filled_rectangle(it, panel_x + 2, panel_y + 58, panel_w - 4, 3, accent);
+    // Shadow and card shell. Outer padding (xl) frames the panel, inner
+    // padding (md) separates the header band from the panel border.
+    ui_fast_filled_rectangle(it, nl.panel.x + 6, nl.panel.y + 7,
+                             nl.panel.w, nl.panel.h, Color(3, 4, 6));
+    ui_fast_filled_rectangle(it, nl.panel.x, nl.panel.y, nl.panel.w, nl.panel.h, panel_bg);
+    it.rectangle(nl.panel.x, nl.panel.y, nl.panel.w, nl.panel.h, accent);
+    it.rectangle(nl.panel.x + 1, nl.panel.y + 1, nl.panel.w - 2, nl.panel.h - 2, accent_dim);
+    {
+      const UiRect header_band = nl.panel.inset(2);
+      ui_fast_filled_rectangle(it, header_band.x, header_band.y,
+                               header_band.w, nl.header_h, header_bg);
+    }
+    ui_fast_filled_rectangle(it, nl.panel.x + 2,
+                             nl.panel.y + 2 + nl.header_h,
+                             nl.panel.w - 4, 3, accent);
 
-    const int icon_cx = panel_x + 36;
-    const int icon_cy = panel_y + 30;
-    it.filled_circle(icon_cx, icon_cy, 18, accent_dim);
-    it.circle(icon_cx, icon_cy, 18, accent);
+    // Severity icon sits inside the header band, vertically centered on it.
+    it.filled_circle(nl.icon_cx, nl.icon_cy, 18, accent_dim);
+    it.circle(nl.icon_cx, nl.icon_cy, 18, accent);
     const char *icon = severity_icon();
     if (g_theme.icon.font != nullptr) {
-      it.printf(icon_cx, icon_cy + 1, g_theme.icon.font, accent,
+      it.printf(nl.icon_cx, nl.icon_cy + 1, g_theme.icon.font, accent,
                 TextAlign::CENTER, "%s", icon);
     } else if (g_theme.header.font != nullptr) {
-      it.printf(icon_cx, icon_cy, g_theme.header.font, accent,
+      it.printf(nl.icon_cx, nl.icon_cy, g_theme.header.font, accent,
                 TextAlign::CENTER, "!");
     }
 
     const std::string display_title =
         (title_ != nullptr && !title_->empty()) ? *title_ : std::string("Notification");
     if (g_theme.header.font != nullptr) {
-      ui_print_truncated(it, panel_x + 66, panel_y + 13, g_theme.header.font,
-                         text_primary, TextAlign::TOP_LEFT, display_title, panel_w - 86);
+      ui_print_truncated(it, nl.title_x, nl.title_y, g_theme.header.font,
+                         text_primary, TextAlign::TOP_LEFT, display_title, nl.panel.w - 86);
     }
     if (g_theme.label.font != nullptr) {
-      it.printf(panel_x + 66, panel_y + 38, g_theme.label.font, text_secondary,
+      it.printf(nl.title_x, nl.severity_y, g_theme.label.font, text_secondary,
                 TextAlign::TOP_LEFT, "%s", severity_label());
     }
 
     if (g_theme.label.font != nullptr && body_ != nullptr) {
-      const int body_y = panel_y + 78;
-      const int body_w = panel_w - 24;
-      const int body_h = panel_h - 140;
+      const int body_x = nl.body.x;
+      const int body_y = nl.body.y;
+      const int body_w = nl.body.w;
+      const int body_h = nl.body.h;
       const int max_body_h = body_h > 0 ? body_h : 0;
       int tx, ty, tw, th;
       const std::string &body_text = *body_;
-      it.get_text_bounds(panel_x + 12, body_y, body_text.c_str(),
+      it.get_text_bounds(body_x, body_y, body_text.c_str(),
                          g_theme.label.font, TextAlign::TOP_LEFT, &tx, &ty, &tw, &th);
       if (tw <= body_w) {
-        ui_print_truncated(it, panel_x + 12, body_y, g_theme.label.font,
+        ui_print_truncated(it, body_x, body_y, g_theme.label.font,
                            text_primary, TextAlign::TOP_LEFT, body_text, body_w);
       } else {
         int line_y = body_y;
@@ -1563,7 +1702,7 @@ class NotificationOverlayWidget : public Widget {
           int best_len = 0;
           for (int len = 1; len <= remaining; len++) {
             std::string sub = body_text.substr(offset, len);
-            it.get_text_bounds(panel_x + 12, line_y, sub.c_str(),
+            it.get_text_bounds(body_x, line_y, sub.c_str(),
                                g_theme.label.font, TextAlign::TOP_LEFT, &tx, &ty, &tw, &th);
             if (tw > body_w) break;
             if (tw > best_w) { best_w = tw; best_len = len; }
@@ -1572,10 +1711,10 @@ class NotificationOverlayWidget : public Widget {
           std::string line = body_text.substr(offset, best_len);
           const bool is_last = offset + best_len >= remaining;
           if (is_last) {
-            ui_print_truncated(it, panel_x + 12, line_y, g_theme.label.font,
+            ui_print_truncated(it, body_x, line_y, g_theme.label.font,
                                text_primary, TextAlign::TOP_LEFT, body_text.substr(offset), body_w);
           } else {
-            it.printf(panel_x + 12, line_y, g_theme.label.font,
+            it.printf(body_x, line_y, g_theme.label.font,
                       text_primary, TextAlign::TOP_LEFT, "%s", line.c_str());
           }
           offset += best_len;
@@ -1585,15 +1724,14 @@ class NotificationOverlayWidget : public Widget {
       }
     }
 
-    const int btn_w = panel_w - 48;
-    const int btn_h = 40;
-    const int btn_x = panel_x + (panel_w - btn_w) / 2;
-    const int btn_y = panel_y + panel_h - btn_h - 16;
-    ui_fast_filled_rectangle(it, btn_x, btn_y, btn_w, btn_h, accent_dim);
-    it.rectangle(btn_x, btn_y, btn_w, btn_h, accent);
+    ui_fast_filled_rectangle(it, nl.dismiss_btn.x, nl.dismiss_btn.y,
+                             nl.dismiss_btn.w, nl.dismiss_btn.h, accent_dim);
+    it.rectangle(nl.dismiss_btn.x, nl.dismiss_btn.y,
+                 nl.dismiss_btn.w, nl.dismiss_btn.h, accent);
     if (g_theme.label.font != nullptr) {
-      it.printf(btn_x + btn_w / 2, btn_y + btn_h / 2, g_theme.label.font,
-                text_primary, TextAlign::CENTER, "Dismiss");
+      it.printf(nl.dismiss_btn.x + nl.dismiss_btn.w / 2,
+                nl.dismiss_btn.y + nl.dismiss_btn.h / 2,
+                g_theme.label.font, text_primary, TextAlign::CENTER, "Dismiss");
     }
 
     last_body_ = body_ != nullptr ? *body_ : std::string();
@@ -1601,6 +1739,48 @@ class NotificationOverlayWidget : public Widget {
   }
 
  private:
+  // ---- Pre-computed layout geometry for the overlay panel ----
+  // One struct drives both the draw and the touch hit-test, so the
+  // painted visuals and the touch targets can never disagree. Magic
+  // numbers from the previous version now come from ui_spacing and
+  // a small set of named constants.
+  struct NotificationLayout {
+    UiRect panel;          // outer card rect (incl. shadow/border)
+    UiRect body;           // body text box
+    UiRect dismiss_btn;    // dismiss button rect
+    int header_h;          // height of the dark header band
+    int icon_cx, icon_cy;  // severity icon center
+    int title_x, title_y;  // top-left of the title text
+    int severity_y;        // top y of the severity label
+  };
+  NotificationLayout compute_layout_() const {
+    NotificationLayout nl;
+    const int panel_w = (display_w_ * 5) / 6;
+    const int panel_h = (display_h_ * 3) / 5;
+    const int panel_x = (display_w_ - panel_w) / 2;
+    const int panel_y = (display_h_ - panel_h) / 2;
+    nl.panel = UiRect{panel_x, panel_y, panel_w, panel_h};
+
+    nl.header_h = 58;
+    const int body_x = panel_x + ui_spacing::xl;
+    const int body_w = panel_w - 2 * ui_spacing::xl;
+    const int body_y = panel_y + nl.header_h + ui_spacing::md;
+    const int btn_h = 40;
+    const int btn_w = panel_w - 2 * (2 * ui_spacing::xl);
+    const int btn_x = panel_x + (panel_w - btn_w) / 2;
+    const int btn_y = panel_y + panel_h - btn_h - (2 * ui_spacing::xl);
+    const int body_h = btn_y - body_y - ui_spacing::md;
+    nl.body = UiRect{body_x, body_y, body_w, body_h > 0 ? body_h : 0};
+    nl.dismiss_btn = UiRect{btn_x, btn_y, btn_w, btn_h};
+
+    nl.icon_cx = panel_x + 36;
+    nl.icon_cy = panel_y + 30;
+    nl.title_x = panel_x + 66;
+    nl.title_y = panel_y + 13;
+    nl.severity_y = panel_y + 38;
+    return nl;
+  }
+
   bool is_visible_state() const {
     if (body_ == nullptr || body_->empty()) return false;
     if (dismissed_ != nullptr && !dismissed_->empty() && *dismissed_ == *body_) return false;
@@ -1645,19 +1825,6 @@ class NotificationOverlayWidget : public Widget {
     if (s == "question") return "QUESTION";
     if (s == "info") return "INFO";
     return "NOTIFICATION";
-  }
-
-  bool hit_test_dismiss(int tx, int ty) const {
-    const int panel_w = (display_w_ * 5) / 6;
-    const int panel_h = (display_h_ * 3) / 5;
-    const int panel_x = (display_w_ - panel_w) / 2;
-    const int panel_y = (display_h_ - panel_h) / 2;
-    const int btn_w = panel_w - 48;
-    const int btn_h = 40;
-    const int btn_x = panel_x + (panel_w - btn_w) / 2;
-    const int btn_y = panel_y + panel_h - btn_h - 16;
-    return tx >= btn_x - 10 && tx <= btn_x + btn_w + 10 &&
-           ty >= btn_y - 10 && ty <= btn_y + btn_h + 10;
   }
 
   const std::string *title_;
@@ -1827,30 +1994,35 @@ class HvacWidget : public Widget {
           *current_temp_ptr_ > 0.0f &&
           !std::isnan(*current_temp_ptr_) && !std::isinf(*current_temp_ptr_);
 
+      // The VStack owns the "center on this y" math. The total height
+      // depends on whether the optional current-temp line is present;
+      // pass that precomputed total directly into the int overload.
       int total_h = target_h + gap + label_h;
       if (has_current) total_h += label_h + gap;
-      int y_cursor = center_y - total_h / 2;
+      VStack stack(center_y, total_h);
 
       if (has_current) {
+        const int y = stack.next(label_h);
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f°", *current_temp_ptr_);
-        it.printf(r.x + w / 2, y_cursor, g_theme.label.font, dim,
+        it.printf(r.x + w / 2, y, g_theme.label.font, dim,
                   TextAlign::TOP_CENTER, "%s", buf);
-        y_cursor += label_h + gap;
+        stack.skip(gap);
       }
 
       if (target_temp_ptr_ && g_theme.header.font != nullptr) {
+        const int y = stack.next(target_h);
         char buf[16];
         snprintf(buf, sizeof(buf), "%.1f°", *target_temp_ptr_);
         const int ttx = r.x + w / 2;
-        it.printf(ttx, y_cursor, g_theme.header.font, text,
+        it.printf(ttx, y, g_theme.header.font, text,
                   TextAlign::TOP_CENTER, "%s", buf);
-        y_cursor += target_h + gap;
+        stack.skip(gap);
 #if UI_THEME_RETRO
         // Bracket the target readout with small L-shaped ticks to make it
         // read as the primary gauge rather than ordinary text.
         int tx, ty, tw, th;
-        it.get_text_bounds(ttx, y_cursor - target_h - gap, buf,
+        it.get_text_bounds(ttx, y, buf,
                            g_theme.header.font, TextAlign::TOP_CENTER,
                            &tx, &ty, &tw, &th);
         const int arm = 4;
@@ -1864,7 +2036,8 @@ class HvacWidget : public Widget {
       }
 
       if (g_theme.label.font != nullptr) {
-        it.printf(r.x + w / 2, y_cursor, g_theme.label.font, dim,
+        const int y = stack.next(label_h);
+        it.printf(r.x + w / 2, y, g_theme.label.font, dim,
                   TextAlign::TOP_CENTER, "Target");
       }
     }
@@ -2246,12 +2419,14 @@ class WeatherWidget : public Widget {
       const int pill_pad = 5;
       const int pill_w = (w - l.pad * 2 - pill_pad * 2) / 3;
 
-      draw_pill(it, r.x + l.pad, pill_top, pill_w, pill_h, "HUM",
-                dp.humidity, "%");
-      draw_pill(it, r.x + l.pad + pill_w + pill_pad, pill_top, pill_w, pill_h,
-                "RAIN", dp.precipitation, " mm");
-      draw_pill(it, r.x + l.pad + (pill_w + pill_pad) * 2, pill_top, pill_w,
-                pill_h, "WIND", dp.wind_speed, " m/s");
+      ui_draw_data_pill(it, r.x + l.pad, pill_top, pill_w, pill_h, "HUM",
+                        dp.humidity, "%", dim_color_, text_color_);
+      ui_draw_data_pill(it, r.x + l.pad + pill_w + pill_pad, pill_top,
+                        pill_w, pill_h, "RAIN", dp.precipitation, " mm",
+                        dim_color_, text_color_);
+      ui_draw_data_pill(it, r.x + l.pad + (pill_w + pill_pad) * 2, pill_top,
+                        pill_w, pill_h, "WIND", dp.wind_speed, " m/s",
+                        dim_color_, text_color_);
     }
   }
 
@@ -2350,35 +2525,8 @@ class WeatherWidget : public Widget {
     }
   }
 
-  void draw_compact_pill_row(display::Display &it, int x, int y, int w,
-                             const char *label_text, const float *value,
-                             const char *unit) {
-    const Color pill_bg(18, 22, 32);
-    const Color pill_border(35, 40, 55);
-
-    const int pill_h = 16;
-    it.filled_rectangle(x, y, w, pill_h, pill_bg);
-    it.rectangle(x, y, w, pill_h, pill_border);
-
-    if (g_theme.label.font == nullptr) return;
-
-    it.printf(x + 2, y + 4, g_theme.label.font, dim_color_,
-              TextAlign::TOP_LEFT, "%s", label_text);
-
-    if (valid_value(value)) {
-      char buf[24];
-      snprintf(buf, sizeof(buf), "%.1f%s", *value, unit ? unit : "");
-      it.printf(x + w - 2, y + 4, g_theme.label.font, text_color_,
-                TextAlign::TOP_RIGHT, "%s", buf);
-    } else {
-      it.printf(x + w - 2, y + 4, g_theme.label.font, dim_color_,
-                TextAlign::TOP_RIGHT, "—");
-    }
-  }
-
   static bool valid_value(const float *p) {
-    return p != nullptr && *p > 0.0f &&
-           !std::isnan(*p) && !std::isinf(*p);
+    return p != nullptr && !std::isnan(*p) && !std::isinf(*p);
   }
 
   static bool changed_value(const float *p, float last) {
@@ -2393,48 +2541,27 @@ class WeatherWidget : public Widget {
     if (p != nullptr) dest = *p;
   }
 
+  struct ConditionMeta {
+    Color color;
+    const char *icon;
+  };
+
+  static const std::map<std::string, ConditionMeta> kWeatherConditions;
+
+  static const ConditionMeta* find_condition(const char *cond) {
+    if (cond == nullptr) return nullptr;
+    auto it = kWeatherConditions.find(cond);
+    return it != kWeatherConditions.end() ? &it->second : nullptr;
+  }
+
   static Color condition_color(const char *cond) {
-    if (cond == nullptr) return Color(180, 190, 210);
-    std::string s(cond);
-    if (s == "sunny") return Color(255, 200, 50);
-    if (s == "clear-night") return Color(70, 90, 160);
-    if (s == "cloudy") return Color(160, 170, 185);
-    if (s == "partlycloudy" || s == "partly_cloudy") return Color(180, 190, 210);
-    if (s == "rainy") return Color(70, 130, 200);
-    if (s == "pouring") return Color(40, 90, 170);
-    if (s == "snowy") return Color(215, 235, 250);
-    if (s == "snowy-rainy") return Color(150, 195, 220);
-    if (s == "snowing" || s == "snow") return Color(210, 230, 245);
-    if (s == "fog") return Color(150, 160, 175);
-    if (s == "hail") return Color(170, 200, 220);
-    if (s == "lightning") return Color(200, 180, 80);
-    if (s == "lightning_rainy") return Color(200, 180, 80);
-    if (s == "windy") return Color(130, 200, 180);
-    if (s == "windy-variant") return Color(140, 180, 185);
-    if (s == "exceptional") return Color(200, 100, 100);
-    return Color(180, 190, 210);
+    const ConditionMeta *m = find_condition(cond);
+    return m ? m->color : Color(180, 190, 210);
   }
 
   static const char *condition_icon(const char *cond) {
-    if (cond == nullptr) return icon_weather_partly_cloudy;
-    std::string s(cond);
-    if (s == "sunny") return icon_weather_sunny;
-    if (s == "clear-night") return icon_weather_night;
-    if (s == "cloudy") return icon_weather_cloudy;
-    if (s == "partlycloudy" || s == "partly_cloudy") return icon_weather_partly_cloudy;
-    if (s == "rainy") return icon_weather_rainy;
-    if (s == "pouring") return icon_weather_pouring;
-    if (s == "snowy") return icon_weather_snowy;
-    if (s == "snowy-rainy") return icon_weather_snowy_rainy;
-    if (s == "snowing" || s == "snow") return icon_weather_snowy;
-    if (s == "fog") return icon_weather_fog;
-    if (s == "hail") return icon_weather_hail;
-    if (s == "lightning") return icon_weather_lightning;
-    if (s == "lightning-rainy" || s == "lightning_rainy") return icon_weather_lightning_rainy;
-    if (s == "windy") return icon_weather_windy;
-    if (s == "windy-variant") return icon_weather_windy_variant;
-    if (s == "exceptional") return icon_weather_tornado;
-    return icon_weather_partly_cloudy;
+    const ConditionMeta *m = find_condition(cond);
+    return m ? m->icon : icon_weather_partly_cloudy;
   }
 
   // ---- MDI weather icon glyphs (UTF-8 C escapes) ----
@@ -2471,32 +2598,6 @@ class WeatherWidget : public Widget {
     }
   }
 
-  void draw_pill(display::Display &it, int x, int y, int w, int h,
-                 const char *label_text, const float *value,
-                 const char *unit) {
-    const Color pill_bg(18, 22, 32);
-    const Color pill_border(35, 40, 55);
-
-    it.filled_rectangle(x, y, w, h, pill_bg);
-    it.rectangle(x, y, w, h, pill_border);
-    it.horizontal_line(x + 1, y + h - 1, w - 1, pill_border);
-
-    if (g_theme.label.font == nullptr) return;
-
-    it.printf(x + w / 2, y + 4, g_theme.label.font, dim_color_,
-              TextAlign::TOP_CENTER, "%s", label_text);
-
-    if (valid_value(value)) {
-      char buf[24];
-      snprintf(buf, sizeof(buf), "%.0f%s", *value, unit ? unit : "");
-      it.printf(x + w / 2, y + 19, g_theme.header.font, text_color_,
-                TextAlign::TOP_CENTER, "%s", buf);
-    } else {
-      it.printf(x + w / 2, y + 19, g_theme.header.font, dim_color_,
-                TextAlign::TOP_CENTER, "—");
-    }
-  }
-
   UiRect rect_;
   const char *label_;
   std::string entity_id_;
@@ -2529,6 +2630,31 @@ const char WeatherWidget::icon_weather_sunny[]            = "\xF3\xB0\x96\x99";
 const char WeatherWidget::icon_weather_tornado[]          = "\xF3\xB0\xBC\xB8";
 const char WeatherWidget::icon_weather_windy[]            = "\xF3\xB0\x96\x9D";
 const char WeatherWidget::icon_weather_windy_variant[]    = "\xF3\xB0\x96\x9E";
+
+// Single source of truth for weather-condition colour + icon. Both
+// condition_color() and condition_icon() look up from this table so
+// adding a new condition only requires one line.
+const std::map<std::string, WeatherWidget::ConditionMeta> WeatherWidget::kWeatherConditions = {
+  {"sunny",           {Color(255, 200, 50), WeatherWidget::icon_weather_sunny}},
+  {"clear-night",     {Color(70, 90, 160),  WeatherWidget::icon_weather_night}},
+  {"cloudy",          {Color(160, 170, 185),WeatherWidget::icon_weather_cloudy}},
+  {"partlycloudy",    {Color(180, 190, 210),WeatherWidget::icon_weather_partly_cloudy}},
+  {"partly_cloudy",   {Color(180, 190, 210),WeatherWidget::icon_weather_partly_cloudy}},
+  {"rainy",           {Color(70, 130, 200), WeatherWidget::icon_weather_rainy}},
+  {"pouring",         {Color(40, 90, 170),  WeatherWidget::icon_weather_pouring}},
+  {"snowy",           {Color(215, 235, 250),WeatherWidget::icon_weather_snowy}},
+  {"snowy-rainy",     {Color(150, 195, 220),WeatherWidget::icon_weather_snowy_rainy}},
+  {"snowing",         {Color(210, 230, 245),WeatherWidget::icon_weather_snowy}},
+  {"snow",            {Color(210, 230, 245),WeatherWidget::icon_weather_snowy}},
+  {"fog",             {Color(150, 160, 175),WeatherWidget::icon_weather_fog}},
+  {"hail",            {Color(170, 200, 220),WeatherWidget::icon_weather_hail}},
+  {"lightning",       {Color(200, 180, 80), WeatherWidget::icon_weather_lightning}},
+  {"lightning_rainy", {Color(200, 180, 80), WeatherWidget::icon_weather_lightning_rainy}},
+  {"lightning-rainy", {Color(200, 180, 80), WeatherWidget::icon_weather_lightning_rainy}},
+  {"windy",           {Color(130, 200, 180),WeatherWidget::icon_weather_windy}},
+  {"windy-variant",   {Color(140, 180, 185),WeatherWidget::icon_weather_windy_variant}},
+  {"exceptional",     {Color(200, 100, 100),WeatherWidget::icon_weather_tornado}},
+};
 
 class LoadingWidget : public Widget {
  public:
