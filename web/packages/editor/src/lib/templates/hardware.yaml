@@ -117,10 +117,3 @@ display:
       blue: [4, 5, 6, 7, 15]
     lambda: |-
       render_basic_ui(it);
-
-switch:
-  - platform: gpio
-    name: Relay 2
-    pin:
-      number: GPIO2
-      inverted: true
