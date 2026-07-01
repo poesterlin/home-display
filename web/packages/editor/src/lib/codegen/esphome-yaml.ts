@@ -114,6 +114,7 @@ function generateOnlineImagesYAML(project: Project): string {
     const fallbackFormat = primaryFormat === "jpeg" ? "png" : "jpeg";
     const primaryId = imageIdFromComponentId(c.id);
     const fallbackId = imageFallbackIdFromComponentId(c.id);
+    const preferFallbackId = `${primaryId}_prefer_fallback`;
     lines.push(`  - url: "http://127.0.0.1/"`);
     lines.push(`    id: ${primaryId}`);
     lines.push(`    format: ${primaryFormat}`);
@@ -124,6 +125,7 @@ function generateOnlineImagesYAML(project: Project): string {
     lines.push(`    on_download_finished:`);
     lines.push(`      then:`);
     lines.push(`        - lambda: |-`);
+    lines.push(`            id(${preferFallbackId}) = false;`);
     lines.push(`            if (g_ui_app.state().image_bootstrap_active) {`);
     lines.push(`              g_ui_app.state().online_images_completed++;`);
     lines.push(`              const int done = g_ui_app.state().online_images_completed + g_ui_app.state().online_images_failed;`);
@@ -136,6 +138,7 @@ function generateOnlineImagesYAML(project: Project): string {
     lines.push(`    on_error:`);
     lines.push(`      then:`);
     lines.push(`        - lambda: |-`);
+    lines.push(`            id(${preferFallbackId}) = true;`);
     lines.push(`            id(${fallbackId}).update();`);
     lines.push(`            UiRedraw::trigger_display_update();`);
 
@@ -149,6 +152,7 @@ function generateOnlineImagesYAML(project: Project): string {
     lines.push(`    on_download_finished:`);
     lines.push(`      then:`);
     lines.push(`        - lambda: |-`);
+    lines.push(`            id(${preferFallbackId}) = true;`);
     lines.push(`            if (g_ui_app.state().image_bootstrap_active) {`);
     lines.push(`              g_ui_app.state().online_images_completed++;`);
     lines.push(`              const int done = g_ui_app.state().online_images_completed + g_ui_app.state().online_images_failed;`);
@@ -161,6 +165,7 @@ function generateOnlineImagesYAML(project: Project): string {
     lines.push(`    on_error:`);
     lines.push(`      then:`);
     lines.push(`        - lambda: |-`);
+    lines.push(`            id(${preferFallbackId}) = false;`);
     lines.push(`            if (g_ui_app.state().image_bootstrap_active) {`);
     lines.push(`              g_ui_app.state().online_images_failed++;`);
     lines.push(`              const int done = g_ui_app.state().online_images_completed + g_ui_app.state().online_images_failed;`);
@@ -172,6 +177,18 @@ function generateOnlineImagesYAML(project: Project): string {
     lines.push(`            UiRedraw::trigger_display_update();`);
   }
   return lines.length > 0 ? `\nonline_image:\n${lines.join('\n')}\n` : '';
+}
+
+function generateOnlineImageFormatGlobals(project: Project): string {
+  const lines: string[] = [];
+  for (const c of collectImageComponents(project)) {
+    if (!isHomeAssistantImage(c) || !c.imageBinding?.entityId) continue;
+    lines.push(`  - id: ${imageIdFromComponentId(c.id)}_prefer_fallback`);
+    lines.push(`    type: bool`);
+    lines.push(`    restore_value: no`);
+    lines.push(`    initial_value: "false"`);
+  }
+  return lines.length > 0 ? `\n${lines.join('\n')}` : '';
 }
 
 function hasOnlineImages(project: Project): boolean {
@@ -279,7 +296,8 @@ function generateBindings(project: Project): string {
     const key = `${entityId}::${attribute}::${imageIdFromComponentId(ic.id)}`;
     if (claimed.has(key)) continue;
     claimed.add(key);
-    lines.push(`          bind_ha_image_url("${escapeCString(entityId)}", "${escapeCString(attribute)}", id(${imageIdFromComponentId(ic.id)}), id(${imageFallbackIdFromComponentId(ic.id)}));`);
+    const imageId = imageIdFromComponentId(ic.id);
+    lines.push(`          bind_ha_image_url("${escapeCString(entityId)}", "${escapeCString(attribute)}", id(${imageId}), id(${imageFallbackIdFromComponentId(ic.id)}), &id(${imageId}_prefer_fallback));`);
   }
 
   for (const f of (project.state?.fields ?? []) as StateField[]) {
@@ -521,6 +539,7 @@ export function generateESPHomeYAML(project: Project, firmwareVersion?: string):
     : '';
   const imageYaml = generateStaticImagesYAML(project);
   const onlineImageYaml = generateOnlineImagesYAML(project);
+  const onlineImageFormatGlobals = generateOnlineImageFormatGlobals(project);
   const httpRequestYaml = httpRequestEnabled
     ? `\nhttp_request:\n  verify_ssl: false\n  timeout: 10s\n`
     : '';
@@ -579,8 +598,8 @@ ota:
     : '';
   const imageHelperCapture = homeAssistantBaseUrlEnabled ? '[ha_base_url]' : '[]';
   const imageCallbackCapture = homeAssistantBaseUrlEnabled
-    ? '[primary, fallback, ha_base_url]'
-    : '[primary, fallback]';
+    ? '[primary, fallback, prefer_fallback, ha_base_url]'
+    : '[primary, fallback, prefer_fallback]';
   const relativeImageHandling = homeAssistantBaseUrlEnabled
     ? `
                   if (url.rfind("/", 0) == 0) {
@@ -590,7 +609,7 @@ ota:
                   if (url.rfind("/", 0) == 0) return;`;
   const imageBindingHelper = onlineImagesEnabled
     ? `
-          auto bind_ha_image_url = ${imageHelperCapture}(const std::string& entity_id, const std::string& attribute, auto *primary, auto *fallback) {
+          auto bind_ha_image_url = ${imageHelperCapture}(const std::string& entity_id, const std::string& attribute, auto *primary, auto *fallback, bool *prefer_fallback) {
             auto *api = esphome::api::global_api_server;
             if (api == nullptr) return;
             api->subscribe_home_assistant_state(
@@ -602,7 +621,11 @@ ${relativeImageHandling}
                   if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) return;
                   primary->set_url(url);
                   fallback->set_url(url);
-                  primary->update();
+                  if (prefer_fallback != nullptr && *prefer_fallback) {
+                    fallback->update();
+                  } else {
+                    primary->update();
+                  }
                   UiRedraw::trigger_display_update();
                 });
           };
@@ -804,6 +827,7 @@ globals:
     type: int
     restore_value: no
     initial_value: "0"
+${onlineImageFormatGlobals}
 ${screenshotIdForwardDecl}
 
 touchscreen:
