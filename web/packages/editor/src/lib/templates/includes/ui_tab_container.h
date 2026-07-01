@@ -34,6 +34,18 @@ class TabContainerWidget : public Widget {
 
   UiRect bounds() const override { return screen_rect(rect_); }
 
+  void enter() override {
+    if (active_tab_ >= 0 && active_tab_ < static_cast<int>(tabs_.size())) {
+      for (auto &w : tabs_[active_tab_].widgets) w->enter();
+    }
+  }
+
+  void exit() override {
+    if (active_tab_ >= 0 && active_tab_ < static_cast<int>(tabs_.size())) {
+      for (auto &w : tabs_[active_tab_].widgets) w->exit();
+    }
+  }
+
   void draw(display::Display &it, const UiState &state) override {
     const UiRect r = screen_rect(rect_);
     const bool full = UiInvalidation::is_full_dirty();

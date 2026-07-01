@@ -459,6 +459,7 @@ class ImageWidget : public Widget {
  public:
   const char *widget_label() const override { return "Image"; }
   using Callback = std::function<void()>;
+  using OnlineLoader = std::function<void(const std::string&)>;
 
   static constexpr int TILE_ROWS = 32;
 
@@ -489,7 +490,43 @@ class ImageWidget : public Widget {
 
   void set_bg_color(Color c) { bg_color_ = c; }
 
+  bool is_ready() const {
+    return select_image_() != nullptr && select_image_()->get_data_start() != nullptr;
+  }
+
+  bool is_active() const { return active_; }
+
+  void set_online_loader(OnlineLoader loader) {
+    online_loader_ = std::move(loader);
+  }
+
+  void set_online_url(const std::string &url) {
+    if (url.empty() || url == online_url_) return;
+    online_url_ = url;
+    online_pending_ = true;
+    if (active_ && is_visible_for_lazy_()) update_online_image_();
+  }
+
   UiRect bounds() const override { return screen_rect(rect_); }
+
+  void enter() override {
+    active_ = is_visible_for_lazy_();
+    if (active_ && online_pending_) update_online_image_();
+  }
+
+  void exit() override { active_ = false; }
+
+  void update(uint32_t now) override {
+    (void)now;
+    const bool visible = is_visible_for_lazy_();
+    if (visible != active_) {
+      active_ = visible;
+      if (active_ && online_pending_) update_online_image_();
+    } else if (active_ && online_pending_) {
+      update_online_image_();
+    }
+    Widget::update(now);
+  }
 
   bool handle_touch(const TouchEvent &event, uint32_t now) override {
     (void)now;
@@ -549,6 +586,21 @@ class ImageWidget : public Widget {
     return fallback_image_;
   }
 
+  bool is_visible_for_lazy_() const {
+    if (visibility_check_ && !visibility_check_()) return false;
+    return true;
+  }
+
+  void update_online_image_() {
+    if (online_url_.empty() || !online_loader_) return;
+    online_pending_ = false;
+    fully_rendered_ = false;
+    deferred_ = false;
+    tile_row_ = 0;
+    online_loader_(online_url_);
+    UiRedraw::trigger_display_update();
+  }
+
   void render_tile(display::Display &it, const UiState &state, esphome::image::Image *img) {
     const int iw = img->get_width();
     const int ih = img->get_height();
@@ -604,8 +656,12 @@ class ImageWidget : public Widget {
   Color color_off_;
   Color bg_color_{RetroColors::VOID};
   Callback tap_callback_;
+  OnlineLoader online_loader_;
+  std::string online_url_;
   bool fully_rendered_ = false;
   bool deferred_ = false;
+  bool active_ = false;
+  bool online_pending_ = false;
   int tile_row_ = 0;
 };
 
@@ -2719,7 +2775,6 @@ class LoadingWidget : public Widget {
   static constexpr uint32_t loading_redraw_interval_ms = 200;
   uint32_t last_dirty_ms_ = 0;
   mutable bool loading_visible_ = true;
-};
 };
 
 #include "ui_tab_container.h"
