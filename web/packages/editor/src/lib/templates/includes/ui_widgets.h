@@ -2400,7 +2400,7 @@ class WeatherWidget : public Widget {
 
     if (valid_value(value)) {
       char buf[24];
-      snprintf(buf, sizeof(buf), "%.1f%s", *value, unit ? unit : "");
+      snprintf(buf, sizeof(buf), "%.0f%s", *value, unit ? unit : "");
       it.printf(x + w / 2, y + 21, g_theme.header.font, text_color_,
                 TextAlign::TOP_CENTER, "%s", buf);
     } else {
